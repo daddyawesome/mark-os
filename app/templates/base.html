@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#163b26">
+    <title>{% block title %}MARK OS{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+    <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+</head>
+<body class="forest-body">
+    <div class="forest-shell">
+        <header class="navbar is-transparent px-4 py-3">
+            <div class="container">
+                <div class="navbar-brand">
+                    <a class="navbar-item has-text-weight-bold is-size-4 has-text-white" href="/">
+                        MARK OS
+                        <span class="tag is-success is-light ml-3">v0.1</span>
+                    </a>
+                </div>
+                <div class="navbar-menu is-active">
+                    <div class="navbar-end">
+                        <a class="navbar-item has-text-white" href="/">Today</a>
+                        <a class="navbar-item has-text-white" href="/history">History</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="container pb-6">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>

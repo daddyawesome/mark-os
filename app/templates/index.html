@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Today · MARK OS{% endblock %}
+
+{% block content %}
+<section class="hero is-small forest-hero mb-5">
+    <div class="hero-body">
+        <div class="columns is-vcentered">
+            <div class="column is-two-thirds">
+                <p class="eyebrow">PERSONAL OPERATING SYSTEM</p>
+                <h1 class="title is-1 has-text-weight-bold has-text-white">Good day, {{ profile.name }}.</h1>
+                <p class="subtitle is-5 has-text-white-ter">Observe reality. Decide what matters. Do the next right thing.</p>
+            </div>
+            <div class="column is-one-third">
+                <div class="forest-pill has-text-centered">
+                    <span class="is-block has-text-weight-semibold has-text-white">{{ checkin_count }} check-in{% if checkin_count != 1 %}s{% endif %} recorded</span>
+                    <small class="has-text-white-ter">steady signal, clear mind</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="columns is-multiline mb-5">
+    <div class="column is-6-tablet is-3-desktop">
+        <article class="box forest-card">
+            <p class="has-text-weight-semibold has-text-grey">💰 Latest cash</p>
+            <h2 class="title is-4 mt-2 mb-0">
+                {% if latest_checkin and latest_checkin.cash is not none %}
+                    ₱{{ "{:,.0f}".format(latest_checkin.cash) }}
+                {% else %}
+                    Not recorded
+                {% endif %}
+            </h2>
+        </article>
+    </div>
+    <div class="column is-6-tablet is-3-desktop">
+        <article class="box forest-card">
+            <p class="has-text-weight-semibold has-text-grey">⏱ Available today</p>
+            <h2 class="title is-4 mt-2 mb-0">{% if latest_checkin %}{{ latest_checkin.free_hours }} hours{% else %}Not recorded{% endif %}</h2>
+        </article>
+    </div>
+    <div class="column is-6-tablet is-3-desktop">
+        <article class="box forest-card">
+            <p class="has-text-weight-semibold has-text-grey">⚡ Energy</p>
+            <h2 class="title is-4 mt-2 mb-0">{% if latest_checkin %}{{ latest_checkin.energy }}/5{% else %}Not recorded{% endif %}</h2>
+        </article>
+    </div>
+    <div class="column is-6-tablet is-3-desktop">
+        <article class="box forest-card">
+            <p class="has-text-weight-semibold has-text-grey">🏗 Active project</p>
+            <h2 class="title is-4 mt-2 mb-0">{{ projects[0].name if projects else "None" }}</h2>
+        </article>
+    </div>
+</div>
+
+<div class="columns">
+    <div class="column is-7">
+        {% include "partials/direction.html" %}
+
+        <section class="box forest-card mt-4">
+            <div class="is-flex is-justify-content-space-between is-align-items-center mb-3">
+                <div>
+                    <p class="eyebrow">ACTIVE PROJECT</p>
+                    <h2 class="title is-5 mb-0">{{ projects[0].name if projects else "No active project" }}</h2>
+                </div>
+                {% if projects %}<span class="tag is-success is-light">{{ projects[0].progress }}%</span>{% endif %}
+            </div>
+            {% if projects %}
+                <div class="progress-track"><div class="progress-fill" style="width: {{ projects[0].progress }}%"></div></div>
+                <p class="mb-3 has-text-grey">{{ projects[0].purpose }}</p>
+                <div class="notification is-success is-light mb-0"><strong>Next action:</strong> {{ projects[0].next_action }}</div>
+            {% endif %}
+        </section>
+    </div>
+
+    <aside class="column is-5">
+        <section class="box forest-card">
+            <p class="eyebrow">DAILY INPUT</p>
+            <h2 class="title is-5">Tell MARK OS where you are.</h2>
+            <form hx-post="/check-in" hx-target="#direction-panel" hx-swap="outerHTML">
+                <div class="field">
+                    <label class="label">Cash on hand (PHP)</label>
+                    <div class="control">
+                        <input class="input" type="number" name="cash" step="0.01" min="0" placeholder="e.g. 37759">
+                    </div>
+                </div>
+
+                <div class="columns">
+                    <div class="column">
+                        <div class="field">
+                            <label class="label">Expenses today</label>
+                            <div class="control">
+                                <input class="input" type="number" name="expenses" step="0.01" min="0" value="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="field">
+                            <label class="label">Free hours today</label>
+                            <div class="control">
+                                <input class="input" type="number" name="free_hours" step="0.25" min="0" value="2">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">Energy (1 low → 5 high)</label>
+                    <div class="control">
+                        <input class="input" type="range" name="energy" min="1" max="5" value="3">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">What did you accomplish?</label>
+                    <div class="control">
+                        <textarea class="textarea" name="accomplished" rows="3" placeholder="Be honest. Small wins count."></textarea>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">What is blocking you?</label>
+                    <div class="control">
+                        <textarea class="textarea" name="blocker" rows="3" placeholder="The real obstacle, not the polite version."></textarea>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">Notes</label>
+                    <div class="control">
+                        <textarea class="textarea" name="notes" rows="2" placeholder="Optional context"></textarea>
+                    </div>
+                </div>
+
+                <button class="button is-success is-fullwidth" type="submit">Generate My Direction</button>
+                <p class="form-note mt-3">v0.1 uses transparent Python rules. AI comes later, after the data loop proves useful.</p>
+            </form>
+        </section>
+
+        <section class="box forest-card mt-4">
+            <p class="eyebrow">NORTH STAR</p>
+            <h2 class="title is-5">Active goals</h2>
+            {% for goal in goals %}
+                <div class="goal-row">
+                    <span>{{ goal.title }}</span>
+                    <span class="tag is-success is-light">P{{ goal.priority }}</span>
+                </div>
+            {% endfor %}
+        </section>
+    </aside>
+</div>
+{% endblock %}

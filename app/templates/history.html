@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}History · MARK OS{% endblock %}
+
+{% block content %}
+<section class="hero is-small forest-hero mb-5">
+    <div class="hero-body">
+        <div>
+            <p class="eyebrow">EVIDENCE LOG</p>
+            <h1 class="title is-2 has-text-weight-bold">What actually happened.</h1>
+            <p class="subtitle is-5 has-text-grey-dark">MARK OS should learn from behavior and outcomes, not from wishful thinking.</p>
+        </div>
+    </div>
+</section>
+
+<section class="box forest-card">
+    {% if rows %}
+        <div class="history-list">
+            {% for row in rows %}
+                <article class="forest-history-item">
+                    <div class="history-date">{{ row.checkin_date }}</div>
+                    <div>
+                        <strong class="is-block">{{ row.main_quest or "No direction recorded" }}</strong>
+                        <p class="mb-1">{{ row.accomplished or "No accomplishment recorded." }}</p>
+                        {% if row.blocker %}<small>Blocker: {{ row.blocker }}</small>{% endif %}
+                    </div>
+                    <div class="history-meta">
+                        <span class="tag is-success is-light">{{ row.free_hours }}h</span>
+                        <span class="tag is-success is-light">Energy {{ row.energy }}/5</span>
+                        {% if row.signal %}<span class="tag is-success is-light">{{ row.signal }}</span>{% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="mb-0 has-text-grey">No evidence yet. Return to Today and complete the first check-in.</p>
+    {% endif %}
+</section>
+{% endblock %}
