@@ -250,7 +250,18 @@ def init_db() -> None:
         _ensure_column(db, "tasks", "why", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(db, "tasks", "blocked_reason", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(db, "tasks", "evidence", "TEXT NOT NULL DEFAULT ''")
-        _ensure_column(db, "tasks", "updated_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+        # SQLite does not allow ALTER TABLE ADD COLUMN with a
+        # non-constant CURRENT_TIMESTAMP default. Add the column plainly,
+        # then backfill existing rows in a separate statement.
+        _ensure_column(db, "tasks", "updated_at", "TEXT")
+
+        db.execute(
+            """
+            UPDATE tasks
+            SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)
+            WHERE updated_at IS NULL OR updated_at = ''
+            """
+        )
 
         _ensure_column(db, "quest_updates", "session_minutes", "INTEGER")
         _ensure_column(db, "quest_updates", "blocker_reason", "TEXT NOT NULL DEFAULT ''")
