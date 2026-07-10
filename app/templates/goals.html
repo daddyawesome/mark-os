@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Goals · MARK OS{% endblock %}
+{% block content %}
+<section class="mb-6">
+    <div class="columns is-vcentered">
+        <div class="column is-8">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">GOALS // PROJECTS // TASKS</p>
+            <h1 class="title is-1 has-text-light mb-3">Every quest should know why it exists.</h1>
+            <p class="subtitle is-5 has-text-grey-light">Life Area → Goal → Project → Task → Quest → Today. The Director weighs a quest's real priority by what goal it actually serves.</p>
+        </div>
+    </div>
+</section>
+
+<div class="columns is-variable is-5">
+    <div class="column is-8">
+        {% for goal in goals %}
+        <section class="box has-background-black-ter mb-5">
+            <div class="level mb-4">
+                <div class="level-left">
+                    <div>
+                        <div class="tags mb-2">
+                            <span class="tag is-dark">{{ goal.category|upper }}</span>
+                            <span class="tag {% if goal.status == 'active' %}is-success is-dark{% else %}is-dark{% endif %}">{{ goal.status|upper }}</span>
+                        </div>
+                        <h2 class="title is-4 has-text-light mb-0">{{ goal.title }}</h2>
+                    </div>
+                </div>
+                <div class="level-right"><span class="tag is-success is-light is-medium is-family-monospace">P{{ goal.priority }}</span></div>
+            </div>
+
+            {% if goal.projects %}
+            {% for project in goal.projects %}
+            <div class="box has-background-black-bis mb-3">
+                <div class="level is-mobile mb-2">
+                    <div class="level-left"><strong class="has-text-light">{{ project.name }}</strong></div>
+                    <div class="level-right"><span class="tag is-dark">{{ project.progress }}%</span></div>
+                </div>
+                <p class="is-size-7 has-text-grey-light is-family-monospace">
+                    {{ project.open_quests }} OPEN QUEST{% if project.open_quests != 1 %}S{% endif %} ·
+                    {{ project.completed_quests }} COMPLETED
+                </p>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if goal.direct_quests %}
+            {% for quest in goal.direct_quests %}
+            <a class="box has-background-black-bis has-text-light mb-3" href="/quests/{{ quest.id }}">
+                <div class="level is-mobile mb-0">
+                    <div class="level-left">
+                        <div class="tags mb-0">
+                            <span class="tag is-dark">{{ quest.status|upper }}</span>
+                            <span class="has-text-light ml-2">{{ quest.title }}</span>
+                        </div>
+                    </div>
+                    <div class="level-right"><span class="tag is-success is-light">+{{ quest.xp_reward }} XP</span></div>
+                </div>
+            </a>
+            {% endfor %}
+            {% endif %}
+
+            {% if not goal.projects and not goal.direct_quests %}
+            <div class="notification is-dark">No project or quest linked to this goal yet.</div>
+            {% endif %}
+        </section>
+        {% else %}
+        <div class="notification is-dark">No goals yet. Create the first one.</div>
+        {% endfor %}
+    </div>
+
+    <aside class="column is-4">
+        <section class="box has-background-black-ter mb-5">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">NEW GOAL</p>
+            <h2 class="title is-5 has-text-light">Name the outcome.</h2>
+            <form method="post" action="/goals">
+                <div class="field">
+                    <label class="label has-text-grey-light">Title</label>
+                    <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="text" name="title" required placeholder="e.g. Build a 3-month cash runway"></div>
+                </div>
+                <div class="field">
+                    <label class="label has-text-grey-light">Category</label>
+                    <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="text" name="category" placeholder="wealth, business, career, family, health"></div>
+                </div>
+                <div class="field">
+                    <label class="label has-text-grey-light">Priority (1-10)</label>
+                    <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="number" name="priority" min="1" max="10" value="5"></div>
+                </div>
+                <button class="button is-success is-fullwidth has-text-weight-bold" type="submit">Create Goal</button>
+            </form>
+        </section>
+
+        {% if unlinked_projects %}
+        <section class="box has-background-black-ter">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">UNLINKED PROJECTS</p>
+            <h2 class="title is-5 has-text-light">These don't support a goal yet.</h2>
+            {% for project in unlinked_projects %}
+            <form method="post" action="/projects/{{ project.id }}/link-goal" class="box has-background-black-bis mb-3">
+                <p class="has-text-light mb-3">{{ project.name }}</p>
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <div class="select is-success is-fullwidth">
+                            <select class="has-background-black-ter has-text-light" name="goal_id">
+                                <option value="">No goal</option>
+                                {% for goal in goals %}<option value="{{ goal.id }}">{{ goal.title }}</option>{% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="control">
+                        <button class="button is-success" type="submit">Link</button>
+                    </div>
+                </div>
+            </form>
+            {% endfor %}
+        </section>
+        {% endif %}
+    </aside>
+</div>
+{% endblock %}

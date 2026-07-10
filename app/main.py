@@ -79,6 +79,56 @@ def _optional_int(value: str | None) -> int | None:
         return None
 
 
+def _compute_effective_priority(quest: dict) -> float:
+    """
+    Blend task priority with the project's priority and, through the
+    project or a direct link, the real goal's priority. A quest tied to
+    a top-priority goal scores higher even if its own priority field
+    was left at the default.
+    """
+    task_priority = quest.get("priority") or 5
+    project_priority = quest.get("project_priority")
+    goal_priority = quest.get("goal_priority")
+
+    weighted = task_priority * 0.5
+    weight_total = 0.5
+    if project_priority is not None:
+        weighted += project_priority * 0.3
+        weight_total += 0.3
+    if goal_priority is not None:
+        weighted += goal_priority * 0.2
+        weight_total += 0.2
+
+    return round(weighted / weight_total, 2)
+
+
+def _load_open_quests(db) -> list[dict]:
+    """Open (non-completed) quests, each carrying its project/goal chain
+    so the Director can score by effective priority, not just task.priority."""
+    rows = db.execute(
+        """
+        SELECT
+            t.*,
+            p.name AS project_name,
+            p.priority AS project_priority,
+            p.goal_id AS project_goal_id,
+            COALESCE(gt.priority, gp.priority) AS goal_priority,
+            COALESCE(gt.title, gp.title) AS goal_title
+        FROM tasks t
+        LEFT JOIN projects p ON p.id = t.project_id
+        LEFT JOIN goals gt ON gt.id = t.goal_id
+        LEFT JOIN goals gp ON gp.id = p.goal_id
+        WHERE t.status != 'completed'
+        ORDER BY t.priority DESC, t.id
+        """
+    ).fetchall()
+
+    quests = [dict(row) for row in rows]
+    for quest in quests:
+        quest["effective_priority"] = _compute_effective_priority(quest)
+    return quests
+
+
 def load_system_state(db) -> dict:
     game_state = db.execute("SELECT * FROM game_state WHERE id = 1").fetchone()
     return {
@@ -261,8 +311,13 @@ def create_checkin(
             """
         ).fetchone()
 
+        open_quests = _load_open_quests(db)
+
         direction = choose_direction(
-            dict(checkin), dict(project) if project else None, previous_cash
+            dict(checkin),
+            dict(project) if project else None,
+            previous_cash,
+            open_quests,
         )
         db.execute(
             """
@@ -301,9 +356,14 @@ def quests(request: Request):
     with get_db() as db:
         rows = db.execute(
             """
-            SELECT t.*, p.name AS project_name
+            SELECT
+                t.*,
+                p.name AS project_name,
+                COALESCE(gt.title, gp.title) AS goal_title
             FROM tasks t
             LEFT JOIN projects p ON p.id = t.project_id
+            LEFT JOIN goals gt ON gt.id = t.goal_id
+            LEFT JOIN goals gp ON gp.id = p.goal_id
             ORDER BY CASE t.status
                         WHEN 'active' THEN 0
                         WHEN 'backlog' THEN 1
@@ -317,6 +377,9 @@ def quests(request: Request):
         projects = db.execute(
             "SELECT id, name FROM projects WHERE status = 'active' ORDER BY priority DESC, id"
         ).fetchall()
+        goals = db.execute(
+            "SELECT id, title FROM goals WHERE status = 'active' ORDER BY priority DESC, id"
+        ).fetchall()
         system_state = load_system_state(db)
 
     return templates.TemplateResponse(
@@ -325,6 +388,7 @@ def quests(request: Request):
         context={
             "quests": rows,
             "projects": projects,
+            "goals": goals,
             "system_state": system_state,
             "xp_rewards": XP_BY_DIFFICULTY,
         },
@@ -336,6 +400,7 @@ def create_quest(
     title: str = Form(...),
     description: str = Form(default=""),
     project_id: str = Form(default=""),
+    goal_id: str = Form(default=""),
     difficulty: str = Form(default="normal"),
     estimated_minutes: str = Form(default=""),
     due_date: str = Form(default=""),
@@ -347,18 +412,20 @@ def create_quest(
     clean_difficulty = normalize_difficulty(difficulty)
     xp_reward = xp_for_difficulty(clean_difficulty)
     parsed_project_id = _optional_int(project_id)
+    parsed_goal_id = _optional_int(goal_id) if not parsed_project_id else None
     parsed_minutes = _optional_int(estimated_minutes)
 
     with get_db() as db:
         db.execute(
             """
             INSERT INTO tasks
-            (project_id, title, description, status, priority, estimated_minutes,
+            (project_id, goal_id, title, description, status, priority, estimated_minutes,
              due_date, difficulty, xp_reward, progress)
-            VALUES (?, ?, ?, 'backlog', 5, ?, ?, ?, ?, 0)
+            VALUES (?, ?, ?, ?, 'backlog', 5, ?, ?, ?, ?, 0)
             """,
             (
                 parsed_project_id,
+                parsed_goal_id,
                 clean_title,
                 description.strip(),
                 parsed_minutes,
@@ -376,9 +443,14 @@ def quest_detail(request: Request, quest_id: int):
     with get_db() as db:
         quest = db.execute(
             """
-            SELECT t.*, p.name AS project_name
+            SELECT
+                t.*,
+                p.name AS project_name,
+                COALESCE(gt.title, gp.title) AS goal_title
             FROM tasks t
             LEFT JOIN projects p ON p.id = t.project_id
+            LEFT JOIN goals gt ON gt.id = t.goal_id
+            LEFT JOIN goals gp ON gp.id = p.goal_id
             WHERE t.id = ?
             """,
             (quest_id,),
@@ -749,6 +821,101 @@ def life_os(request: Request):
             "system_state": system_state,
         },
     )
+
+
+@app.get("/goals", response_class=HTMLResponse)
+def goals_page(request: Request):
+    with get_db() as db:
+        goal_rows = db.execute(
+            "SELECT * FROM goals ORDER BY status ASC, priority DESC, id"
+        ).fetchall()
+
+        goals_view = []
+        for goal in goal_rows:
+            goal_dict = dict(goal)
+            goal_dict["projects"] = [
+                dict(row)
+                for row in db.execute(
+                    """
+                    SELECT p.*,
+                        (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status != 'completed') AS open_quests,
+                        (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'completed') AS completed_quests
+                    FROM projects p
+                    WHERE p.goal_id = ?
+                    ORDER BY p.priority DESC, p.id
+                    """,
+                    (goal["id"],),
+                ).fetchall()
+            ]
+            goal_dict["direct_quests"] = [
+                dict(row)
+                for row in db.execute(
+                    """
+                    SELECT * FROM tasks
+                    WHERE goal_id = ? AND project_id IS NULL
+                    ORDER BY status ASC, priority DESC, id
+                    """,
+                    (goal["id"],),
+                ).fetchall()
+            ]
+            goals_view.append(goal_dict)
+
+        unlinked_projects = db.execute(
+            "SELECT id, name FROM projects WHERE goal_id IS NULL ORDER BY priority DESC, id"
+        ).fetchall()
+        system_state = load_system_state(db)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="goals.html",
+        context={
+            "goals": goals_view,
+            "unlinked_projects": unlinked_projects,
+            "system_state": system_state,
+        },
+    )
+
+
+@app.post("/goals")
+def create_goal(
+    title: str = Form(...),
+    category: str = Form(default="general"),
+    priority: int = Form(default=5),
+):
+    clean_title = title.strip()
+    if not clean_title:
+        return RedirectResponse(url="/goals", status_code=303)
+
+    safe_priority = max(1, min(10, priority))
+
+    with get_db() as db:
+        db.execute(
+            """
+            INSERT INTO goals (title, category, priority)
+            SELECT ?, ?, ?
+            WHERE NOT EXISTS (SELECT 1 FROM goals WHERE title = ?)
+            """,
+            (clean_title, category.strip() or "general", safe_priority, clean_title),
+        )
+
+    return RedirectResponse(url="/goals", status_code=303)
+
+
+@app.post("/projects/{project_id}/link-goal")
+def link_project_goal(project_id: int, goal_id: str = Form(default="")):
+    parsed_goal_id = _optional_int(goal_id)
+
+    with get_db() as db:
+        project = db.execute("SELECT id FROM projects WHERE id = ?", (project_id,)).fetchone()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        db.execute(
+            "UPDATE projects SET goal_id = ? WHERE id = ?",
+            (parsed_goal_id, project_id),
+        )
+
+    return RedirectResponse(url="/goals", status_code=303)
 
 
 @app.get("/health")

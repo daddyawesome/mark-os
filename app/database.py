@@ -214,6 +214,13 @@ def init_db() -> None:
         _ensure_column(db, "tasks", "result_notes", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(db, "tasks", "actual_minutes", "INTEGER")
 
+        # Phase 6: Goals -> Projects -> Tasks. Projects can belong to a goal,
+        # and standalone tasks (no project) can link to a goal directly.
+        # Nullable, so nothing existing breaks; priority still inherits
+        # only where a link exists.
+        _ensure_column(db, "projects", "goal_id", "INTEGER REFERENCES goals(id)")
+        _ensure_column(db, "tasks", "goal_id", "INTEGER REFERENCES goals(id)")
+
         db.execute(
             """
             INSERT OR IGNORE INTO profile
@@ -311,3 +318,147 @@ def init_db() -> None:
                     ),
                 ],
             )
+
+        # Additional quest backlog. Uses WHERE NOT EXISTS so this is safe
+        # to run repeatedly against an already-live Railway database
+        # without duplicating quests or touching completed ones.
+        mark_os_project = db.execute(
+            "SELECT id FROM projects WHERE name LIKE 'MARK OS%' ORDER BY id LIMIT 1"
+        ).fetchone()
+        mark_os_project_id = mark_os_project["id"] if mark_os_project else None
+
+        additional_quests = [
+            (
+                mark_os_project_id,
+                "Add Budget-Safe AI Chat endpoint",
+                "Create the chat_messages table, a context builder that pulls the last 10 messages plus current state, and wire it to a cheap AI model.",
+                8,
+                60,
+                "hard",
+                50,
+            ),
+            (
+                mark_os_project_id,
+                "Write 3 unit tests for the Quest Engine",
+                "Cover: XP is awarded only once, progress cannot exceed 99 percent before completion, and level-up crosses the hidden threshold correctly.",
+                6,
+                30,
+                "normal",
+                25,
+            ),
+            (
+                None,
+                "Send 3 outreach messages this week",
+                "Identify three real prospects with a visible reporting, Excel, Power BI, SQL, or automation pain and send each a tailored message.",
+                9,
+                45,
+                "hard",
+                50,
+            ),
+            (
+                None,
+                "Review last week's spending line by line",
+                "Go through every recorded expense and flag anything avoidable or subscription-based that is no longer worth it.",
+                6,
+                20,
+                "quick",
+                10,
+            ),
+            (
+                None,
+                "Protect one full weekend day for family",
+                "Block the calendar and do not open MARK OS, client work, or email for one full weekend day.",
+                10,
+                0,
+                "quick",
+                10,
+            ),
+            (
+                mark_os_project_id,
+                "Draft the Goals to Projects to Tasks schema",
+                "Sketch the table relationships for Phase 6 so quests can inherit priority from real goals instead of being entered manually.",
+                7,
+                40,
+                "normal",
+                25,
+            ),
+            (
+                None,
+                "Write one lesson learned from this week",
+                "One paragraph: what MARK OS recommended, what you actually did, and what the result taught you.",
+                5,
+                15,
+                "quick",
+                10,
+            ),
+            (
+                mark_os_project_id,
+                "Ship one portfolio proof-of-work update",
+                "Update the public portfolio with the most recent MARK OS or client deliverable, with a short before or after result note.",
+                8,
+                50,
+                "hard",
+                50,
+            ),
+        ]
+
+        db.executemany(
+            """
+            INSERT INTO tasks
+            (project_id, title, description, priority, estimated_minutes,
+             difficulty, xp_reward, status, progress)
+            SELECT ?, ?, ?, ?, ?, ?, ?, 'backlog', 0
+            WHERE NOT EXISTS (SELECT 1 FROM tasks WHERE title = ?)
+            """,
+            [(*row, row[1]) for row in additional_quests],
+        )
+
+        # Phase 6: link the flagship project and standalone quests to the
+        # real goals they actually serve. Only fills goal_id where it is
+        # still NULL, so this is safe to run repeatedly and never
+        # overwrites a link you set manually in the app.
+        wealth_goal = db.execute(
+            "SELECT id FROM goals WHERE title LIKE 'Reach USD%' LIMIT 1"
+        ).fetchone()
+        team_goal = db.execute(
+            "SELECT id FROM goals WHERE title LIKE 'Build a business with a team%' LIMIT 1"
+        ).fetchone()
+        portfolio_goal = db.execute(
+            "SELECT id FROM goals WHERE title LIKE 'Create a flagship portfolio%' LIMIT 1"
+        ).fetchone()
+        family_goal = db.execute(
+            "SELECT id FROM goals WHERE title LIKE 'Protect family weekends%' LIMIT 1"
+        ).fetchone()
+
+        wealth_goal_id = wealth_goal["id"] if wealth_goal else None
+        team_goal_id = team_goal["id"] if team_goal else None
+        portfolio_goal_id = portfolio_goal["id"] if portfolio_goal else None
+        family_goal_id = family_goal["id"] if family_goal else None
+
+        if wealth_goal_id:
+            db.execute(
+                """
+                UPDATE projects
+                SET goal_id = ?
+                WHERE name LIKE 'MARK OS%' AND goal_id IS NULL
+                """,
+                (wealth_goal_id,),
+            )
+
+        task_goal_links = [
+            (wealth_goal_id, "Complete one qualified lead outreach"),
+            (wealth_goal_id, "Send 3 outreach messages this week"),
+            (wealth_goal_id, "Review last week's spending line by line"),
+            (family_goal_id, "Protect one full weekend day for family"),
+            (portfolio_goal_id, "Ship one portfolio proof-of-work update"),
+        ]
+        for goal_id, task_title in task_goal_links:
+            if goal_id:
+                db.execute(
+                    """
+                    UPDATE tasks
+                    SET goal_id = ?
+                    WHERE title = ? AND goal_id IS NULL
+                    """,
+                    (goal_id, task_title),
+                )
