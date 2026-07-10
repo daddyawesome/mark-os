@@ -1,97 +1,83 @@
-# MARK OS v0.2 patch — Login + Life OS map
+# MARK OS v0.2.1 — Quest Engine
 
-## What this patch adds
+This patch is designed to be copied over the current MARK OS v0.2 repository.
 
-- single-user login;
-- signed session cookie;
-- logout;
-- public `/health` endpoint only;
-- hidden FastAPI docs/openapi routes;
-- Level 3 display from `game_state`;
-- Life OS system map;
-- database foundations for memories, timeline, game state, and tasks;
-- safe compatibility with the imported history database.
+## What it adds
 
-## 1. Back up the repository
+- clickable quest cards;
+- add-your-own quest form;
+- visible XP rewards by difficulty;
+- Start Quest action;
+- progress updates with notes, percent, and time;
+- quest completion with result/evidence input;
+- one-time XP awards protected by a unique ledger;
+- automatic leveling from the current Level 3 baseline;
+- hidden level thresholds;
+- quest events saved to the timeline;
+- Level and tracked XP in the navbar;
+- Budget-Safe AI Chat architecture document.
 
-From the repo:
+## Safety
+
+The patch does not replace `data/mark_os.db` and does not include a database file.
+On startup it safely adds the new columns/tables to the existing Railway database.
+
+## Install on Mac
+
+From your real repo:
 
 ```bash
 cd ~/Documents/Projects/mark-os
-git status
 git pull
+git status
 ```
 
-## 2. Copy patch files over the repo
-
-From the extracted patch folder:
+Extract this ZIP in Downloads, then copy the patch:
 
 ```bash
-cp -R app/* ~/Documents/Projects/mark-os/app/
-cp requirements.txt ~/Documents/Projects/mark-os/requirements.txt
+cp -R ~/Downloads/mark-os-v0.2.1-quest-engine-patch/app/* app/
+cp -R ~/Downloads/mark-os-v0.2.1-quest-engine-patch/tests/* tests/
+mkdir -p docs
+cp -R ~/Downloads/mark-os-v0.2.1-quest-engine-patch/docs/* docs/
 ```
 
-## 3. Install the new dependency locally
+Run tests:
 
 ```bash
-cd ~/Documents/Projects/mark-os
 source .venv/bin/activate
-pip install -r requirements.txt
+pytest -q
 ```
 
-## 4. Configure local login
+Expected:
 
-Use your own values; do not commit them:
-
-```bash
-export MARK_OS_USERNAME="mark"
-export MARK_OS_PASSWORD="choose-your-own-password"
-export MARK_OS_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+```text
+6 passed
 ```
 
-Run:
+Run locally:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000`.
+Test:
 
-## 5. Configure Railway before pushing
+1. Log in.
+2. Open `/quests`.
+3. Click a quest.
+4. Start it.
+5. Add a progress note.
+6. Complete it.
+7. Confirm XP increases only once.
+8. Confirm Level remains at least 3.
 
-In Railway → `mark-os` service → Variables, add:
-
-- `MARK_OS_USERNAME` = `mark`
-- `MARK_OS_PASSWORD` = your private password
-- `MARK_OS_SECRET_KEY` = a random secret generated on your Mac
-
-Generate the secret:
-
-```bash
-python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
-```
-
-Do not paste either secret into GitHub or chat.
-
-## 6. Commit and deploy
+Then commit and push:
 
 ```bash
-cd ~/Documents/Projects/mark-os
 git status
-git diff
-git add app requirements.txt
-git commit -m "Add secure login and Life OS system map"
+git add app tests docs
+git commit -m "Add interactive quests, XP, and automatic leveling"
 git push
 ```
 
-Railway should redeploy from GitHub.
-
-## 7. Verify
-
-- Opening `/` while logged out redirects to `/login`.
-- Correct credentials open Today.
-- Wrong credentials are rejected.
-- `/life-os` displays Level 3 and history/memory counts.
-- `/history` still shows imported history.
-- `/health` remains public.
-- `POST /logout` returns to the login page.
+Railway will migrate the existing persistent SQLite database at startup.

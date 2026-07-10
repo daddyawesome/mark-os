@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Optional
+from typing import Any
 
 
-@dataclass(frozen=True)
+@dataclass
 class Direction:
     main_quest: str
     why: str
@@ -14,91 +14,122 @@ class Direction:
     signal: str
 
 
-def _contains(text: str, terms: tuple[str, ...]) -> bool:
-    lowered = (text or "").lower()
-    return any(term in lowered for term in terms)
-
-
 def choose_direction(
-    checkin: Mapping[str, object],
-    active_project: Optional[Mapping[str, object]],
-    previous_cash: Optional[float] = None,
+    checkin: dict[str, Any],
+    project: dict[str, Any] | None,
+    previous_cash: float | None = None,
 ) -> Direction:
-    cash = float(checkin.get("cash") or 0)
-    expenses = float(checkin.get("expenses") or 0)
-    free_hours = float(checkin.get("free_hours") or 0)
-    energy = int(checkin.get("energy") or 3)
-    blocker = str(checkin.get("blocker") or "")
-    accomplished = str(checkin.get("accomplished") or "")
+    """
+    Generate the next recommended direction from the user's latest check-in.
 
-    cash_drop = previous_cash is not None and cash > 0 and cash < previous_cash
-    severe_cash_pressure = 0 < cash < 10_000
-    lead_blocker = _contains(blocker, ("lead", "client", "customer", "outreach", "job search"))
-    urgent_blocker = _contains(blocker, ("urgent", "deadline", "production", "broken", "incident", "bank"))
-    low_capacity = free_hours < 1 or energy <= 2
+    This is intentionally rule-based for now.
+    Later, we can replace or enhance this with the budget-safe AI architecture.
+    """
 
-    project_name = active_project.get("name") if active_project else "your highest-priority project"
-    next_action = (
-        active_project.get("next_action")
-        if active_project
-        else "Choose one concrete deliverable and complete it before starting anything else."
-    )
+    cash = checkin.get("cash")
+    expenses = checkin.get("expenses") or 0
+    free_hours = checkin.get("free_hours") or 0
+    energy = checkin.get("energy") or 3
+    blocker = (checkin.get("blocker") or "").strip()
+    accomplished = (checkin.get("accomplished") or "").strip()
 
-    if urgent_blocker:
-        return Direction(
-            main_quest=f"Remove the urgent blocker first: {blocker.strip() or 'resolve the immediate deadline risk'}",
-            why="Urgent unresolved problems can erase the value of every other task. Stabilize reality before optimizing it.",
-            side_quest_1="Write the exact next physical action required to resolve the blocker.",
-            side_quest_2="After it is stable, record what caused it so MARK OS can spot the pattern earlier.",
-            avoid="Do not start a new feature or new opportunity until the urgent issue is contained.",
-            signal="stability-first",
+    project_name = "your highest-priority active project"
+
+    if project:
+        project_name = (
+            project.get("name")
+            or project.get("title")
+            or project.get("project_name")
+            or project_name
         )
 
-    if severe_cash_pressure:
+    # Low-energy day
+    if energy <= 2:
         return Direction(
-            main_quest="Create one near-term income opportunity today: contact or apply to one qualified buyer with a real data problem.",
-            why="Cash pressure changes the priority order. Revenue-producing actions come before polish and experimentation.",
-            side_quest_1="Use one pain-intent search and save the best qualified lead.",
-            side_quest_2=f"Spend any remaining focused time on {project_name}, but only after the income action is complete.",
-            avoid="Do not spend money on tools, courses, ads, or subscriptions today.",
-            signal="cash-protection",
+            main_quest=f"Spend 25 focused minutes moving {project_name} forward.",
+            why=(
+                "Your energy is low, so the goal is to preserve momentum "
+                "without creating burnout."
+            ),
+            side_quest_1="Remove one small blocker.",
+            side_quest_2="Write down the exact next step for tomorrow.",
+            avoid="Starting a large new project.",
+            signal="A small but real task is completed.",
         )
 
-    if low_capacity:
+    # Little available time
+    if free_hours < 1:
         return Direction(
-            main_quest=f"Complete the smallest shippable step for {project_name}: {next_action}",
-            why="Your available capacity is limited today. A small finished step keeps momentum without pretending you have a full work session.",
-            side_quest_1="Write tomorrow's first action before stopping.",
-            side_quest_2="Capture one sentence about what reduced your time or energy today.",
-            avoid="Do not compensate for low capacity by opening several new tasks.",
-            signal="minimum-viable-progress",
+            main_quest=f"Complete one small, visible task for {project_name}.",
+            why=(
+                "You have limited time today, so finishing one concrete action "
+                "is more valuable than planning many tasks."
+            ),
+            side_quest_1="Spend 10 minutes clearing the biggest blocker.",
+            side_quest_2="Prepare tomorrow's first task.",
+            avoid="Research without a clear output.",
+            signal="One item moves from planned to completed.",
         )
 
-    if lead_blocker and not accomplished.strip():
+    # Active blocker
+    if blocker:
         return Direction(
-            main_quest="Find one qualified person or company currently showing a real reporting, Excel, Power BI, SQL, or automation pain—and send one tailored message.",
-            why="Your repeated blocker is lead discovery. One qualified conversation is more valuable than another round of broad searching or profile editing.",
-            side_quest_1="Search using pain-intent or hiring-intent language, not broad terms like 'Power BI help'.",
-            side_quest_2=f"After outreach, complete one visible step in {project_name}.",
-            avoid="Do not spend the session rewriting your CV or browsing generic training posts.",
-            signal="revenue-pipeline",
+            main_quest=f"Resolve or reduce this blocker: {blocker}",
+            why=(
+                "The blocker is currently limiting progress. Removing friction "
+                "will make future work faster."
+            ),
+            side_quest_1=f"Spend the remaining time advancing {project_name}.",
+            side_quest_2="Document what solved the blocker.",
+            avoid="Ignoring the blocker and adding more work.",
+            signal="The blocker is removed or reduced to a specific next action.",
         )
 
-    if cash_drop and expenses > 0:
+    # Cash decreased
+    if (
+        cash is not None
+        and previous_cash is not None
+        and cash < previous_cash
+    ):
+        cash_change = previous_cash - cash
+
         return Direction(
-            main_quest=f"Ship the next visible step in {project_name}: {next_action}",
-            why="Cash moved downward, but there is no emergency signal. Protect spending while continuing to build an asset that strengthens your earning power.",
-            side_quest_1="Record what today's spending was for and whether it was planned.",
-            side_quest_2="Do one 20-minute qualified-lead search after the project step is shipped.",
-            avoid="Do not buy a new tool to solve a problem the current stack can already handle.",
-            signal="build-with-cash-discipline",
+            main_quest=(
+                f"Create one income-producing action for {project_name}."
+            ),
+            why=(
+                f"Cash decreased by {cash_change:,.2f}. "
+                "Today's priority should include an action that can lead to income."
+            ),
+            side_quest_1="Review today's spending for avoidable expenses.",
+            side_quest_2="Send one application, proposal, or outreach message.",
+            avoid="Spending the entire work session on non-revenue features.",
+            signal="One real opportunity is created or advanced.",
         )
 
+    # Productive momentum
+    if accomplished:
+        return Direction(
+            main_quest=f"Build on yesterday's momentum by advancing {project_name}.",
+            why=(
+                f"You already completed: {accomplished}. "
+                "Continuing momentum is easier than restarting."
+            ),
+            side_quest_1="Finish one measurable deliverable.",
+            side_quest_2="Record what changed after completion.",
+            avoid="Switching to a new project before finishing the current step.",
+            signal="A visible deliverable exists by the end of the session.",
+        )
+
+    # Default
     return Direction(
-        main_quest=f"Ship the next visible step in {project_name}: {next_action}",
-        why="You have enough capacity and no stronger emergency signal. Shipping the flagship product creates portfolio proof, product skill, and a potential business asset at the same time.",
-        side_quest_1="Find one qualified lead using a pain-intent or hiring-intent search.",
-        side_quest_2="End the session with a short check-in so tomorrow's recommendation uses real evidence.",
-        avoid="Do not redesign, add integrations, or start another project before this step works.",
-        signal="highest-leverage-build",
+        main_quest=f"Complete the highest-leverage next step for {project_name}.",
+        why=(
+            "Focused execution on one important project creates more progress "
+            "than spreading effort across many tasks."
+        ),
+        side_quest_1="Complete one supporting task.",
+        side_quest_2="Prepare the exact next action for the next work session.",
+        avoid="Starting unrelated work.",
+        signal="One meaningful project milestone moves forward.",
     )

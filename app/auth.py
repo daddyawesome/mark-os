@@ -1,61 +1,69 @@
 from __future__ import annotations
 
-import hashlib
+import hmac
 import os
-import secrets
-from urllib.parse import quote
+from urllib.parse import urlparse
 
 from fastapi import Request
-from fastapi.responses import RedirectResponse
 
 SESSION_USER_KEY = "mark_os_user"
 USERNAME = os.getenv("MARK_OS_USERNAME", "mark")
-PASSWORD = os.getenv("MARK_OS_PASSWORD", "")
-
-# Prefer an explicit random secret. If it is missing, derive a stable fallback from the
-# configured password so sessions survive restarts. The app still refuses login when no
-# password is configured.
-SESSION_SECRET = os.getenv("MARK_OS_SECRET_KEY") or hashlib.sha256(
-    f"mark-os-session:{PASSWORD or 'password-not-configured'}".encode("utf-8")
-).hexdigest()
 
 IS_RAILWAY = bool(
     os.getenv("RAILWAY_ENVIRONMENT")
     or os.getenv("RAILWAY_PROJECT_ID")
-    or os.getenv("RAILWAY_SERVICE_ID")
 )
+
+SESSION_SECRET = os.getenv(
+    "SESSION_SECRET",
+    "dev-only-change-this-secret-before-production",
+)
+
+PASSWORD = os.getenv("MARK_OS_PASSWORD", "")
 
 
 def credentials_configured() -> bool:
+    """Return True when a login password has been configured."""
     return bool(PASSWORD)
 
 
 def verify_credentials(username: str, password: str) -> bool:
+    """Safely verify the submitted username and password."""
     if not credentials_configured():
         return False
-    return secrets.compare_digest(username, USERNAME) and secrets.compare_digest(
-        password, PASSWORD
-    )
 
+    username_matches = hmac.compare_digest(username, USERNAME)
+    password_matches = hmac.compare_digest(password, PASSWORD)
 
-def is_authenticated(request: Request) -> bool:
-    return request.session.get(SESSION_USER_KEY) == USERNAME
+    return username_matches and password_matches
 
 
 def sign_in(request: Request) -> None:
-    request.session.clear()
+    """Store the authenticated user in the signed session cookie."""
     request.session[SESSION_USER_KEY] = USERNAME
 
 
 def sign_out(request: Request) -> None:
+    """Remove all session data."""
     request.session.clear()
 
 
-def safe_next_path(value: str | None) -> str:
-    if not value or not value.startswith("/") or value.startswith("//"):
+def is_authenticated(request: Request) -> bool:
+    """Return True when the session belongs to the configured user."""
+    return request.session.get(SESSION_USER_KEY) == USERNAME
+
+
+def safe_next_path(next_path: str | None) -> str:
+    """Allow only local paths for post-login redirects."""
+    if not next_path:
         return "/"
-    return value
 
+    parsed = urlparse(next_path)
 
-def login_redirect(path: str = "/") -> RedirectResponse:
-    return RedirectResponse(url=f"/login?next={quote(path)}", status_code=303)
+    if parsed.scheme or parsed.netloc:
+        return "/"
+
+    if not next_path.startswith("/") or next_path.startswith("//"):
+        return "/"
+
+    return next_path

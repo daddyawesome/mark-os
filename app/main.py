@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -20,12 +21,18 @@ from app.auth import (
 )
 from app.database import get_db, init_db
 from app.services.director import choose_direction
+from app.services.gamification import (
+    XP_BY_DIFFICULTY,
+    apply_xp,
+    normalize_difficulty,
+    xp_for_difficulty,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(
     title="MARK OS",
-    version="0.2.0",
+    version="0.2.1",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -46,9 +53,8 @@ async def login_guard(request: Request, call_next):
     return await call_next(request)
 
 
-# IMPORTANT:
-# SessionMiddleware is added after login_guard so it runs first on incoming requests.
-# This ensures request.session exists before is_authenticated(request) is called.
+# SessionMiddleware is added after the login guard so it wraps the guard and
+# request.session is always available before authentication is checked.
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
@@ -64,11 +70,21 @@ def startup() -> None:
     init_db()
 
 
+def _optional_int(value: str | None) -> int | None:
+    if value is None or not str(value).strip():
+        return None
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        return None
+
+
 def load_system_state(db) -> dict:
     game_state = db.execute("SELECT * FROM game_state WHERE id = 1").fetchone()
     return {
         "level": game_state["level"] if game_state else 1,
         "xp_total": game_state["xp_total"] if game_state else None,
+        "xp_into_level": game_state["xp_into_level"] if game_state else 0,
         "character_class": (
             game_state["character_class"]
             if game_state
@@ -111,6 +127,17 @@ def dashboard_context(request: Request) -> dict:
         checkin_count = db.execute(
             "SELECT COUNT(*) AS count FROM checkins"
         ).fetchone()["count"]
+        active_quests = db.execute(
+            """
+            SELECT t.*, p.name AS project_name
+            FROM tasks t
+            LEFT JOIN projects p ON p.id = t.project_id
+            WHERE t.status != 'completed'
+            ORDER BY CASE t.status WHEN 'active' THEN 0 ELSE 1 END,
+                     t.priority DESC, t.id
+            LIMIT 3
+            """
+        ).fetchall()
         system_state = load_system_state(db)
 
     return {
@@ -121,6 +148,7 @@ def dashboard_context(request: Request) -> dict:
         "latest_checkin": latest_checkin,
         "direction": latest_direction,
         "checkin_count": checkin_count,
+        "active_quests": active_quests,
         "system_state": system_state,
     }
 
@@ -268,6 +296,349 @@ def create_checkin(
     return RedirectResponse(url="/", status_code=303)
 
 
+@app.get("/quests", response_class=HTMLResponse)
+def quests(request: Request):
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT t.*, p.name AS project_name
+            FROM tasks t
+            LEFT JOIN projects p ON p.id = t.project_id
+            ORDER BY CASE t.status
+                        WHEN 'active' THEN 0
+                        WHEN 'backlog' THEN 1
+                        WHEN 'completed' THEN 2
+                        ELSE 3
+                     END,
+                     t.priority DESC,
+                     t.id DESC
+            """
+        ).fetchall()
+        projects = db.execute(
+            "SELECT id, name FROM projects WHERE status = 'active' ORDER BY priority DESC, id"
+        ).fetchall()
+        system_state = load_system_state(db)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="quests.html",
+        context={
+            "quests": rows,
+            "projects": projects,
+            "system_state": system_state,
+            "xp_rewards": XP_BY_DIFFICULTY,
+        },
+    )
+
+
+@app.post("/quests")
+def create_quest(
+    title: str = Form(...),
+    description: str = Form(default=""),
+    project_id: str = Form(default=""),
+    difficulty: str = Form(default="normal"),
+    estimated_minutes: str = Form(default=""),
+    due_date: str = Form(default=""),
+):
+    clean_title = title.strip()
+    if not clean_title:
+        return RedirectResponse(url="/quests", status_code=303)
+
+    clean_difficulty = normalize_difficulty(difficulty)
+    xp_reward = xp_for_difficulty(clean_difficulty)
+    parsed_project_id = _optional_int(project_id)
+    parsed_minutes = _optional_int(estimated_minutes)
+
+    with get_db() as db:
+        db.execute(
+            """
+            INSERT INTO tasks
+            (project_id, title, description, status, priority, estimated_minutes,
+             due_date, difficulty, xp_reward, progress)
+            VALUES (?, ?, ?, 'backlog', 5, ?, ?, ?, ?, 0)
+            """,
+            (
+                parsed_project_id,
+                clean_title,
+                description.strip(),
+                parsed_minutes,
+                due_date.strip() or None,
+                clean_difficulty,
+                xp_reward,
+            ),
+        )
+
+    return RedirectResponse(url="/quests", status_code=303)
+
+
+@app.get("/quests/{quest_id}", response_class=HTMLResponse)
+def quest_detail(request: Request, quest_id: int):
+    with get_db() as db:
+        quest = db.execute(
+            """
+            SELECT t.*, p.name AS project_name
+            FROM tasks t
+            LEFT JOIN projects p ON p.id = t.project_id
+            WHERE t.id = ?
+            """,
+            (quest_id,),
+        ).fetchone()
+        if not quest:
+            raise HTTPException(status_code=404, detail="Quest not found")
+
+        updates = db.execute(
+            """
+            SELECT * FROM quest_updates
+            WHERE task_id = ?
+            ORDER BY id DESC
+            """,
+            (quest_id,),
+        ).fetchall()
+        xp_award = db.execute(
+            "SELECT * FROM xp_ledger WHERE task_id = ?", (quest_id,)
+        ).fetchone()
+        system_state = load_system_state(db)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="quest_detail.html",
+        context={
+            "quest": quest,
+            "updates": updates,
+            "xp_award": xp_award,
+            "system_state": system_state,
+            "completed_now": request.query_params.get("completed") == "1",
+            "levels_gained": _optional_int(request.query_params.get("levels")) or 0,
+        },
+    )
+
+
+@app.post("/quests/{quest_id}/start")
+def start_quest(quest_id: int):
+    with get_db() as db:
+        quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
+        if not quest:
+            raise HTTPException(status_code=404, detail="Quest not found")
+
+        if quest["status"] != "completed":
+            db.execute(
+                """
+                UPDATE tasks
+                SET status = 'active',
+                    started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+                WHERE id = ?
+                """,
+                (quest_id,),
+            )
+            db.execute(
+                """
+                INSERT INTO quest_updates (task_id, note, progress, event_type)
+                VALUES (?, 'Quest started.', ?, 'started')
+                """,
+                (quest_id, quest["progress"]),
+            )
+
+    return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
+
+
+@app.post("/quests/{quest_id}/update")
+def update_quest(
+    quest_id: int,
+    note: str = Form(default=""),
+    progress: int = Form(default=0),
+    actual_minutes: str = Form(default=""),
+):
+    safe_progress = max(0, min(99, progress))
+    parsed_minutes = _optional_int(actual_minutes)
+
+    with get_db() as db:
+        quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
+        if not quest:
+            raise HTTPException(status_code=404, detail="Quest not found")
+        if quest["status"] == "completed":
+            return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
+
+        db.execute(
+            """
+            UPDATE tasks
+            SET status = 'active',
+                progress = ?,
+                actual_minutes = COALESCE(?, actual_minutes),
+                started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+            WHERE id = ?
+            """,
+            (safe_progress, parsed_minutes, quest_id),
+        )
+        db.execute(
+            """
+            INSERT INTO quest_updates
+            (task_id, note, progress, actual_minutes, event_type)
+            VALUES (?, ?, ?, ?, 'update')
+            """,
+            (quest_id, note.strip(), safe_progress, parsed_minutes),
+        )
+
+    return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
+
+
+@app.post("/quests/{quest_id}/complete")
+def complete_quest(
+    quest_id: int,
+    result_notes: str = Form(default=""),
+    actual_minutes: str = Form(default=""),
+):
+    parsed_minutes = _optional_int(actual_minutes)
+    levels_gained = 0
+
+    with get_db() as db:
+        quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
+        if not quest:
+            raise HTTPException(status_code=404, detail="Quest not found")
+
+        if quest["status"] == "completed":
+            return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
+
+        state = db.execute("SELECT * FROM game_state WHERE id = 1").fetchone()
+        level_before = state["level"] if state else 1
+        xp_total_before = state["xp_total"] if state else None
+        xp_into_level_before = state["xp_into_level"] if state else 0
+        xp_reward = max(0, int(quest["xp_reward"] or 0))
+
+        db.execute(
+            """
+            UPDATE tasks
+            SET status = 'completed',
+                progress = 100,
+                completed_at = CURRENT_TIMESTAMP,
+                result_notes = ?,
+                actual_minutes = COALESCE(?, actual_minutes)
+            WHERE id = ?
+            """,
+            (result_notes.strip(), parsed_minutes, quest_id),
+        )
+
+        ledger_insert = db.execute(
+            """
+            INSERT OR IGNORE INTO xp_ledger
+            (task_id, xp_delta, level_before, level_after, reason)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                quest_id,
+                xp_reward,
+                level_before,
+                level_before,
+                f"Completed quest: {quest['title']}",
+            ),
+        )
+
+        if ledger_insert.rowcount:
+            award = apply_xp(
+                level=level_before,
+                xp_total=xp_total_before,
+                xp_into_level=xp_into_level_before,
+                awarded_xp=xp_reward,
+            )
+            levels_gained = award.levels_gained
+
+            db.execute(
+                """
+                UPDATE game_state
+                SET level = ?,
+                    xp_total = ?,
+                    xp_into_level = ?,
+                    updated_at = CURRENT_TIMESTAMP,
+                    last_level_up_at = CASE WHEN ? > 0 THEN CURRENT_TIMESTAMP ELSE last_level_up_at END,
+                    source = 'quest_engine'
+                WHERE id = 1
+                """,
+                (
+                    award.level,
+                    award.xp_total,
+                    award.xp_into_level,
+                    award.levels_gained,
+                ),
+            )
+            db.execute(
+                "UPDATE xp_ledger SET level_after = ? WHERE task_id = ?",
+                (award.level, quest_id),
+            )
+
+            db.execute(
+                """
+                INSERT INTO quest_updates
+                (task_id, note, progress, actual_minutes, event_type)
+                VALUES (?, ?, 100, ?, 'completed')
+                """,
+                (
+                    quest_id,
+                    result_notes.strip() or "Quest completed.",
+                    parsed_minutes,
+                ),
+            )
+
+            db.execute(
+                """
+                INSERT INTO timeline_events
+                (event_date, event_type, title, summary, details_json,
+                 status, importance, source)
+                VALUES (date('now', 'localtime'), 'quest_completed', ?, ?, ?,
+                        'completed', 8, 'quest_engine')
+                """,
+                (
+                    quest["title"],
+                    result_notes.strip() or f"Completed quest and earned {xp_reward} XP.",
+                    json.dumps(
+                        {
+                            "task_id": quest_id,
+                            "xp_awarded": xp_reward,
+                            "level_before": level_before,
+                            "level_after": award.level,
+                        }
+                    ),
+                ),
+            )
+
+            if award.levels_gained > 0:
+                db.execute(
+                    """
+                    INSERT INTO game_history
+                    (event_date, level, xp_total, event, source)
+                    VALUES (date('now', 'localtime'), ?, ?, ?, 'quest_engine')
+                    """,
+                    (
+                        award.level,
+                        award.xp_total,
+                        f"Level up after completing: {quest['title']}",
+                    ),
+                )
+                db.execute(
+                    """
+                    INSERT INTO timeline_events
+                    (event_date, event_type, title, summary, details_json,
+                     status, importance, source)
+                    VALUES (date('now', 'localtime'), 'level_up', ?, ?, ?,
+                            'completed', 10, 'quest_engine')
+                    """,
+                    (
+                        f"Reached Level {award.level}",
+                        "Quest progress crossed a hidden level threshold.",
+                        json.dumps(
+                            {
+                                "level_before": level_before,
+                                "level_after": award.level,
+                                "levels_gained": award.levels_gained,
+                            }
+                        ),
+                    ),
+                )
+
+    return RedirectResponse(
+        url=f"/quests/{quest_id}?completed=1&levels={levels_gained}",
+        status_code=303,
+    )
+
+
 @app.get("/history", response_class=HTMLResponse)
 def history(request: Request):
     with get_db() as db:
@@ -320,10 +691,16 @@ def life_os(request: Request):
         },
         {
             "icon": "▣",
-            "name": "Projects & Tasks",
-            "status": "next build",
-            "description": "Turn goals into projects, projects into tasks, and tasks into today's quest.",
+            "name": "Projects & Quests",
+            "status": "live",
+            "description": "Clickable quests with progress notes, completion evidence, XP, and automatic leveling.",
             "recommended": True,
+        },
+        {
+            "icon": "✦",
+            "name": "AI Chat",
+            "status": "next build",
+            "description": "Budget-safe assistant chat using recent messages plus selected long-term memory.",
         },
         {
             "icon": "✎",
@@ -376,4 +753,4 @@ def life_os(request: Request):
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.2.1"}

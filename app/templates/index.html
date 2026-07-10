@@ -2,148 +2,136 @@
 {% block title %}Today · MARK OS{% endblock %}
 
 {% block content %}
-<section class="hero is-small forest-hero mb-5">
-    <div class="hero-body">
-        <div class="columns is-vcentered">
-            <div class="column is-two-thirds">
-                <p class="eyebrow">PERSONAL OPERATING SYSTEM</p>
-                <h1 class="title is-1 has-text-weight-bold has-text-white">Good day, {{ profile.name }}.</h1>
-                <p class="subtitle is-5 has-text-white-ter">Observe reality. Decide what matters. Do the next right thing.</p>
-            </div>
-            <div class="column is-one-third">
-                <div class="forest-pill has-text-centered">
-                    <span class="is-block has-text-weight-semibold has-text-white">{{ checkin_count }} check-in{% if checkin_count != 1 %}s{% endif %} recorded</span>
-                    <small class="has-text-white-ter">steady signal, clear mind</small>
-                </div>
-            </div>
-        </div>
+<section class="hero">
+    <div>
+        <div class="eyebrow">PERSONAL OPERATING SYSTEM</div>
+        <h1>Good day, {{ profile.name }}.</h1>
+        <p>Observe reality. Decide what matters. Do the next right thing.</p>
     </div>
+    <div class="status-pill">{{ checkin_count }} check-in{% if checkin_count != 1 %}s{% endif %} recorded</div>
 </section>
 
-<div class="columns is-multiline mb-5">
-    <div class="column is-6-tablet is-3-desktop">
-        <article class="box forest-card">
-            <p class="has-text-weight-semibold has-text-grey">💰 Latest cash</p>
-            <h2 class="title is-4 mt-2 mb-0">
-                {% if latest_checkin and latest_checkin.cash is not none %}
-                    ₱{{ "{:,.0f}".format(latest_checkin.cash) }}
-                {% else %}
-                    Not recorded
-                {% endif %}
-            </h2>
-        </article>
-    </div>
-    <div class="column is-6-tablet is-3-desktop">
-        <article class="box forest-card">
-            <p class="has-text-weight-semibold has-text-grey">⏱ Available today</p>
-            <h2 class="title is-4 mt-2 mb-0">{% if latest_checkin %}{{ latest_checkin.free_hours }} hours{% else %}Not recorded{% endif %}</h2>
-        </article>
-    </div>
-    <div class="column is-6-tablet is-3-desktop">
-        <article class="box forest-card">
-            <p class="has-text-weight-semibold has-text-grey">⚡ Energy</p>
-            <h2 class="title is-4 mt-2 mb-0">{% if latest_checkin %}{{ latest_checkin.energy }}/5{% else %}Not recorded{% endif %}</h2>
-        </article>
-    </div>
-    <div class="column is-6-tablet is-3-desktop">
-        <article class="box forest-card">
-            <p class="has-text-weight-semibold has-text-grey">🏗 Active project</p>
-            <h2 class="title is-4 mt-2 mb-0">{{ projects[0].name if projects else "None" }}</h2>
-        </article>
-    </div>
-</div>
+<section class="metric-grid">
+    <article class="metric-card">
+        <span>💰 Latest cash</span>
+        <strong>
+            {% if latest_checkin and latest_checkin.cash is not none %}
+                ₱{{ "{:,.0f}".format(latest_checkin.cash) }}
+            {% else %}
+                Not recorded
+            {% endif %}
+        </strong>
+    </article>
+    <article class="metric-card">
+        <span>⏱ Available today</span>
+        <strong>{% if latest_checkin %}{{ latest_checkin.free_hours }} hours{% else %}Not recorded{% endif %}</strong>
+    </article>
+    <article class="metric-card">
+        <span>⚡ Energy</span>
+        <strong>{% if latest_checkin %}{{ latest_checkin.energy }}/5{% else %}Not recorded{% endif %}</strong>
+    </article>
+    <article class="metric-card">
+        <span>🏗 Active project</span>
+        <strong>{{ projects[0].name if projects else "None" }}</strong>
+    </article>
+</section>
 
-<div class="columns">
-    <div class="column is-7">
+<div class="main-grid">
+    <div class="left-column">
         {% include "partials/direction.html" %}
 
-        <section class="box forest-card mt-4">
-            <div class="is-flex is-justify-content-space-between is-align-items-center mb-3">
+        <section class="panel">
+            <div class="panel-header">
                 <div>
-                    <p class="eyebrow">ACTIVE PROJECT</p>
-                    <h2 class="title is-5 mb-0">{{ projects[0].name if projects else "No active project" }}</h2>
+                    <div class="eyebrow">ACTIVE PROJECT</div>
+                    <h2>{{ projects[0].name if projects else "No active project" }}</h2>
                 </div>
-                {% if projects %}<span class="tag is-success is-light">{{ projects[0].progress }}%</span>{% endif %}
+                {% if projects %}<strong>{{ projects[0].progress }}%</strong>{% endif %}
             </div>
             {% if projects %}
                 <div class="progress-track"><div class="progress-fill" style="width: {{ projects[0].progress }}%"></div></div>
-                <p class="mb-3 has-text-grey">{{ projects[0].purpose }}</p>
-                <div class="notification is-success is-light mb-0"><strong>Next action:</strong> {{ projects[0].next_action }}</div>
+                <p>{{ projects[0].purpose }}</p>
+                <div class="next-action"><strong>Next action:</strong> {{ projects[0].next_action }}</div>
             {% endif %}
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div>
+                    <div class="eyebrow">ACTIVE QUESTS</div>
+                    <h2>Real actions that earn experience.</h2>
+                </div>
+                <a href="/quests"><strong>Open all →</strong></a>
+            </div>
+            <div class="today-quest-list">
+                {% for quest in active_quests %}
+                <a href="/quests/{{ quest.id }}" class="today-quest-row">
+                    <div>
+                        <strong>{{ quest.title }}</strong>
+                        <small>{{ quest.progress }}% · {{ quest.status }}</small>
+                    </div>
+                    <span>+{{ quest.xp_reward }} XP</span>
+                </a>
+                {% else %}
+                <p>No active quests. <a href="/quests">Create one.</a></p>
+                {% endfor %}
+            </div>
         </section>
     </div>
 
-    <aside class="column is-5">
-        <section class="box forest-card">
-            <p class="eyebrow">DAILY INPUT</p>
-            <h2 class="title is-5">Tell MARK OS where you are.</h2>
+    <aside class="right-column">
+        <section class="panel checkin-panel">
+            <div class="eyebrow">DAILY INPUT</div>
+            <h2>Tell MARK OS where you are.</h2>
             <form hx-post="/check-in" hx-target="#direction-panel" hx-swap="outerHTML">
-                <div class="field">
-                    <label class="label">Cash on hand (PHP)</label>
-                    <div class="control">
-                        <input class="input" type="number" name="cash" step="0.01" min="0" placeholder="e.g. 37759">
-                    </div>
+                <label>
+                    Cash on hand (PHP)
+                    <input type="number" name="cash" step="0.01" min="0" placeholder="e.g. 37759">
+                </label>
+
+                <div class="two-col">
+                    <label>
+                        Expenses today
+                        <input type="number" name="expenses" step="0.01" min="0" value="0">
+                    </label>
+                    <label>
+                        Free hours today
+                        <input type="number" name="free_hours" step="0.25" min="0" value="2">
+                    </label>
                 </div>
 
-                <div class="columns">
-                    <div class="column">
-                        <div class="field">
-                            <label class="label">Expenses today</label>
-                            <div class="control">
-                                <input class="input" type="number" name="expenses" step="0.01" min="0" value="0">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="column">
-                        <div class="field">
-                            <label class="label">Free hours today</label>
-                            <div class="control">
-                                <input class="input" type="number" name="free_hours" step="0.25" min="0" value="2">
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <label>
+                    Energy (1 low → 5 high)
+                    <input type="range" name="energy" min="1" max="5" value="3">
+                </label>
 
-                <div class="field">
-                    <label class="label">Energy (1 low → 5 high)</label>
-                    <div class="control">
-                        <input class="input" type="range" name="energy" min="1" max="5" value="3">
-                    </div>
-                </div>
+                <label>
+                    What did you accomplish?
+                    <textarea name="accomplished" rows="3" placeholder="Be honest. Small wins count."></textarea>
+                </label>
 
-                <div class="field">
-                    <label class="label">What did you accomplish?</label>
-                    <div class="control">
-                        <textarea class="textarea" name="accomplished" rows="3" placeholder="Be honest. Small wins count."></textarea>
-                    </div>
-                </div>
+                <label>
+                    What is blocking you?
+                    <textarea name="blocker" rows="3" placeholder="The real obstacle, not the polite version."></textarea>
+                </label>
 
-                <div class="field">
-                    <label class="label">What is blocking you?</label>
-                    <div class="control">
-                        <textarea class="textarea" name="blocker" rows="3" placeholder="The real obstacle, not the polite version."></textarea>
-                    </div>
-                </div>
+                <label>
+                    Notes
+                    <textarea name="notes" rows="2" placeholder="Optional context"></textarea>
+                </label>
 
-                <div class="field">
-                    <label class="label">Notes</label>
-                    <div class="control">
-                        <textarea class="textarea" name="notes" rows="2" placeholder="Optional context"></textarea>
-                    </div>
-                </div>
-
-                <button class="button is-success is-fullwidth" type="submit">Generate My Direction</button>
-                <p class="form-note mt-3">v0.1 uses transparent Python rules. AI comes later, after the data loop proves useful.</p>
+                <button type="submit">Generate My Direction</button>
+                <p class="form-note">MARK OS now tracks clickable quests and XP. Budget-safe AI chat is the next build.</p>
             </form>
         </section>
 
-        <section class="box forest-card mt-4">
-            <p class="eyebrow">NORTH STAR</p>
-            <h2 class="title is-5">Active goals</h2>
+        <section class="panel compact-list">
+            <div class="eyebrow">NORTH STAR</div>
+            <h2>Active goals</h2>
             {% for goal in goals %}
                 <div class="goal-row">
                     <span>{{ goal.title }}</span>
-                    <span class="tag is-success is-light">P{{ goal.priority }}</span>
+                    <small>P{{ goal.priority }}</small>
                 </div>
             {% endfor %}
         </section>

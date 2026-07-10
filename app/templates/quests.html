@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Quests · MARK OS{% endblock %}
+{% block content %}
+<section class="forest-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column is-8">
+            <p class="eyebrow mb-3">QUEST ENGINE</p>
+            <h1 class="title is-2 has-text-white mb-3">Turn intention into experience.</h1>
+            <p class="subtitle is-5 has-text-white-ter mb-0">
+                Every quest is clickable, updateable, and worth XP. Completing real work moves the game forward.
+            </p>
+        </div>
+        <div class="column">
+            <div class="forest-pill quest-state-pill">
+                <p class="eyebrow">CURRENT STATE</p>
+                <p class="title is-3 has-text-white mt-2 mb-1">LEVEL {{ system_state.level }}</p>
+                <p class="has-text-white-ter">{{ system_state.xp_total or 0 }} tracked XP · thresholds hidden</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="columns is-variable is-5">
+    <div class="column is-8">
+        <div class="quest-list">
+            {% for quest in quests %}
+            <a href="/quests/{{ quest.id }}" class="quest-card-link">
+                <article class="box forest-card quest-card quest-status-{{ quest.status }}">
+                    <div class="quest-card-header">
+                        <div>
+                            <div class="quest-meta-row">
+                                <span class="quest-status-badge">{{ quest.status }}</span>
+                                <span class="quest-difficulty quest-difficulty-{{ quest.difficulty }}">{{ quest.difficulty }}</span>
+                                {% if quest.project_name %}<span>{{ quest.project_name }}</span>{% endif %}
+                            </div>
+                            <h2 class="title is-5 mb-2">{{ quest.title }}</h2>
+                            {% if quest.description %}<p>{{ quest.description }}</p>{% endif %}
+                        </div>
+                        <div class="quest-xp-badge">+{{ quest.xp_reward }} XP</div>
+                    </div>
+
+                    <div class="quest-card-footer mt-4">
+                        <div class="quest-progress-wrap">
+                            <div class="quest-progress-track">
+                                <div class="quest-progress-fill" style="width: {{ quest.progress }}%"></div>
+                            </div>
+                            <small>{{ quest.progress }}% complete</small>
+                        </div>
+                        <div class="quest-time">
+                            {% if quest.estimated_minutes %}⏱ {{ quest.estimated_minutes }} min{% else %}⏱ No estimate{% endif %}
+                        </div>
+                    </div>
+                </article>
+            </a>
+            {% else %}
+            <div class="box forest-card">
+                <p>No quests yet. Create the first one.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="column is-4">
+        <section class="box forest-card sticky-quest-form">
+            <p class="eyebrow mb-2">ADD QUEST</p>
+            <h2 class="title is-4">What needs to become real?</h2>
+
+            <form method="post" action="/quests" class="quest-form">
+                <label>
+                    Quest title
+                    <input type="text" name="title" required placeholder="e.g. Send one qualified outreach">
+                </label>
+
+                <label>
+                    Description
+                    <textarea name="description" rows="3" placeholder="What does done look like?"></textarea>
+                </label>
+
+                <label>
+                    Project
+                    <select name="project_id">
+                        <option value="">No project</option>
+                        {% for project in projects %}
+                        <option value="{{ project.id }}">{{ project.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <div class="two-col">
+                    <label>
+                        Difficulty
+                        <select name="difficulty">
+                            {% for name, xp in xp_rewards.items() %}
+                            <option value="{{ name }}" {% if name == 'normal' %}selected{% endif %}>{{ name|title }} · +{{ xp }} XP</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+
+                    <label>
+                        Estimate (min)
+                        <input type="number" name="estimated_minutes" min="1" step="5" placeholder="30">
+                    </label>
+                </div>
+
+                <label>
+                    Due date
+                    <input type="date" name="due_date">
+                </label>
+
+                <button type="submit">Create Quest</button>
+            </form>
+        </section>
+    </div>
+</div>
+{% endblock %}

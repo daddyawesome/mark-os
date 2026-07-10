@@ -7,7 +7,8 @@
     <title>{% block title %}MARK OS{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
     <link rel="stylesheet" href="/static/styles.css?v=0.1.1">
-    <link rel="stylesheet" href="/static/v02.css?v=0.2.0">
+    <link rel="stylesheet" href="/static/v02.css?v=0.2.1">
+    <link rel="stylesheet" href="/static/quests.css?v=0.2.1">
     <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 </head>
 <body class="forest-body">
@@ -17,21 +18,23 @@
             <div class="navbar-brand">
                 <a class="navbar-item brand-lockup" href="/">
                     <span class="brand-mark">M</span>
-                    <span>MARK OS <small>v0.2</small></span>
+                    <span>MARK OS <small>v0.2.1</small></span>
                 </a>
             </div>
 
             <div class="navbar-menu is-active">
                 <div class="navbar-start">
                     <a class="navbar-item" href="/">Today</a>
+                    <a class="navbar-item" href="/quests">Quests</a>
                     <a class="navbar-item" href="/life-os">Life OS</a>
                     <a class="navbar-item" href="/history">History</a>
                 </div>
 
                 <div class="navbar-end">
                     {% if system_state %}
-                    <div class="navbar-item">
+                    <div class="navbar-item game-state-nav">
                         <span class="level-chip">LEVEL {{ system_state.level }}</span>
+                        <span class="xp-chip">{{ system_state.xp_total or 0 }} XP</span>
                     </div>
                     {% endif %}
                     <div class="navbar-item">

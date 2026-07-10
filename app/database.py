@@ -26,6 +26,23 @@ def get_db() -> Iterator[sqlite3.Connection]:
         connection.close()
 
 
+def _column_names(db: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = db.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return {row["name"] for row in rows}
+
+
+def _ensure_column(
+    db: sqlite3.Connection,
+    table_name: str,
+    column_name: str,
+    column_definition: str,
+) -> None:
+    if column_name not in _column_names(db, table_name):
+        db.execute(
+            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
+        )
+
+
 def init_db() -> None:
     with get_db() as db:
         db.executescript(
@@ -99,6 +116,16 @@ def init_db() -> None:
                 notes TEXT NOT NULL DEFAULT ''
             );
 
+            CREATE TABLE IF NOT EXISTS game_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_date TEXT NOT NULL,
+                level INTEGER NOT NULL CHECK(level >= 1),
+                xp_total INTEGER,
+                event TEXT NOT NULL,
+                source TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS memories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 memory_type TEXT NOT NULL,
@@ -144,14 +171,48 @@ def init_db() -> None:
                 FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
             );
 
+            CREATE TABLE IF NOT EXISTS quest_updates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                progress INTEGER,
+                actual_minutes INTEGER,
+                event_type TEXT NOT NULL DEFAULT 'update',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS xp_ledger (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL UNIQUE,
+                xp_delta INTEGER NOT NULL,
+                level_before INTEGER NOT NULL,
+                level_after INTEGER NOT NULL,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_checkins_date ON checkins(checkin_date);
             CREATE INDEX IF NOT EXISTS idx_timeline_events_date ON timeline_events(event_date);
             CREATE INDEX IF NOT EXISTS idx_timeline_events_type ON timeline_events(event_type);
             CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
             CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
             CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+            CREATE INDEX IF NOT EXISTS idx_quest_updates_task ON quest_updates(task_id);
             """
         )
+
+        # Safe migrations for the already-live Railway SQLite database.
+        _ensure_column(db, "game_state", "xp_into_level", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(db, "game_state", "last_level_up_at", "TEXT")
+
+        _ensure_column(db, "tasks", "difficulty", "TEXT NOT NULL DEFAULT 'normal'")
+        _ensure_column(db, "tasks", "xp_reward", "INTEGER NOT NULL DEFAULT 25")
+        _ensure_column(db, "tasks", "progress", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(db, "tasks", "started_at", "TEXT")
+        _ensure_column(db, "tasks", "result_notes", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(db, "tasks", "actual_minutes", "INTEGER")
 
         db.execute(
             """
@@ -197,7 +258,7 @@ def init_db() -> None:
                 "Build a personal operating system that observes current reality and gives the highest-leverage next action.",
                 10,
                 10,
-                "Secure the app, expose the Life OS map, then build Goals → Projects → Tasks.",
+                "Deploy the interactive Quest Engine, then add budget-safe AI chat.",
             ),
         )
 
@@ -213,3 +274,40 @@ def init_db() -> None:
                 "Default game state. Imported or user-confirmed state takes precedence.",
             ),
         )
+
+        # Seed real next actions only when no quests exist yet.
+        task_count = db.execute("SELECT COUNT(*) AS count FROM tasks").fetchone()["count"]
+        if task_count == 0:
+            mark_os_project = db.execute(
+                "SELECT id FROM projects WHERE name LIKE 'MARK OS%' ORDER BY id LIMIT 1"
+            ).fetchone()
+            project_id = mark_os_project["id"] if mark_os_project else None
+
+            db.executemany(
+                """
+                INSERT INTO tasks
+                (project_id, title, description, status, priority, estimated_minutes,
+                 difficulty, xp_reward, progress)
+                VALUES (?, ?, ?, 'backlog', ?, ?, ?, ?, 0)
+                """,
+                [
+                    (
+                        project_id,
+                        "Deploy the interactive Quest Engine to Railway",
+                        "Push the Quest Engine, verify clickable quests, updates, completion, XP, and Level 3 persistence online.",
+                        10,
+                        45,
+                        "hard",
+                        50,
+                    ),
+                    (
+                        None,
+                        "Complete one qualified lead outreach",
+                        "Find one real buyer showing a reporting, Excel, Power BI, SQL, or automation pain and send one tailored message.",
+                        9,
+                        30,
+                        "hard",
+                        50,
+                    ),
+                ],
+            )
