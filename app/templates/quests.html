@@ -1,20 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Quests · MARK OS{% endblock %}
 {% block content %}
-<section class="forest-hero p-6 mb-5">
+<section class="mb-6">
     <div class="columns is-vcentered">
         <div class="column is-8">
-            <p class="eyebrow mb-3">QUEST ENGINE</p>
-            <h1 class="title is-2 has-text-white mb-3">Turn intention into experience.</h1>
-            <p class="subtitle is-5 has-text-white-ter mb-0">
-                Every quest is clickable, updateable, and worth XP. Completing real work moves the game forward.
-            </p>
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">QUEST ENGINE // EXECUTION LAYER</p>
+            <h1 class="title is-1 has-text-light mb-3">Turn intention into experience.</h1>
+            <p class="subtitle is-5 has-text-grey-light">Every quest is clickable, updateable, and worth XP. Completing real work moves the game forward.</p>
         </div>
         <div class="column">
-            <div class="forest-pill quest-state-pill">
-                <p class="eyebrow">CURRENT STATE</p>
-                <p class="title is-3 has-text-white mt-2 mb-1">LEVEL {{ system_state.level }}</p>
-                <p class="has-text-white-ter">{{ system_state.xp_total or 0 }} tracked XP · thresholds hidden</p>
+            <div class="box has-background-black-ter">
+                <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">PLAYER STATE</p>
+                <div class="level is-mobile mb-2">
+                    <div class="level-left"><span class="title is-3 has-text-success-light mb-0">LEVEL {{ system_state.level }}</span></div>
+                    <div class="level-right"><span class="tag is-success is-light is-medium">{{ system_state.xp_total or 0 }} XP</span></div>
+                </div>
+                <p class="is-size-7 has-text-grey-light is-family-monospace">LEVEL THRESHOLDS // HIDDEN</p>
             </div>
         </div>
     </div>
@@ -22,92 +23,75 @@
 
 <div class="columns is-variable is-5">
     <div class="column is-8">
-        <div class="quest-list">
-            {% for quest in quests %}
-            <a href="/quests/{{ quest.id }}" class="quest-card-link">
-                <article class="box forest-card quest-card quest-status-{{ quest.status }}">
-                    <div class="quest-card-header">
-                        <div>
-                            <div class="quest-meta-row">
-                                <span class="quest-status-badge">{{ quest.status }}</span>
-                                <span class="quest-difficulty quest-difficulty-{{ quest.difficulty }}">{{ quest.difficulty }}</span>
-                                {% if quest.project_name %}<span>{{ quest.project_name }}</span>{% endif %}
-                            </div>
-                            <h2 class="title is-5 mb-2">{{ quest.title }}</h2>
-                            {% if quest.description %}<p>{{ quest.description }}</p>{% endif %}
-                        </div>
-                        <div class="quest-xp-badge">+{{ quest.xp_reward }} XP</div>
+        {% for quest in quests %}
+        <a class="box has-background-black-ter has-text-light mb-4" href="/quests/{{ quest.id }}">
+            <div class="level is-mobile mb-3">
+                <div class="level-left">
+                    <div class="tags mb-0">
+                        <span class="tag {% if quest.status == 'completed' %}is-dark{% else %}is-success is-dark{% endif %}">{{ quest.status|upper }}</span>
+                        <span class="tag is-dark">{{ quest.difficulty|upper }}</span>
+                        {% if quest.project_name %}<span class="tag is-dark">{{ quest.project_name }}</span>{% endif %}
                     </div>
-
-                    <div class="quest-card-footer mt-4">
-                        <div class="quest-progress-wrap">
-                            <div class="quest-progress-track">
-                                <div class="quest-progress-fill" style="width: {{ quest.progress }}%"></div>
-                            </div>
-                            <small>{{ quest.progress }}% complete</small>
-                        </div>
-                        <div class="quest-time">
-                            {% if quest.estimated_minutes %}⏱ {{ quest.estimated_minutes }} min{% else %}⏱ No estimate{% endif %}
-                        </div>
-                    </div>
-                </article>
-            </a>
-            {% else %}
-            <div class="box forest-card">
-                <p>No quests yet. Create the first one.</p>
+                </div>
+                <div class="level-right"><span class="tag is-success is-light is-medium">+{{ quest.xp_reward }} XP</span></div>
             </div>
-            {% endfor %}
-        </div>
+
+            <h2 class="title is-4 has-text-light mb-2">{{ quest.title }}</h2>
+            {% if quest.description %}<p class="has-text-grey-light mb-4">{{ quest.description }}</p>{% endif %}
+
+            <progress class="progress is-success is-small mb-2" value="{{ quest.progress }}" max="100">{{ quest.progress }}%</progress>
+            <div class="level is-mobile mb-0">
+                <div class="level-left"><span class="is-size-7 has-text-grey-light is-family-monospace">{{ quest.progress }}% COMPLETE</span></div>
+                <div class="level-right"><span class="is-size-7 has-text-grey-light is-family-monospace">{% if quest.estimated_minutes %}{{ quest.estimated_minutes }} MIN EST.{% else %}NO ESTIMATE{% endif %}</span></div>
+            </div>
+        </a>
+        {% else %}
+        <div class="notification is-dark">No quests yet. Create the first one.</div>
+        {% endfor %}
     </div>
 
     <div class="column is-4">
-        <section class="box forest-card sticky-quest-form">
-            <p class="eyebrow mb-2">ADD QUEST</p>
-            <h2 class="title is-4">What needs to become real?</h2>
+        <section class="box has-background-black-ter">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">ADD QUEST</p>
+            <h2 class="title is-4 has-text-light">What needs to become real?</h2>
 
-            <form method="post" action="/quests" class="quest-form">
-                <label>
-                    Quest title
-                    <input type="text" name="title" required placeholder="e.g. Send one qualified outreach">
-                </label>
-
-                <label>
-                    Description
-                    <textarea name="description" rows="3" placeholder="What does done look like?"></textarea>
-                </label>
-
-                <label>
-                    Project
-                    <select name="project_id">
-                        <option value="">No project</option>
-                        {% for project in projects %}
-                        <option value="{{ project.id }}">{{ project.name }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-
-                <div class="two-col">
-                    <label>
-                        Difficulty
-                        <select name="difficulty">
-                            {% for name, xp in xp_rewards.items() %}
-                            <option value="{{ name }}" {% if name == 'normal' %}selected{% endif %}>{{ name|title }} · +{{ xp }} XP</option>
-                            {% endfor %}
-                        </select>
-                    </label>
-
-                    <label>
-                        Estimate (min)
-                        <input type="number" name="estimated_minutes" min="1" step="5" placeholder="30">
-                    </label>
+            <form method="post" action="/quests">
+                <div class="field">
+                    <label class="label has-text-grey-light">Quest title</label>
+                    <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="text" name="title" required placeholder="e.g. Send one qualified outreach"></div>
                 </div>
 
-                <label>
-                    Due date
-                    <input type="date" name="due_date">
-                </label>
+                <div class="field">
+                    <label class="label has-text-grey-light">Description</label>
+                    <div class="control"><textarea class="textarea is-success has-background-black-bis has-text-light" name="description" rows="3" placeholder="What does done look like?"></textarea></div>
+                </div>
 
-                <button type="submit">Create Quest</button>
+                <div class="field">
+                    <label class="label has-text-grey-light">Project</label>
+                    <div class="control"><div class="select is-success is-fullwidth"><select class="has-background-black-bis has-text-light" name="project_id"><option value="">No project</option>{% for project in projects %}<option value="{{ project.id }}">{{ project.name }}</option>{% endfor %}</select></div></div>
+                </div>
+
+                <div class="columns is-mobile">
+                    <div class="column">
+                        <div class="field">
+                            <label class="label has-text-grey-light">Difficulty</label>
+                            <div class="control"><div class="select is-success is-fullwidth"><select class="has-background-black-bis has-text-light" name="difficulty">{% for name, xp in xp_rewards.items() %}<option value="{{ name }}" {% if name == 'normal' %}selected{% endif %}>{{ name|title }} · +{{ xp }} XP</option>{% endfor %}</select></div></div>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="field">
+                            <label class="label has-text-grey-light">Estimate</label>
+                            <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="number" name="estimated_minutes" min="1" step="5" placeholder="30"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label has-text-grey-light">Due date</label>
+                    <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="date" name="due_date"></div>
+                </div>
+
+                <button class="button is-success is-fullwidth has-text-weight-bold" type="submit">Create Quest</button>
             </form>
         </section>
     </div>

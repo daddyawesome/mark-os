@@ -1,48 +1,44 @@
-{% if direction %}
-<section class="card direction-card" id="direction-panel">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">Current Direction</p>
-            <h2>{{ direction["main_quest"] }}</h2>
+<section id="direction-panel" class="box has-background-black-ter">
+    {% if direction %}
+    <div class="level is-mobile mb-4">
+        <div class="level-left">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace">
+                CURRENT DIRECTION // {{ direction.signal|replace('-', ' ')|upper }}
+            </p>
+        </div>
+        <div class="level-right"><span class="tag is-success is-light is-family-monospace">DIRECTOR SIGNAL</span></div>
+    </div>
+
+    <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">MAIN QUEST</p>
+    <h2 class="title is-3 has-text-light mb-5">{{ direction.main_quest }}</h2>
+
+    <article class="message is-success">
+        <div class="message-header"><p>Why this now?</p></div>
+        <div class="message-body">{{ direction.why }}</div>
+    </article>
+
+    <div class="columns mt-2">
+        <div class="column">
+            <div class="box has-background-black-bis">
+                <span class="tag is-success is-dark mb-3">SIDE QUEST 01</span>
+                <p class="has-text-grey-light">{{ direction.side_quest_1 }}</p>
+            </div>
+        </div>
+        <div class="column">
+            <div class="box has-background-black-bis">
+                <span class="tag is-success is-dark mb-3">SIDE QUEST 02</span>
+                <p class="has-text-grey-light">{{ direction.side_quest_2 }}</p>
+            </div>
         </div>
     </div>
 
-    {% if direction["why"] %}
-    <p class="direction-why">{{ direction["why"] }}</p>
-    {% endif %}
-
-    <div class="direction-grid">
-        <div>
-            <h3>Side Quest 1</h3>
-            <p>{{ direction["side_quest_1"] or "No side quest yet." }}</p>
-        </div>
-        <div>
-            <h3>Side Quest 2</h3>
-            <p>{{ direction["side_quest_2"] or "No side quest yet." }}</p>
-        </div>
-        <div>
-            <h3>Avoid</h3>
-            <p>{{ direction["avoid"] or "No avoid signal yet." }}</p>
-        </div>
-        <div>
-            <h3>Success Signal</h3>
-            <p>{{ direction["signal"] or "Complete the main quest." }}</p>
-        </div>
-    </div>
-
-    {% if latest_checkin %}
-    <p class="muted">
-        Latest check-in recorded.
-        {% if latest_checkin["energy"] is not none %}
-        Energy: {{ latest_checkin["energy"] }}/5.
-        {% endif %}
-    </p>
+    <article class="message is-danger mt-2">
+        <div class="message-header"><p>Avoid today</p></div>
+        <div class="message-body">{{ direction.avoid }}</div>
+    </article>
+    {% else %}
+    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">AWAITING FIRST SIGNAL</p>
+    <h2 class="title is-3 has-text-light">MARK OS needs current evidence.</h2>
+    <p class="has-text-grey-light">Complete your first real check-in. The Director will choose one main quest, two side quests, and one thing to avoid.</p>
     {% endif %}
 </section>
-{% else %}
-<section class="card empty-state" id="direction-panel">
-    <p class="eyebrow">Current Direction</p>
-    <h2>No quest direction yet</h2>
-    <p>Complete your first daily check-in and MARK OS will generate your next direction.</p>
-</section>
-{% endif %}

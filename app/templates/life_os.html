@@ -1,94 +1,105 @@
 {% extends "base.html" %}
 {% block title %}Life OS · MARK OS{% endblock %}
 {% block content %}
-<section class="forest-hero p-6 mb-5">
-    <div class="columns is-vcentered">
-        <div class="column is-8">
-            <p class="eyebrow mb-3">LIFE OPERATING SYSTEM</p>
-            <h1 class="title is-2 has-text-white mb-3">Organize less. Decide better.</h1>
-            <p class="subtitle is-5 has-text-white-ter mb-0">
-                Other life systems store everything. MARK OS should connect every area of life to one question: what is the highest-leverage next action?
-            </p>
-        </div>
-        <div class="column">
-            <div class="forest-pill">
-                <p class="eyebrow">CURRENT BUILD PRIORITY</p>
-                <p class="title is-4 has-text-white mt-2 mb-2">Quest Engine → Budget AI Chat</p>
-                <p class="has-text-white-ter">Quests now capture real work, progress, evidence, XP, and leveling. AI chat is next.</p>
+<section class="hero is-dark mb-6">
+    <div class="hero-body px-0">
+        <div class="columns is-vcentered">
+            <div class="column is-8">
+                <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">LIFE OPERATING SYSTEM // SYSTEM MAP</p>
+                <h1 class="title is-1 has-text-light mb-3">Organize less. Decide better.</h1>
+                <p class="subtitle is-5 has-text-grey-light">Every area of life should connect to one question: what is the highest-leverage next action?</p>
+            </div>
+            <div class="column">
+                <div class="box has-background-black-ter">
+                    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">CURRENT BUILD PRIORITY</p>
+                    <h2 class="title is-4 has-text-light">Quest Engine → Budget AI Chat</h2>
+                    <p class="has-text-grey-light">Quests capture real work, progress, evidence, XP, and leveling. AI chat comes next.</p>
+                </div>
             </div>
         </div>
     </div>
 </section>
 
-<div class="columns is-multiline mb-2">
+<div class="columns is-multiline mb-5">
     <div class="column is-6-tablet is-3-desktop">
-        <div class="box forest-card metric-card">
-            <p class="eyebrow">LEVEL</p>
-            <p class="metric-value">{{ system_state.level }}</p>
-            <p>{{ system_state.character_class }}</p>
+        <div class="box has-background-black-ter">
+            <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">LEVEL</p>
+            <p class="title is-1 has-text-success-light mb-2">{{ system_state.level }}</p>
+            <p class="has-text-grey-light">{{ system_state.character_class }}</p>
         </div>
     </div>
     <div class="column is-6-tablet is-3-desktop">
-        <div class="box forest-card metric-card">
-            <p class="eyebrow">MEMORIES</p>
-            <p class="metric-value">{{ counts.memories }}</p>
-            <p>Long-term facts and lessons</p>
+        <div class="box has-background-black-ter">
+            <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">MEMORIES</p>
+            <p class="title is-1 has-text-success-light mb-2">{{ counts.memories }}</p>
+            <p class="has-text-grey-light">Long-term facts and lessons</p>
         </div>
     </div>
     <div class="column is-6-tablet is-3-desktop">
-        <div class="box forest-card metric-card">
-            <p class="eyebrow">TIMELINE</p>
-            <p class="metric-value">{{ counts.timeline }}</p>
-            <p>Life events remembered</p>
+        <div class="box has-background-black-ter">
+            <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">TIMELINE</p>
+            <p class="title is-1 has-text-success-light mb-2">{{ counts.timeline }}</p>
+            <p class="has-text-grey-light">Life events remembered</p>
         </div>
     </div>
     <div class="column is-6-tablet is-3-desktop">
-        <div class="box forest-card metric-card">
-            <p class="eyebrow">ACTIVE SYSTEM</p>
-            <p class="metric-value">{{ counts.goals }}G</p>
-            <p>{{ counts.projects }} project · {{ counts.tasks }} tasks</p>
+        <div class="box has-background-black-ter">
+            <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">ACTIVE SYSTEM</p>
+            <p class="title is-1 has-text-success-light mb-2">{{ counts.goals }}G</p>
+            <p class="has-text-grey-light">{{ counts.projects }} project · {{ counts.tasks }} tasks</p>
         </div>
     </div>
 </div>
 
-<div class="box forest-card mb-5">
-    <p class="eyebrow mb-2">THE OPERATING CHAIN</p>
-    <h2 class="title is-4 mb-4">Every task should know why it exists.</h2>
-    <div class="operating-chain">
-        <span>Life Area</span><b>→</b><span>Goal</span><b>→</b><span>Project</span><b>→</b><span>Task</span><b>→</b><span>Today</span><b>→</b><span>Review</span>
+<section class="box has-background-black-ter mb-6">
+    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">THE OPERATING CHAIN</p>
+    <h2 class="title is-4 has-text-light">Every task should know why it exists.</h2>
+    <div class="tags are-medium mt-4">
+        <span class="tag is-dark">Life Area</span><span class="tag is-success">→</span>
+        <span class="tag is-dark">Goal</span><span class="tag is-success">→</span>
+        <span class="tag is-dark">Project</span><span class="tag is-success">→</span>
+        <span class="tag is-dark">Task</span><span class="tag is-success">→</span>
+        <span class="tag is-dark">Today</span><span class="tag is-success">→</span>
+        <span class="tag is-dark">Review</span>
     </div>
-</div>
+</section>
 
 <div class="columns is-multiline">
     {% for module in modules %}
     <div class="column is-6-tablet is-4-desktop">
-        <article class="box forest-card module-card {% if module.recommended %}module-card-recommended{% endif %}">
-            <div class="module-card-top">
-                <span class="module-icon">{{ module.icon }}</span>
-                <span class="module-status module-status-{{ module.status|replace(' ', '-') }}">{{ module.status }}</span>
+        <article class="box has-background-black-ter">
+            <div class="level is-mobile mb-4">
+                <div class="level-left"><span class="tag is-success is-medium is-family-monospace">{{ module.icon }}</span></div>
+                <div class="level-right"><span class="tag {% if module.recommended %}is-success is-light{% else %}is-dark{% endif %} is-family-monospace">{{ module.status|upper }}</span></div>
             </div>
-            <h3 class="title is-5 mb-2">{{ module.name }}</h3>
-            <p>{{ module.description }}</p>
+            <h3 class="title is-5 has-text-light">{{ module.name }}</h3>
+            <p class="has-text-grey-light">{{ module.description }}</p>
             {% if module.recommended %}
-            <div class="recommendation-banner mt-4">
-                <strong>ACTIVE BUILD</strong><br>
-                Open the Quest Engine, complete real work, and let the history become training evidence for the future AI Director.
-                <div class="mt-3"><a class="button is-small" href="/quests">Open Quests</a></div>
-            </div>
+            <article class="message is-success mt-4">
+                <div class="message-header"><p>ACTIVE BUILD</p></div>
+                <div class="message-body">
+                    Open the Quest Engine, complete real work, and create evidence for the future AI Director.
+                    <div class="mt-3"><a class="button is-success is-small" href="/quests">Open Quests</a></div>
+                </div>
+            </article>
             {% endif %}
         </article>
     </div>
     {% endfor %}
 </div>
 
-<div class="box forest-card mt-2">
-    <p class="eyebrow mb-2">BUILD ORDER</p>
-    <h2 class="title is-4">Do not build the whole Life OS at once.</h2>
-    <div class="roadmap-list mt-4">
-        <div><strong>1. Now</strong><span>Login + persistent memory + Level 3</span></div>
-        <div class="roadmap-active"><strong>2. Next</strong><span>Quest Engine → Budget AI Chat → Director selection</span></div>
-        <div><strong>3. Then</strong><span>Notes & Knowledge</span></div>
-        <div><strong>4. Later</strong><span>Habits, reflection, finance, calendar, then AI Director</span></div>
+<section class="box has-background-black-ter mt-5">
+    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">BUILD ORDER</p>
+    <h2 class="title is-4 has-text-light">Do not build the whole Life OS at once.</h2>
+    <div class="table-container mt-4">
+        <table class="table is-fullwidth is-hoverable has-background-black-ter has-text-light">
+            <tbody>
+                <tr><th class="has-text-success-light">01 // DONE</th><td class="has-text-grey-light">Login + persistent memory + Level 3</td></tr>
+                <tr><th class="has-text-success-light">02 // NOW</th><td class="has-text-light"><strong>Quest Engine → Budget AI Chat → Director selection</strong></td></tr>
+                <tr><th class="has-text-success-light">03 // THEN</th><td class="has-text-grey-light">Notes & Knowledge</td></tr>
+                <tr><th class="has-text-success-light">04 // LATER</th><td class="has-text-grey-light">Habits, reflection, finance, calendar, then AI Director</td></tr>
+            </tbody>
+        </table>
     </div>
-</div>
+</section>
 {% endblock %}

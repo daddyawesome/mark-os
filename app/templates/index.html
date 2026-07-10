@@ -1,138 +1,162 @@
 {% extends "base.html" %}
 {% block title %}Today · MARK OS{% endblock %}
-
 {% block content %}
-<section class="hero">
-    <div>
-        <div class="eyebrow">PERSONAL OPERATING SYSTEM</div>
-        <h1>Good day, {{ profile.name }}.</h1>
-        <p>Observe reality. Decide what matters. Do the next right thing.</p>
+<section class="mb-6">
+    <div class="columns is-vcentered">
+        <div class="column is-8">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">TODAY // COMMAND CENTER</p>
+            <h1 class="title is-1 has-text-light mb-3">Good day, {{ profile.name }}.</h1>
+            <p class="subtitle is-5 has-text-grey-light mb-0">Observe reality. Decide what matters. Do the next right thing.</p>
+        </div>
+        <div class="column has-text-right-desktop">
+            <span class="tag is-success is-light is-medium is-family-monospace">
+                {{ checkin_count }} CHECK-IN{% if checkin_count != 1 %}S{% endif %} RECORDED
+            </span>
+        </div>
     </div>
-    <div class="status-pill">{{ checkin_count }} check-in{% if checkin_count != 1 %}s{% endif %} recorded</div>
 </section>
 
-<section class="metric-grid">
-    <article class="metric-card">
-        <span>💰 Latest cash</span>
-        <strong>
-            {% if latest_checkin and latest_checkin.cash is not none %}
-                ₱{{ "{:,.0f}".format(latest_checkin.cash) }}
-            {% else %}
-                Not recorded
-            {% endif %}
-        </strong>
-    </article>
-    <article class="metric-card">
-        <span>⏱ Available today</span>
-        <strong>{% if latest_checkin %}{{ latest_checkin.free_hours }} hours{% else %}Not recorded{% endif %}</strong>
-    </article>
-    <article class="metric-card">
-        <span>⚡ Energy</span>
-        <strong>{% if latest_checkin %}{{ latest_checkin.energy }}/5{% else %}Not recorded{% endif %}</strong>
-    </article>
-    <article class="metric-card">
-        <span>🏗 Active project</span>
-        <strong>{{ projects[0].name if projects else "None" }}</strong>
-    </article>
-</section>
+<div class="columns is-multiline mb-4">
+    <div class="column is-6-tablet is-3-desktop">
+        <article class="box has-background-black-ter">
+            <p class="is-size-7 has-text-grey-light is-family-monospace mb-3">CASH POSITION</p>
+            <p class="title is-4 has-text-light mb-1">
+                {% if latest_checkin and latest_checkin.cash is not none %}₱{{ "{:,.0f}".format(latest_checkin.cash) }}{% else %}Not recorded{% endif %}
+            </p>
+            <span class="tag is-success is-dark">FINANCE</span>
+        </article>
+    </div>
+    <div class="column is-6-tablet is-3-desktop">
+        <article class="box has-background-black-ter">
+            <p class="is-size-7 has-text-grey-light is-family-monospace mb-3">AVAILABLE TIME</p>
+            <p class="title is-4 has-text-light mb-1">{% if latest_checkin %}{{ latest_checkin.free_hours }} hours{% else %}Not recorded{% endif %}</p>
+            <span class="tag is-success is-dark">CAPACITY</span>
+        </article>
+    </div>
+    <div class="column is-6-tablet is-3-desktop">
+        <article class="box has-background-black-ter">
+            <p class="is-size-7 has-text-grey-light is-family-monospace mb-3">ENERGY SIGNAL</p>
+            <p class="title is-4 has-text-light mb-1">{% if latest_checkin %}{{ latest_checkin.energy }}/5{% else %}Not recorded{% endif %}</p>
+            <span class="tag is-success is-dark">STATE</span>
+        </article>
+    </div>
+    <div class="column is-6-tablet is-3-desktop">
+        <article class="box has-background-black-ter">
+            <p class="is-size-7 has-text-grey-light is-family-monospace mb-3">ACTIVE PROJECT</p>
+            <p class="title is-5 has-text-light mb-1">{{ projects[0].name if projects else "None" }}</p>
+            <span class="tag is-success is-dark">BUILD</span>
+        </article>
+    </div>
+</div>
 
-<div class="main-grid">
-    <div class="left-column">
+<div class="columns is-variable is-5">
+    <div class="column is-8">
         {% include "partials/direction.html" %}
 
-        <section class="panel">
-            <div class="panel-header">
-                <div>
-                    <div class="eyebrow">ACTIVE PROJECT</div>
-                    <h2>{{ projects[0].name if projects else "No active project" }}</h2>
+        <section class="box has-background-black-ter mt-5">
+            <div class="level mb-4">
+                <div class="level-left">
+                    <div>
+                        <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">ACTIVE PROJECT</p>
+                        <h2 class="title is-4 has-text-light mb-0">{{ projects[0].name if projects else "No active project" }}</h2>
+                    </div>
                 </div>
-                {% if projects %}<strong>{{ projects[0].progress }}%</strong>{% endif %}
+                {% if projects %}<div class="level-right"><span class="tag is-success is-medium is-family-monospace">{{ projects[0].progress }}%</span></div>{% endif %}
             </div>
             {% if projects %}
-                <div class="progress-track"><div class="progress-fill" style="width: {{ projects[0].progress }}%"></div></div>
-                <p>{{ projects[0].purpose }}</p>
-                <div class="next-action"><strong>Next action:</strong> {{ projects[0].next_action }}</div>
+            <progress class="progress is-success" value="{{ projects[0].progress }}" max="100">{{ projects[0].progress }}%</progress>
+            <p class="has-text-grey-light">{{ projects[0].purpose }}</p>
+            <article class="message is-success mt-4">
+                <div class="message-body"><strong>Next action:</strong> {{ projects[0].next_action }}</div>
+            </article>
             {% endif %}
         </section>
 
-        <section class="panel">
-            <div class="panel-header">
-                <div>
-                    <div class="eyebrow">ACTIVE QUESTS</div>
-                    <h2>Real actions that earn experience.</h2>
-                </div>
-                <a href="/quests"><strong>Open all →</strong></a>
-            </div>
-            <div class="today-quest-list">
-                {% for quest in active_quests %}
-                <a href="/quests/{{ quest.id }}" class="today-quest-row">
+        <section class="box has-background-black-ter mt-5">
+            <div class="level mb-4">
+                <div class="level-left">
                     <div>
-                        <strong>{{ quest.title }}</strong>
-                        <small>{{ quest.progress }}% · {{ quest.status }}</small>
+                        <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">ACTIVE QUESTS</p>
+                        <h2 class="title is-4 has-text-light mb-0">Real actions that earn experience.</h2>
                     </div>
-                    <span>+{{ quest.xp_reward }} XP</span>
-                </a>
-                {% else %}
-                <p>No active quests. <a href="/quests">Create one.</a></p>
-                {% endfor %}
+                </div>
+                <div class="level-right"><a class="button is-success is-outlined is-small" href="/quests">Open all</a></div>
             </div>
+
+            {% for quest in active_quests %}
+            <a class="box has-background-black-bis has-text-light mb-3" href="/quests/{{ quest.id }}">
+                <div class="level is-mobile mb-2">
+                    <div class="level-left"><strong class="has-text-light">{{ quest.title }}</strong></div>
+                    <div class="level-right"><span class="tag is-success is-light">+{{ quest.xp_reward }} XP</span></div>
+                </div>
+                <progress class="progress is-success is-small mb-2" value="{{ quest.progress }}" max="100">{{ quest.progress }}%</progress>
+                <p class="is-size-7 has-text-grey-light is-family-monospace">{{ quest.progress }}% // {{ quest.status|upper }}</p>
+            </a>
+            {% else %}
+            <div class="notification is-dark">No active quests. <a class="has-text-success-light" href="/quests">Create one.</a></div>
+            {% endfor %}
         </section>
     </div>
 
-    <aside class="right-column">
-        <section class="panel checkin-panel">
-            <div class="eyebrow">DAILY INPUT</div>
-            <h2>Tell MARK OS where you are.</h2>
-            <form hx-post="/check-in" hx-target="#direction-panel" hx-swap="outerHTML">
-                <label>
-                    Cash on hand (PHP)
-                    <input type="number" name="cash" step="0.01" min="0" placeholder="e.g. 37759">
-                </label>
+    <aside class="column is-4">
+        <section class="box has-background-black-ter mb-5">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">DAILY INPUT</p>
+            <h2 class="title is-4 has-text-light">Tell MARK OS where you are.</h2>
 
-                <div class="two-col">
-                    <label>
-                        Expenses today
-                        <input type="number" name="expenses" step="0.01" min="0" value="0">
-                    </label>
-                    <label>
-                        Free hours today
-                        <input type="number" name="free_hours" step="0.25" min="0" value="2">
-                    </label>
+            <form hx-post="/check-in" hx-target="#direction-panel" hx-swap="outerHTML">
+                <div class="field">
+                    <label class="label has-text-grey-light">Cash on hand (PHP)</label>
+                    <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="number" name="cash" step="0.01" min="0" placeholder="e.g. 37759"></div>
                 </div>
 
-                <label>
-                    Energy (1 low → 5 high)
-                    <input type="range" name="energy" min="1" max="5" value="3">
-                </label>
+                <div class="columns is-mobile">
+                    <div class="column">
+                        <div class="field">
+                            <label class="label has-text-grey-light">Expenses today</label>
+                            <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="number" name="expenses" step="0.01" min="0" value="0"></div>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="field">
+                            <label class="label has-text-grey-light">Free hours</label>
+                            <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="number" name="free_hours" step="0.25" min="0" value="2"></div>
+                        </div>
+                    </div>
+                </div>
 
-                <label>
-                    What did you accomplish?
-                    <textarea name="accomplished" rows="3" placeholder="Be honest. Small wins count."></textarea>
-                </label>
+                <div class="field">
+                    <label class="label has-text-grey-light">Energy (1 low → 5 high)</label>
+                    <div class="control"><input class="slider is-fullwidth" type="range" name="energy" min="1" max="5" value="3"></div>
+                </div>
 
-                <label>
-                    What is blocking you?
-                    <textarea name="blocker" rows="3" placeholder="The real obstacle, not the polite version."></textarea>
-                </label>
+                <div class="field">
+                    <label class="label has-text-grey-light">What did you accomplish?</label>
+                    <div class="control"><textarea class="textarea is-success has-background-black-bis has-text-light" name="accomplished" rows="3" placeholder="Be honest. Small wins count."></textarea></div>
+                </div>
 
-                <label>
-                    Notes
-                    <textarea name="notes" rows="2" placeholder="Optional context"></textarea>
-                </label>
+                <div class="field">
+                    <label class="label has-text-grey-light">What is blocking you?</label>
+                    <div class="control"><textarea class="textarea is-success has-background-black-bis has-text-light" name="blocker" rows="3" placeholder="The real obstacle, not the polite version."></textarea></div>
+                </div>
 
-                <button type="submit">Generate My Direction</button>
-                <p class="form-note">MARK OS now tracks clickable quests and XP. Budget-safe AI chat is the next build.</p>
+                <div class="field">
+                    <label class="label has-text-grey-light">Notes</label>
+                    <div class="control"><textarea class="textarea is-success has-background-black-bis has-text-light" name="notes" rows="2" placeholder="Optional context"></textarea></div>
+                </div>
+
+                <button class="button is-success is-fullwidth has-text-weight-bold" type="submit">Generate My Direction</button>
+                <p class="help has-text-grey mt-3">Quest XP is live. Budget-safe AI chat is the next system module.</p>
             </form>
         </section>
 
-        <section class="panel compact-list">
-            <div class="eyebrow">NORTH STAR</div>
-            <h2>Active goals</h2>
+        <section class="box has-background-black-ter">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">NORTH STAR</p>
+            <h2 class="title is-5 has-text-light">Active goals</h2>
             {% for goal in goals %}
-                <div class="goal-row">
-                    <span>{{ goal.title }}</span>
-                    <small>P{{ goal.priority }}</small>
-                </div>
+            <div class="level is-mobile py-2 mb-0">
+                <div class="level-left"><span class="has-text-grey-light">{{ goal.title }}</span></div>
+                <div class="level-right"><span class="tag is-success is-dark">P{{ goal.priority }}</span></div>
+            </div>
             {% endfor %}
         </section>
     </aside>

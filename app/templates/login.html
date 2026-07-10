@@ -1,177 +1,87 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" class="has-background-black-bis">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | MARK OS</title>
-    <style>
-        :root {
-            color-scheme: dark;
-            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-                "Segoe UI", sans-serif;
-            background: #0b1020;
-            color: #f4f7fb;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            padding: 24px;
-            background:
-                radial-gradient(circle at top, rgba(77, 111, 255, 0.18), transparent 35%),
-                #0b1020;
-        }
-
-        .login-card {
-            width: min(100%, 420px);
-            padding: 32px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            background: rgba(18, 25, 48, 0.92);
-            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-        }
-
-        .eyebrow {
-            margin: 0 0 8px;
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: #8fa7ff;
-        }
-
-        h1 {
-            margin: 0;
-            font-size: 2rem;
-        }
-
-        .subtitle {
-            margin: 10px 0 24px;
-            color: #aeb8cf;
-            line-height: 1.5;
-        }
-
-        .alert {
-            margin-bottom: 18px;
-            padding: 12px 14px;
-            border-radius: 12px;
-            background: rgba(255, 93, 93, 0.12);
-            border: 1px solid rgba(255, 93, 93, 0.28);
-            color: #ffb8b8;
-        }
-
-        .notice {
-            margin-bottom: 18px;
-            padding: 12px 14px;
-            border-radius: 12px;
-            background: rgba(255, 190, 77, 0.12);
-            border: 1px solid rgba(255, 190, 77, 0.28);
-            color: #ffd28a;
-        }
-
-        label {
-            display: block;
-            margin: 14px 0 7px;
-            font-weight: 650;
-        }
-
-        input {
-            width: 100%;
-            padding: 12px 14px;
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            border-radius: 12px;
-            background: #0e1530;
-            color: #f4f7fb;
-            font: inherit;
-            outline: none;
-        }
-
-        input:focus {
-            border-color: #7890ff;
-            box-shadow: 0 0 0 3px rgba(120, 144, 255, 0.16);
-        }
-
-        button {
-            width: 100%;
-            margin-top: 22px;
-            padding: 13px 16px;
-            border: 0;
-            border-radius: 12px;
-            background: #7087ff;
-            color: white;
-            font: inherit;
-            font-weight: 750;
-            cursor: pointer;
-        }
-
-        button:hover {
-            filter: brightness(1.08);
-        }
-
-        button:disabled {
-            opacity: 0.55;
-            cursor: not-allowed;
-        }
-
-        .footer {
-            margin-top: 20px;
-            text-align: center;
-            color: #7f8aa3;
-            font-size: 0.85rem;
-        }
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0a0f0c">
+    <title>Sign in · MARK OS</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
 </head>
-<body>
-    <main class="login-card">
-        <p class="eyebrow">Personal Operating System</p>
-        <h1>MARK OS</h1>
-        <p class="subtitle">Sign in to continue to your quests, direction, and Life OS.</p>
+<body class="has-background-black-bis">
+<section class="hero is-fullheight is-black">
+    <div class="hero-body">
+        <div class="container">
+            <div class="columns is-centered is-vcentered">
+                <div class="column is-10-tablet is-8-desktop is-5-widescreen">
+                    <div class="has-text-centered mb-6">
+                        <span class="tag is-success is-large is-family-monospace mb-5">M</span>
+                        <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">PERSONAL OPERATING SYSTEM // SECURE NODE</p>
+                        <h1 class="title is-1 has-text-light is-family-monospace mb-3">MARK OS</h1>
+                        <p class="subtitle is-6 has-text-grey-light">Observe reality. Remember the past. Decide what matters next.</p>
+                    </div>
 
-        {% if error %}
-        <div class="alert" role="alert">{{ error }}</div>
-        {% endif %}
+                    <div class="box has-background-black-ter">
+                        <div class="level is-mobile mb-5">
+                            <div class="level-left">
+                                <div>
+                                    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">AUTHENTICATION</p>
+                                    <h2 class="title is-4 has-text-light mb-0">Welcome back, Mark.</h2>
+                                </div>
+                            </div>
+                            <div class="level-right">
+                                <span class="tag is-success is-light is-family-monospace">ENCRYPTED SESSION</span>
+                            </div>
+                        </div>
 
-        {% if not configured %}
-        <div class="notice" role="status">
-            Login is not configured. Set <strong>MARK_OS_PASSWORD</strong> before signing in.
+                        {% if error %}
+                        <article class="message is-danger">
+                            <div class="message-body">{{ error }}</div>
+                        </article>
+                        {% endif %}
+
+                        {% if not configured %}
+                        <article class="message is-warning">
+                            <div class="message-body">
+                                Login is waiting for configuration. Set <strong>MARK_OS_PASSWORD</strong> in Railway first.
+                            </div>
+                        </article>
+                        {% endif %}
+
+                        <form method="post" action="/login">
+                            <input type="hidden" name="next" value="{{ next }}">
+
+                            <div class="field">
+                                <label class="label has-text-grey-light" for="username">Username</label>
+                                <div class="control">
+                                    <input class="input is-success has-background-black-bis has-text-light" id="username" name="username" autocomplete="username" required autofocus placeholder="mark">
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="label has-text-grey-light" for="password">Password</label>
+                                <div class="control">
+                                    <input class="input is-success has-background-black-bis has-text-light" id="password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••••••">
+                                </div>
+                            </div>
+
+                            <div class="field mt-5">
+                                <div class="control">
+                                    <button class="button is-success is-fullwidth is-medium has-text-weight-bold" type="submit" {% if not configured %}disabled{% endif %}>
+                                        Enter MARK OS
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="level is-mobile mt-4">
+                        <div class="level-left"><span class="is-size-7 has-text-grey is-family-monospace">PRIVATE LIFE DATA</span></div>
+                        <div class="level-right"><span class="is-size-7 has-text-success-light is-family-monospace">SYSTEM ONLINE</span></div>
+                    </div>
+                </div>
+            </div>
         </div>
-        {% endif %}
-
-        <form method="post" action="/login">
-            <input type="hidden" name="next" value="{{ next }}">
-
-            <label for="username">Username</label>
-            <input
-                id="username"
-                name="username"
-                type="text"
-                value="mark"
-                autocomplete="username"
-                required
-                autofocus
-            >
-
-            <label for="password">Password</label>
-            <input
-                id="password"
-                name="password"
-                type="password"
-                autocomplete="current-password"
-                required
-            >
-
-            <button type="submit" {% if not configured %}disabled{% endif %}>
-                Sign in
-            </button>
-        </form>
-
-        <p class="footer">MARK OS v0.2.0</p>
-    </main>
+    </div>
+</section>
 </body>
 </html>

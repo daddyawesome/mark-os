@@ -1,134 +1,140 @@
 {% extends "base.html" %}
 {% block title %}{{ quest.title }} · MARK OS{% endblock %}
 {% block content %}
-<div class="mb-4">
-    <a href="/quests" class="quest-back-link">← Back to quests</a>
-</div>
+<div class="mb-5"><a class="button is-dark is-small" href="/quests">← Back to quests</a></div>
 
 {% if completed_now %}
-<div class="notification quest-complete-banner">
-    <strong>Quest complete. +{{ quest.xp_reward }} XP earned.</strong>
-    {% if levels_gained > 0 %}
-    <div class="level-up-message">LEVEL UP → LEVEL {{ system_state.level }}</div>
-    {% endif %}
-</div>
+<article class="message is-success mb-5">
+    <div class="message-header"><p>QUEST COMPLETE // +{{ quest.xp_reward }} XP</p></div>
+    <div class="message-body">
+        Real work recorded. Experience awarded.
+        {% if levels_gained > 0 %}<p class="title is-4 mt-3 mb-0">LEVEL UP → LEVEL {{ system_state.level }}</p>{% endif %}
+    </div>
+</article>
 {% endif %}
 
 <div class="columns is-variable is-5">
     <div class="column is-8">
-        <section class="box forest-card quest-detail-card">
-            <div class="quest-card-header">
-                <div>
-                    <div class="quest-meta-row">
-                        <span class="quest-status-badge">{{ quest.status }}</span>
-                        <span class="quest-difficulty quest-difficulty-{{ quest.difficulty }}">{{ quest.difficulty }}</span>
-                        {% if quest.project_name %}<span>{{ quest.project_name }}</span>{% endif %}
+        <section class="box has-background-black-ter">
+            <div class="level mb-5">
+                <div class="level-left">
+                    <div>
+                        <div class="tags mb-3">
+                            <span class="tag is-success is-dark">{{ quest.status|upper }}</span>
+                            <span class="tag is-dark">{{ quest.difficulty|upper }}</span>
+                            {% if quest.project_name %}<span class="tag is-dark">{{ quest.project_name }}</span>{% endif %}
+                        </div>
+                        <h1 class="title is-2 has-text-light mb-3">{{ quest.title }}</h1>
+                        {% if quest.description %}<p class="subtitle is-6 has-text-grey-light">{{ quest.description }}</p>{% endif %}
                     </div>
-                    <h1 class="title is-2 mb-3">{{ quest.title }}</h1>
-                    {% if quest.description %}<p class="quest-description">{{ quest.description }}</p>{% endif %}
                 </div>
-                <div class="quest-xp-badge quest-xp-large">+{{ quest.xp_reward }} XP</div>
+                <div class="level-right"><span class="tag is-success is-light is-large">+{{ quest.xp_reward }} XP</span></div>
             </div>
 
-            <div class="quest-progress-panel mt-5">
-                <div class="quest-progress-track">
-                    <div class="quest-progress-fill" style="width: {{ quest.progress }}%"></div>
-                </div>
-                <div class="quest-progress-stats">
-                    <strong>{{ quest.progress }}% complete</strong>
-                    <span>{% if quest.actual_minutes %}{{ quest.actual_minutes }} min logged{% else %}No time logged yet{% endif %}</span>
+            <div class="box has-background-black-bis">
+                <progress class="progress is-success mb-3" value="{{ quest.progress }}" max="100">{{ quest.progress }}%</progress>
+                <div class="level is-mobile mb-0">
+                    <div class="level-left"><strong class="has-text-success-light">{{ quest.progress }}% COMPLETE</strong></div>
+                    <div class="level-right"><span class="has-text-grey-light">{% if quest.actual_minutes %}{{ quest.actual_minutes }} min logged{% else %}No time logged yet{% endif %}</span></div>
                 </div>
             </div>
 
             {% if quest.status == 'backlog' %}
             <form method="post" action="/quests/{{ quest.id }}/start" class="mt-5">
-                <button type="submit">Start Quest</button>
+                <button class="button is-success is-medium" type="submit">Start Quest</button>
             </form>
             {% endif %}
 
             {% if quest.status != 'completed' %}
-            <div class="quest-input-grid mt-5">
-                <section class="quest-action-panel">
-                    <p class="eyebrow mb-2">PROGRESS INPUT</p>
-                    <h2 class="title is-5">Add an update</h2>
-                    <form method="post" action="/quests/{{ quest.id }}/update">
-                        <label>
-                            What changed?
-                            <textarea name="note" rows="4" placeholder="What did you do, learn, or get blocked by?"></textarea>
-                        </label>
-                        <div class="two-col">
-                            <label>
-                                Progress %
-                                <input type="number" name="progress" min="0" max="99" value="{{ quest.progress }}">
-                            </label>
-                            <label>
-                                Total minutes so far
-                                <input type="number" name="actual_minutes" min="0" value="{{ quest.actual_minutes or '' }}">
-                            </label>
-                        </div>
-                        <button type="submit">Save Update</button>
-                    </form>
-                </section>
+            <div class="columns mt-5">
+                <div class="column">
+                    <section class="box has-background-black-bis">
+                        <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">PROGRESS INPUT</p>
+                        <h2 class="title is-5 has-text-light">Add an update</h2>
+                        <form method="post" action="/quests/{{ quest.id }}/update">
+                            <div class="field">
+                                <label class="label has-text-grey-light">What changed?</label>
+                                <div class="control"><textarea class="textarea is-success has-background-black-ter has-text-light" name="note" rows="4" placeholder="What did you do, learn, or get blocked by?"></textarea></div>
+                            </div>
+                            <div class="columns is-mobile">
+                                <div class="column">
+                                    <div class="field">
+                                        <label class="label has-text-grey-light">Progress %</label>
+                                        <div class="control"><input class="input is-success has-background-black-ter has-text-light" type="number" name="progress" min="0" max="99" value="{{ quest.progress }}"></div>
+                                    </div>
+                                </div>
+                                <div class="column">
+                                    <div class="field">
+                                        <label class="label has-text-grey-light">Total minutes</label>
+                                        <div class="control"><input class="input is-success has-background-black-ter has-text-light" type="number" name="actual_minutes" min="0" value="{{ quest.actual_minutes or '' }}"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="button is-success is-outlined is-fullwidth" type="submit">Save Update</button>
+                        </form>
+                    </section>
+                </div>
 
-                <section class="quest-action-panel quest-complete-panel">
-                    <p class="eyebrow mb-2">CLAIM EXPERIENCE</p>
-                    <h2 class="title is-5">Complete the quest</h2>
-                    <form method="post" action="/quests/{{ quest.id }}/complete">
-                        <label>
-                            Result / evidence
-                            <textarea name="result_notes" rows="4" placeholder="What was completed? Add the result, lesson, link, or evidence."></textarea>
-                        </label>
-                        <label>
-                            Actual minutes
-                            <input type="number" name="actual_minutes" min="0" value="{{ quest.actual_minutes or '' }}">
-                        </label>
-                        <button type="submit" class="quest-complete-button">Complete + Earn {{ quest.xp_reward }} XP</button>
-                    </form>
-                </section>
+                <div class="column">
+                    <section class="box has-background-black-bis">
+                        <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">CLAIM EXPERIENCE</p>
+                        <h2 class="title is-5 has-text-light">Complete the quest</h2>
+                        <form method="post" action="/quests/{{ quest.id }}/complete">
+                            <div class="field">
+                                <label class="label has-text-grey-light">Result / evidence</label>
+                                <div class="control"><textarea class="textarea is-success has-background-black-ter has-text-light" name="result_notes" rows="4" placeholder="What was completed? Add the result, lesson, link, or evidence."></textarea></div>
+                            </div>
+                            <div class="field">
+                                <label class="label has-text-grey-light">Actual minutes</label>
+                                <div class="control"><input class="input is-success has-background-black-ter has-text-light" type="number" name="actual_minutes" min="0" value="{{ quest.actual_minutes or '' }}"></div>
+                            </div>
+                            <button class="button is-success is-fullwidth has-text-weight-bold" type="submit">Complete + Earn {{ quest.xp_reward }} XP</button>
+                        </form>
+                    </section>
+                </div>
             </div>
             {% else %}
-            <div class="quest-result-box mt-5">
-                <p class="eyebrow mb-2">RESULT</p>
-                <p>{{ quest.result_notes or "Completed." }}</p>
-                {% if xp_award %}
-                <p class="mt-3"><strong>XP awarded:</strong> +{{ xp_award.xp_delta }} XP</p>
-                {% endif %}
-            </div>
+            <article class="message is-success mt-5">
+                <div class="message-header"><p>RESULT</p></div>
+                <div class="message-body">
+                    {{ quest.result_notes or "Completed." }}
+                    {% if xp_award %}<p class="mt-3"><strong>XP awarded:</strong> +{{ xp_award.xp_delta }} XP</p>{% endif %}
+                </div>
+            </article>
             {% endif %}
         </section>
     </div>
 
-    <div class="column is-4">
-        <section class="box forest-card mb-4">
-            <p class="eyebrow mb-2">PLAYER STATE</p>
-            <div class="quest-player-state">
-                <span class="level-number">{{ system_state.level }}</span>
-                <div>
-                    <strong>LEVEL {{ system_state.level }}</strong><br>
-                    <small>{{ system_state.xp_total or 0 }} tracked XP</small>
-                </div>
+    <aside class="column is-4">
+        <section class="box has-background-black-ter mb-5">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">PLAYER STATE</p>
+            <div class="level is-mobile">
+                <div class="level-left"><span class="title is-1 has-text-success-light mb-0">{{ system_state.level }}</span></div>
+                <div class="level-right"><div class="has-text-right"><strong class="has-text-light">LEVEL {{ system_state.level }}</strong><br><span class="is-size-7 has-text-grey-light">{{ system_state.xp_total or 0 }} tracked XP</span></div></div>
             </div>
-            <p class="form-note mt-3">Level thresholds stay hidden. Real completed work earns visible XP.</p>
+            <p class="help has-text-grey">Level thresholds stay hidden. Real completed work earns visible XP.</p>
         </section>
 
-        <section class="box forest-card">
-            <p class="eyebrow mb-2">QUEST LOG</p>
-            <h2 class="title is-5">Updates</h2>
-            <div class="quest-update-list">
-                {% for update in updates %}
-                <article class="quest-update-item">
-                    <div class="quest-update-top">
-                        <strong>{{ update.event_type|title }}</strong>
-                        {% if update.progress is not none %}<span>{{ update.progress }}%</span>{% endif %}
+        <section class="box has-background-black-ter">
+            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">QUEST LOG</p>
+            <h2 class="title is-5 has-text-light">Updates</h2>
+            {% for update in updates %}
+            <article class="media py-3">
+                <div class="media-content">
+                    <div class="content">
+                        <div class="level is-mobile mb-2">
+                            <div class="level-left"><strong class="has-text-light">{{ update.event_type|title }}</strong></div>
+                            {% if update.progress is not none %}<div class="level-right"><span class="tag is-success is-dark">{{ update.progress }}%</span></div>{% endif %}
+                        </div>
+                        {% if update.note %}<p class="has-text-grey-light">{{ update.note }}</p>{% endif %}
+                        <p class="is-size-7 has-text-grey is-family-monospace">{{ update.created_at }}</p>
                     </div>
-                    {% if update.note %}<p>{{ update.note }}</p>{% endif %}
-                    <small>{{ update.created_at }}</small>
-                </article>
-                {% else %}
-                <p>No updates yet.</p>
-                {% endfor %}
-            </div>
+                </div>
+            </article>
+            {% else %}
+            <div class="notification is-dark">No updates yet.</div>
+            {% endfor %}
         </section>
-    </div>
+    </aside>
 </div>
 {% endblock %}
