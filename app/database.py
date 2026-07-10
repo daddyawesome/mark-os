@@ -229,9 +229,6 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
             CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id);
             CREATE INDEX IF NOT EXISTS idx_quest_updates_task ON quest_updates(task_id);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_xp_ledger_event_key
-                ON xp_ledger(event_key)
-                WHERE event_key IS NOT NULL;
             """
         )
 
@@ -263,6 +260,15 @@ def init_db() -> None:
         _ensure_column(db, "xp_ledger", "source_type", "TEXT NOT NULL DEFAULT 'quest'")
         _ensure_column(db, "xp_ledger", "source_id", "INTEGER")
         _ensure_column(db, "xp_ledger", "source_title", "TEXT NOT NULL DEFAULT ''")
+
+        # Create this index only after event_key is guaranteed to exist.
+        db.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_xp_ledger_event_key
+            ON xp_ledger(event_key)
+            WHERE event_key IS NOT NULL
+            """
+        )
 
         # Backfill event keys for any XP rows created by the earlier Quest Engine patch.
         db.execute(
