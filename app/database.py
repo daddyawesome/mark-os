@@ -254,7 +254,7 @@ def init_db() -> None:
         # non-constant CURRENT_TIMESTAMP default. Add the column plainly,
         # then backfill existing rows in a separate statement.
         _ensure_column(db, "tasks", "updated_at", "TEXT")
-
+        
         db.execute(
             """
             UPDATE tasks
@@ -272,6 +272,17 @@ def init_db() -> None:
         _ensure_column(db, "xp_ledger", "source_id", "INTEGER")
         _ensure_column(db, "xp_ledger", "source_title", "TEXT NOT NULL DEFAULT ''")
 
+        _ensure_column(db, "checkins", "cash_in", "REAL")
+        _ensure_column(db, "checkins", "updated_at", "TEXT")
+        
+        db.execute(
+            """
+            UPDATE checkins
+            SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)
+            WHERE updated_at IS NULL OR updated_at = ''
+            """
+        )
+        
         # Create this index only after event_key is guaranteed to exist.
         db.execute(
             """

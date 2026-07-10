@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Check-in · MARK OS{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+
+        <div class="mb-5">
+            <p class="is-size-7 has-text-success has-text-weight-semibold">
+                MEMORY CORRECTION
+            </p>
+            <h1 class="title has-text-success-light">
+                Edit Check-in
+            </h1>
+            <p class="subtitle has-text-grey-light">
+                Correct mistaken cash movement, expenses, energy, blocker, or notes.
+            </p>
+        </div>
+
+        <div class="box has-background-black-bis">
+            <form method="post" action="/history/{{ checkin.id }}/edit">
+
+                <div class="columns">
+                    <div class="column">
+                        <div class="field">
+                            <label class="label has-text-success-light">Cash In</label>
+                            <div class="control">
+                                <input
+                                    class="input is-dark"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    name="cash_in"
+                                    value="{% if checkin.cash_in is defined and checkin.cash_in is not none %}{{ checkin.cash_in }}{% endif %}"
+                                    placeholder="Money received on this entry"
+                                >
+                            </div>
+                            <p class="help has-text-grey-light">
+                                Leave blank for old imported balance-only records.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <div class="field">
+                            <label class="label has-text-success-light">Expenses</label>
+                            <div class="control">
+                                <input
+                                    class="input is-dark"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    name="expenses"
+                                    value="{{ checkin.expenses or 0 }}"
+                                >
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <div class="field">
+                            <label class="label has-text-success-light">Cash Balance</label>
+                            <div class="control">
+                                <input
+                                    class="input is-dark"
+                                    type="number"
+                                    step="0.01"
+                                    name="cash_balance"
+                                    value="{% if checkin.cash is not none %}{{ checkin.cash }}{% endif %}"
+                                >
+                            </div>
+                            <p class="help has-text-grey-light">
+                                Final balance after cash in minus expenses.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="columns">
+                    <div class="column">
+                        <div class="field">
+                            <label class="label has-text-success-light">Free Hours</label>
+                            <div class="control">
+                                <input
+                                    class="input is-dark"
+                                    type="number"
+                                    step="0.25"
+                                    min="0"
+                                    name="free_hours"
+                                    value="{{ checkin.free_hours or 0 }}"
+                                >
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="column">
+                        <div class="field">
+                            <label class="label has-text-success-light">Energy</label>
+                            <div class="control">
+                                <div class="select is-dark is-fullwidth">
+                                    <select name="energy">
+                                        {% for value in [1,2,3,4,5] %}
+                                            <option value="{{ value }}" {% if checkin.energy == value %}selected{% endif %}>
+                                                {{ value }}/5
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label has-text-success-light">Accomplished</label>
+                    <div class="control">
+                        <textarea class="textarea is-dark" name="accomplished">{{ checkin.accomplished }}</textarea>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label has-text-success-light">Blocker</label>
+                    <div class="control">
+                        <textarea class="textarea is-dark" name="blocker">{{ checkin.blocker }}</textarea>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label has-text-success-light">Notes</label>
+                    <div class="control">
+                        <textarea class="textarea is-dark" name="notes">{{ checkin.notes }}</textarea>
+                    </div>
+                </div>
+
+                <div class="buttons mt-5">
+                    <button class="button is-success" type="submit">
+                        Save Correction
+                    </button>
+
+                    <a class="button is-dark" href="/history">
+                        Cancel
+                    </a>
+                </div>
+
+            </form>
+        </div>
+
+    </div>
+</section>
+{% endblock %}
