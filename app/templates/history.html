@@ -1,38 +1,38 @@
 {% extends "base.html" %}
 {% block title %}History · MARK OS{% endblock %}
 {% block content %}
-<section class="mb-6">
-    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">EVIDENCE LOG // CONTINUOUS MEMORY</p>
-    <h1 class="title is-1 has-text-light mb-3">What actually happened.</h1>
-    <p class="subtitle is-5 has-text-grey-light">MARK OS learns from behavior and outcomes, not wishful thinking.</p>
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Memory Archive</p>
+    <h1 class="title is-1 mb-3">What MARK OS remembers.</h1>
+    <p class="subtitle is-5 mark-muted">Daily check-ins and Director signals become evidence for future decisions.</p>
 </section>
 
-<section class="box has-background-black-ter">
-    {% if rows %}
-    {% for row in rows %}
-    <article class="media py-4 {% if not loop.last %}mb-0{% endif %}">
-        <div class="media-left">
-            <span class="tag is-success is-dark is-family-monospace">{{ row.checkin_date }}</span>
-        </div>
-        <div class="media-content">
-            <div class="content">
-                <strong class="has-text-light">{{ row.main_quest or "No direction recorded" }}</strong>
-                <p class="has-text-grey-light mt-2 mb-2">{{ row.accomplished or "No accomplishment recorded." }}</p>
-                {% if row.blocker %}<p class="is-size-7 has-text-danger-light mb-0"><strong class="has-text-danger-light">BLOCKER:</strong> {{ row.blocker }}</p>{% endif %}
-            </div>
-        </div>
-        <div class="media-right">
-            <div class="tags is-right">
-                <span class="tag is-dark">{{ row.free_hours }}h</span>
-                <span class="tag is-dark">Energy {{ row.energy }}/5</span>
-                {% if row.signal %}<span class="tag is-success is-light">{{ row.signal }}</span>{% endif %}
-            </div>
-        </div>
-    </article>
-    {% if not loop.last %}<hr class="has-background-grey-darker">{% endif %}
-    {% endfor %}
-    {% else %}
-    <div class="notification is-dark">No evidence yet. Return to Today and complete the first check-in.</div>
-    {% endif %}
-</section>
+<div class="mark-card p-5">
+    <table class="table is-fullwidth is-hoverable">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Cash</th>
+                <th>Energy</th>
+                <th>Accomplished</th>
+                <th>Blocker</th>
+                <th>Signal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.checkin_date }}</td>
+                <td>{% if row.cash is not none %}₱{{ "{:,.0f}".format(row.cash) }}{% else %}—{% endif %}</td>
+                <td>{{ row.energy }}/5</td>
+                <td>{{ row.accomplished or "—" }}</td>
+                <td>{{ row.blocker or "—" }}</td>
+                <td>{{ row.signal or "—" }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="has-text-centered mark-muted">No history yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}

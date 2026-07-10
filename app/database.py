@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -7,12 +8,12 @@ from typing import Iterator
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
-DB_PATH = DATA_DIR / "mark_os.db"
+DB_PATH = Path(os.getenv("MARK_OS_DB_PATH", str(DATA_DIR / "mark_os.db")))
 
 
 @contextmanager
 def get_db() -> Iterator[sqlite3.Connection]:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
@@ -31,16 +32,22 @@ def _column_names(db: sqlite3.Connection, table_name: str) -> set[str]:
     return {row["name"] for row in rows}
 
 
+def _table_exists(db: sqlite3.Connection, table_name: str) -> bool:
+    row = db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
 def _ensure_column(
     db: sqlite3.Connection,
     table_name: str,
     column_name: str,
     column_definition: str,
 ) -> None:
-    if column_name not in _column_names(db, table_name):
-        db.execute(
-            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
-        )
+    if _table_exists(db, table_name) and column_name not in _column_names(db, table_name):
+        db.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")
 
 
 def init_db() -> None:
@@ -160,15 +167,29 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_id INTEGER,
+                goal_id INTEGER,
                 title TEXT NOT NULL,
                 description TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT 'backlog',
                 priority INTEGER NOT NULL DEFAULT 5,
                 estimated_minutes INTEGER,
+                actual_minutes INTEGER NOT NULL DEFAULT 0,
+                energy_required INTEGER NOT NULL DEFAULT 3 CHECK(energy_required BETWEEN 1 AND 5),
                 due_date TEXT,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                difficulty TEXT NOT NULL DEFAULT 'normal',
+                xp_reward INTEGER NOT NULL DEFAULT 25,
+                progress INTEGER NOT NULL DEFAULT 0 CHECK(progress BETWEEN 0 AND 100),
+                quest_source TEXT NOT NULL DEFAULT 'manual',
+                why TEXT NOT NULL DEFAULT '',
+                blocked_reason TEXT NOT NULL DEFAULT '',
+                result_notes TEXT NOT NULL DEFAULT '',
+                evidence TEXT NOT NULL DEFAULT '',
+                started_at TEXT,
                 completed_at TEXT,
-                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL,
+                FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS quest_updates (
@@ -177,6 +198,8 @@ def init_db() -> None:
                 note TEXT NOT NULL DEFAULT '',
                 progress INTEGER,
                 actual_minutes INTEGER,
+                session_minutes INTEGER,
+                blocker_reason TEXT NOT NULL DEFAULT '',
                 event_type TEXT NOT NULL DEFAULT 'update',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
@@ -185,6 +208,11 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS xp_ledger (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 task_id INTEGER NOT NULL UNIQUE,
+                event_key TEXT,
+                event_type TEXT NOT NULL DEFAULT 'quest_completed',
+                source_type TEXT NOT NULL DEFAULT 'quest',
+                source_id INTEGER,
+                source_title TEXT NOT NULL DEFAULT '',
                 xp_delta INTEGER NOT NULL,
                 level_before INTEGER NOT NULL,
                 level_after INTEGER NOT NULL,
@@ -199,7 +227,11 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
             CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
             CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+            CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id);
             CREATE INDEX IF NOT EXISTS idx_quest_updates_task ON quest_updates(task_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_xp_ledger_event_key
+                ON xp_ledger(event_key)
+                WHERE event_key IS NOT NULL;
             """
         )
 
@@ -207,19 +239,41 @@ def init_db() -> None:
         _ensure_column(db, "game_state", "xp_into_level", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(db, "game_state", "last_level_up_at", "TEXT")
 
+        _ensure_column(db, "projects", "goal_id", "INTEGER REFERENCES goals(id)")
+
+        _ensure_column(db, "tasks", "goal_id", "INTEGER REFERENCES goals(id)")
         _ensure_column(db, "tasks", "difficulty", "TEXT NOT NULL DEFAULT 'normal'")
         _ensure_column(db, "tasks", "xp_reward", "INTEGER NOT NULL DEFAULT 25")
         _ensure_column(db, "tasks", "progress", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(db, "tasks", "started_at", "TEXT")
         _ensure_column(db, "tasks", "result_notes", "TEXT NOT NULL DEFAULT ''")
-        _ensure_column(db, "tasks", "actual_minutes", "INTEGER")
+        _ensure_column(db, "tasks", "actual_minutes", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(db, "tasks", "energy_required", "INTEGER NOT NULL DEFAULT 3")
+        _ensure_column(db, "tasks", "quest_source", "TEXT NOT NULL DEFAULT 'manual'")
+        _ensure_column(db, "tasks", "why", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(db, "tasks", "blocked_reason", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(db, "tasks", "evidence", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(db, "tasks", "updated_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
 
-        # Phase 6: Goals -> Projects -> Tasks. Projects can belong to a goal,
-        # and standalone tasks (no project) can link to a goal directly.
-        # Nullable, so nothing existing breaks; priority still inherits
-        # only where a link exists.
-        _ensure_column(db, "projects", "goal_id", "INTEGER REFERENCES goals(id)")
-        _ensure_column(db, "tasks", "goal_id", "INTEGER REFERENCES goals(id)")
+        _ensure_column(db, "quest_updates", "session_minutes", "INTEGER")
+        _ensure_column(db, "quest_updates", "blocker_reason", "TEXT NOT NULL DEFAULT ''")
+
+        _ensure_column(db, "xp_ledger", "event_key", "TEXT")
+        _ensure_column(db, "xp_ledger", "event_type", "TEXT NOT NULL DEFAULT 'quest_completed'")
+        _ensure_column(db, "xp_ledger", "source_type", "TEXT NOT NULL DEFAULT 'quest'")
+        _ensure_column(db, "xp_ledger", "source_id", "INTEGER")
+        _ensure_column(db, "xp_ledger", "source_title", "TEXT NOT NULL DEFAULT ''")
+
+        # Backfill event keys for any XP rows created by the earlier Quest Engine patch.
+        db.execute(
+            """
+            UPDATE xp_ledger
+            SET event_key = COALESCE(event_key, 'quest_completed:' || task_id),
+                source_id = COALESCE(source_id, task_id),
+                source_title = COALESCE(NULLIF(source_title, ''), reason)
+            WHERE task_id IS NOT NULL
+            """
+        )
 
         db.execute(
             """
@@ -265,7 +319,7 @@ def init_db() -> None:
                 "Build a personal operating system that observes current reality and gives the highest-leverage next action.",
                 10,
                 10,
-                "Deploy the interactive Quest Engine, then add budget-safe AI chat.",
+                "Finish the revised Quest Engine, then add budget-safe AI chat.",
             ),
         )
 
@@ -273,8 +327,8 @@ def init_db() -> None:
         db.execute(
             """
             INSERT OR IGNORE INTO game_state
-            (id, level, xp_total, character_class, threshold_mode, source, notes)
-            VALUES (1, 1, NULL, ?, 'hidden', 'system', ?)
+            (id, level, xp_total, xp_into_level, character_class, threshold_mode, source, notes)
+            VALUES (1, 1, NULL, 0, ?, 'hidden', 'system', ?)
             """,
             (
                 "Data Builder / Future Business Owner",
@@ -289,176 +343,57 @@ def init_db() -> None:
                 "SELECT id FROM projects WHERE name LIKE 'MARK OS%' ORDER BY id LIMIT 1"
             ).fetchone()
             project_id = mark_os_project["id"] if mark_os_project else None
+            wealth_goal = db.execute(
+                "SELECT id FROM goals WHERE title LIKE 'Reach USD 10,000%' LIMIT 1"
+            ).fetchone()
+            wealth_goal_id = wealth_goal["id"] if wealth_goal else None
 
+            seed_tasks = [
+                (
+                    project_id,
+                    None,
+                    "Deploy the revised Quest Engine to Railway",
+                    "Push Phase 4 revised Quest Engine and verify progress history, blockers, result-required completion, immutable XP, and Level 3 persistence online.",
+                    10,
+                    75,
+                    4,
+                    "hard",
+                    50,
+                    "system",
+                    "This unlocks real execution tracking before the AI chat is added.",
+                ),
+                (
+                    None,
+                    wealth_goal_id,
+                    "Complete one qualified lead outreach",
+                    "Find one real buyer showing a reporting, Excel, Power BI, SQL, or automation pain and send one tailored message.",
+                    9,
+                    30,
+                    3,
+                    "hard",
+                    50,
+                    "system",
+                    "Client finding is the recurring blocker and supports the $10,000/month goal.",
+                ),
+            ]
             db.executemany(
                 """
                 INSERT INTO tasks
-                (project_id, title, description, status, priority, estimated_minutes,
-                 difficulty, xp_reward, progress)
-                VALUES (?, ?, ?, 'backlog', ?, ?, ?, ?, 0)
+                (project_id, goal_id, title, description, status, priority, estimated_minutes,
+                 energy_required, difficulty, xp_reward, progress, quest_source, why)
+                VALUES (?, ?, ?, ?, 'backlog', ?, ?, ?, ?, ?, 0, ?, ?)
                 """,
-                [
-                    (
-                        project_id,
-                        "Deploy the interactive Quest Engine to Railway",
-                        "Push the Quest Engine, verify clickable quests, updates, completion, XP, and Level 3 persistence online.",
-                        10,
-                        45,
-                        "hard",
-                        50,
-                    ),
-                    (
-                        None,
-                        "Complete one qualified lead outreach",
-                        "Find one real buyer showing a reporting, Excel, Power BI, SQL, or automation pain and send one tailored message.",
-                        9,
-                        30,
-                        "hard",
-                        50,
-                    ),
-                ],
+                seed_tasks,
             )
 
-        # Additional quest backlog. Uses WHERE NOT EXISTS so this is safe
-        # to run repeatedly against an already-live Railway database
-        # without duplicating quests or touching completed ones.
-        mark_os_project = db.execute(
-            "SELECT id FROM projects WHERE name LIKE 'MARK OS%' ORDER BY id LIMIT 1"
-        ).fetchone()
-        mark_os_project_id = mark_os_project["id"] if mark_os_project else None
-
-        additional_quests = [
-            (
-                mark_os_project_id,
-                "Add Budget-Safe AI Chat endpoint",
-                "Create the chat_messages table, a context builder that pulls the last 10 messages plus current state, and wire it to a cheap AI model.",
-                8,
-                60,
-                "hard",
-                50,
-            ),
-            (
-                mark_os_project_id,
-                "Write 3 unit tests for the Quest Engine",
-                "Cover: XP is awarded only once, progress cannot exceed 99 percent before completion, and level-up crosses the hidden threshold correctly.",
-                6,
-                30,
-                "normal",
-                25,
-            ),
-            (
-                None,
-                "Send 3 outreach messages this week",
-                "Identify three real prospects with a visible reporting, Excel, Power BI, SQL, or automation pain and send each a tailored message.",
-                9,
-                45,
-                "hard",
-                50,
-            ),
-            (
-                None,
-                "Review last week's spending line by line",
-                "Go through every recorded expense and flag anything avoidable or subscription-based that is no longer worth it.",
-                6,
-                20,
-                "quick",
-                10,
-            ),
-            (
-                None,
-                "Protect one full weekend day for family",
-                "Block the calendar and do not open MARK OS, client work, or email for one full weekend day.",
-                10,
-                0,
-                "quick",
-                10,
-            ),
-            (
-                mark_os_project_id,
-                "Draft the Goals to Projects to Tasks schema",
-                "Sketch the table relationships for Phase 6 so quests can inherit priority from real goals instead of being entered manually.",
-                7,
-                40,
-                "normal",
-                25,
-            ),
-            (
-                None,
-                "Write one lesson learned from this week",
-                "One paragraph: what MARK OS recommended, what you actually did, and what the result taught you.",
-                5,
-                15,
-                "quick",
-                10,
-            ),
-            (
-                mark_os_project_id,
-                "Ship one portfolio proof-of-work update",
-                "Update the public portfolio with the most recent MARK OS or client deliverable, with a short before or after result note.",
-                8,
-                50,
-                "hard",
-                50,
-            ),
-        ]
-
-        db.executemany(
+        # Add the revised Phase 4 definition of done to project memory once.
+        db.execute(
             """
-            INSERT INTO tasks
-            (project_id, title, description, priority, estimated_minutes,
-             difficulty, xp_reward, status, progress)
-            SELECT ?, ?, ?, ?, ?, ?, ?, 'backlog', 0
-            WHERE NOT EXISTS (SELECT 1 FROM tasks WHERE title = ?)
+            INSERT OR IGNORE INTO memories
+            (memory_type, memory_key, memory_value, importance, source)
+            VALUES ('product_principle', 'phase_4_revised_dod', ?, 9, 'phase_4_revised')
             """,
-            [(*row, row[1]) for row in additional_quests],
+            (
+                "A quest can be created, opened, started, blocked, updated, and completed. Updates preserve progress, notes, minutes, and timestamp history. Completion requires a result, records evidence and actual time, creates a timeline event, and awards immutable XP exactly once in a transaction. Hidden threshold crossing records level-up history.",
+            ),
         )
-
-        # Phase 6: link the flagship project and standalone quests to the
-        # real goals they actually serve. Only fills goal_id where it is
-        # still NULL, so this is safe to run repeatedly and never
-        # overwrites a link you set manually in the app.
-        wealth_goal = db.execute(
-            "SELECT id FROM goals WHERE title LIKE 'Reach USD%' LIMIT 1"
-        ).fetchone()
-        team_goal = db.execute(
-            "SELECT id FROM goals WHERE title LIKE 'Build a business with a team%' LIMIT 1"
-        ).fetchone()
-        portfolio_goal = db.execute(
-            "SELECT id FROM goals WHERE title LIKE 'Create a flagship portfolio%' LIMIT 1"
-        ).fetchone()
-        family_goal = db.execute(
-            "SELECT id FROM goals WHERE title LIKE 'Protect family weekends%' LIMIT 1"
-        ).fetchone()
-
-        wealth_goal_id = wealth_goal["id"] if wealth_goal else None
-        team_goal_id = team_goal["id"] if team_goal else None
-        portfolio_goal_id = portfolio_goal["id"] if portfolio_goal else None
-        family_goal_id = family_goal["id"] if family_goal else None
-
-        if wealth_goal_id:
-            db.execute(
-                """
-                UPDATE projects
-                SET goal_id = ?
-                WHERE name LIKE 'MARK OS%' AND goal_id IS NULL
-                """,
-                (wealth_goal_id,),
-            )
-
-        task_goal_links = [
-            (wealth_goal_id, "Complete one qualified lead outreach"),
-            (wealth_goal_id, "Send 3 outreach messages this week"),
-            (wealth_goal_id, "Review last week's spending line by line"),
-            (family_goal_id, "Protect one full weekend day for family"),
-            (portfolio_goal_id, "Ship one portfolio proof-of-work update"),
-        ]
-        for goal_id, task_title in task_goal_links:
-            if goal_id:
-                db.execute(
-                    """
-                    UPDATE tasks
-                    SET goal_id = ?
-                    WHERE title = ? AND goal_id IS NULL
-                    """,
-                    (goal_id, task_title),
-                )

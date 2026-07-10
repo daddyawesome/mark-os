@@ -1,85 +1,125 @@
 <!doctype html>
-<html lang="en" class="has-background-black-bis">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#0a0f0c">
+    <meta name="theme-color" content="#06130b">
     <title>Sign in · MARK OS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <style>
+        :root {
+            --forest-950: #06130b;
+            --forest-900: #0b1f17;
+            --forest-800: #143725;
+            --forest-500: #35c481;
+            --forest-300: #90e7bd;
+            --mist: #dff6e8;
+            --line: rgba(144,231,189,.20);
+            --text-soft: #b7d9c5;
+        }
+        html, body { min-height: 100%; background: var(--forest-950); }
+        body {
+            color: var(--mist);
+            background:
+                radial-gradient(circle at 18% 16%, rgba(53,196,129,.22), transparent 26rem),
+                radial-gradient(circle at 82% 80%, rgba(31,91,63,.34), transparent 30rem),
+                linear-gradient(135deg, #06130b 0%, #0b1f17 48%, #040806 100%);
+        }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(144,231,189,.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(144,231,189,.04) 1px, transparent 1px);
+            background-size: 34px 34px;
+        }
+        .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; position: relative; z-index: 1; }
+        .login-card {
+            width: 100%; max-width: 500px;
+            border-radius: 30px;
+            border: 1px solid var(--line);
+            background: rgba(8, 26, 18, .88);
+            box-shadow: 0 30px 90px rgba(0,0,0,.45), 0 0 50px rgba(53,196,129,.12);
+            overflow: hidden;
+        }
+        .login-orb {
+            width: 4.5rem; height: 4.5rem; border-radius: 999px; margin: 0 auto 1rem;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, var(--forest-300), var(--forest-500));
+            color: var(--forest-950); font-size: 2rem; font-weight: 900;
+            box-shadow: 0 0 42px rgba(53,196,129,.42);
+        }
+        .kicker { color: var(--forest-300); font-size: .72rem; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; }
+        .title, .subtitle, .label { color: var(--mist); }
+        .muted { color: var(--text-soft); }
+        .input {
+            background: rgba(4,14,9,.85) !important;
+            color: var(--mist) !important;
+            border-color: rgba(144,231,189,.28) !important;
+            box-shadow: none !important;
+        }
+        .button.is-mark {
+            background: linear-gradient(135deg, var(--forest-500), #80e8b2);
+            color: var(--forest-950);
+            border: 0;
+            font-weight: 900;
+            box-shadow: 0 0 28px rgba(53,196,129,.26);
+        }
+        .notification.is-mark {
+            background: rgba(53,196,129,.12);
+            border: 1px solid var(--line);
+            color: var(--mist);
+        }
+        .login-footer { border-top: 1px solid var(--line); color: var(--text-soft); font-size: .75rem; letter-spacing: .08em; }
+    </style>
 </head>
-<body class="has-background-black-bis">
-<section class="hero is-fullheight is-black">
-    <div class="hero-body">
-        <div class="container">
-            <div class="columns is-centered is-vcentered">
-                <div class="column is-10-tablet is-8-desktop is-5-widescreen">
-                    <div class="has-text-centered mb-6">
-                        <span class="tag is-success is-large is-family-monospace mb-5">M</span>
-                        <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">PERSONAL OPERATING SYSTEM // SECURE NODE</p>
-                        <h1 class="title is-1 has-text-light is-family-monospace mb-3">MARK OS</h1>
-                        <p class="subtitle is-6 has-text-grey-light">Observe reality. Remember the past. Decide what matters next.</p>
-                    </div>
+<body>
+<section class="login-wrap">
+    <div class="login-card">
+        <div class="p-6 has-text-centered">
+            <div class="login-orb">M</div>
+            <p class="kicker">Personal Operating System // Secure Node</p>
+            <h1 class="title is-1 mt-3 mb-2">MARK OS</h1>
+            <p class="subtitle is-6 muted">Observe reality. Remember the past. Decide what matters next.</p>
+        </div>
 
-                    <div class="box has-background-black-ter">
-                        <div class="level is-mobile mb-5">
-                            <div class="level-left">
-                                <div>
-                                    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">AUTHENTICATION</p>
-                                    <h2 class="title is-4 has-text-light mb-0">Welcome back, Mark.</h2>
-                                </div>
-                            </div>
-                            <div class="level-right">
-                                <span class="tag is-success is-light is-family-monospace">ENCRYPTED SESSION</span>
-                            </div>
+        <div class="px-6 pb-6">
+            <div class="box" style="background: rgba(13,39,27,.80); border: 1px solid var(--line); border-radius: 22px; color: var(--mist);">
+                <p class="kicker mb-2">Authentication</p>
+                <h2 class="title is-4 mb-1">Welcome back, Mark.</h2>
+                <p class="muted mb-5">Encrypted session. Private life data.</p>
+
+                {% if error %}
+                    <div class="notification is-danger is-light">{{ error }}</div>
+                {% endif %}
+                {% if not configured %}
+                    <div class="notification is-warning is-light">Login is waiting for configuration. Set MARK_OS_PASSWORD in Railway first.</div>
+                {% endif %}
+
+                <form method="post" action="/login">
+                    <input type="hidden" name="next" value="{{ next or '/' }}">
+                    <div class="field">
+                        <label class="label">Username</label>
+                        <div class="control">
+                            <input class="input is-medium" type="text" name="username" autocomplete="username" required autofocus>
                         </div>
-
-                        {% if error %}
-                        <article class="message is-danger">
-                            <div class="message-body">{{ error }}</div>
-                        </article>
-                        {% endif %}
-
-                        {% if not configured %}
-                        <article class="message is-warning">
-                            <div class="message-body">
-                                Login is waiting for configuration. Set <strong>MARK_OS_PASSWORD</strong> in Railway first.
-                            </div>
-                        </article>
-                        {% endif %}
-
-                        <form method="post" action="/login">
-                            <input type="hidden" name="next" value="{{ next }}">
-
-                            <div class="field">
-                                <label class="label has-text-grey-light" for="username">Username</label>
-                                <div class="control">
-                                    <input class="input is-success has-background-black-bis has-text-light" id="username" name="username" autocomplete="username" required autofocus placeholder="mark">
-                                </div>
-                            </div>
-
-                            <div class="field">
-                                <label class="label has-text-grey-light" for="password">Password</label>
-                                <div class="control">
-                                    <input class="input is-success has-background-black-bis has-text-light" id="password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••••••">
-                                </div>
-                            </div>
-
-                            <div class="field mt-5">
-                                <div class="control">
-                                    <button class="button is-success is-fullwidth is-medium has-text-weight-bold" type="submit" {% if not configured %}disabled{% endif %}>
-                                        Enter MARK OS
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
                     </div>
-
-                    <div class="level is-mobile mt-4">
-                        <div class="level-left"><span class="is-size-7 has-text-grey is-family-monospace">PRIVATE LIFE DATA</span></div>
-                        <div class="level-right"><span class="is-size-7 has-text-success-light is-family-monospace">SYSTEM ONLINE</span></div>
+                    <div class="field">
+                        <label class="label">Password</label>
+                        <div class="control">
+                            <input class="input is-medium" type="password" name="password" autocomplete="current-password" required>
+                        </div>
                     </div>
-                </div>
+                    <button class="button is-mark is-fullwidth is-medium mt-5" type="submit">ENTER MARK OS</button>
+                </form>
             </div>
+        </div>
+
+        <div class="login-footer p-4 is-flex is-justify-content-space-between">
+            <span>PRIVATE LIFE DATA</span>
+            <span>SYSTEM ONLINE</span>
         </div>
     </div>
 </section>

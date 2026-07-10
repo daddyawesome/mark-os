@@ -1,99 +1,107 @@
 {% extends "base.html" %}
 {% block title %}Quests · MARK OS{% endblock %}
 {% block content %}
-<section class="mb-6">
+<section class="mark-hero p-6 mb-5">
     <div class="columns is-vcentered">
-        <div class="column is-8">
-            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">QUEST ENGINE // EXECUTION LAYER</p>
-            <h1 class="title is-1 has-text-light mb-3">Turn intention into experience.</h1>
-            <p class="subtitle is-5 has-text-grey-light">Every quest is clickable, updateable, and worth XP. Completing real work moves the game forward.</p>
-        </div>
         <div class="column">
-            <div class="box has-background-black-ter">
-                <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">PLAYER STATE</p>
-                <div class="level is-mobile mb-2">
-                    <div class="level-left"><span class="title is-3 has-text-success-light mb-0">LEVEL {{ system_state.level }}</span></div>
-                    <div class="level-right"><span class="tag is-success is-light is-medium">{{ system_state.xp_total or 0 }} XP</span></div>
-                </div>
-                <p class="is-size-7 has-text-grey-light is-family-monospace">LEVEL THRESHOLDS // HIDDEN</p>
+            <p class="mark-kicker">Quest Engine // Execution Layer</p>
+            <h1 class="title is-1 mb-2">Turn intention into experience.</h1>
+            <p class="subtitle is-5 mark-muted">Every quest is clickable, updateable, and worth XP. Real completed work moves the game forward.</p>
+        </div>
+        <div class="column is-narrow">
+            <div class="mark-card p-5 has-text-centered">
+                <p class="mark-panel-title">Player State</p>
+                <p class="mark-number">LEVEL {{ system_state.level }}</p>
+                <p class="mark-muted">{{ system_state.xp_total or 0 }} XP · thresholds hidden</p>
             </div>
         </div>
     </div>
 </section>
 
-<div class="columns is-variable is-5">
+<div class="columns">
     <div class="column is-8">
-        {% for quest in quests %}
-        <a class="box has-background-black-ter has-text-light mb-4" href="/quests/{{ quest.id }}">
-            <div class="level is-mobile mb-3">
-                <div class="level-left">
-                    <div class="tags mb-0">
-                        <span class="tag {% if quest.status == 'completed' %}is-dark{% else %}is-success is-dark{% endif %}">{{ quest.status|upper }}</span>
-                        <span class="tag is-dark">{{ quest.difficulty|upper }}</span>
-                        {% if quest.project_name %}<span class="tag is-dark">{{ quest.project_name }}</span>{% endif %}
+        <div class="columns is-multiline">
+            {% for quest in quests %}
+            <div class="column is-half">
+                <a class="mark-card p-5 is-block" href="/quests/{{ quest.id }}">
+                    <div class="is-flex is-justify-content-space-between is-align-items-start mb-3">
+                        <div>
+                            <span class="mark-chip">{{ quest.status|upper }}</span>
+                            <span class="mark-chip">{{ quest.difficulty|upper }}</span>
+                        </div>
+                        <span class="mark-chip">+{{ quest.xp_reward }} XP</span>
                     </div>
+                    <h2 class="title is-4 mb-2">{{ quest.title }}</h2>
+                    {% if quest.description %}<p class="mark-muted mb-3">{{ quest.description }}</p>{% endif %}
+                    <p class="mark-muted is-size-7 mb-2">
+                        {% if quest.project_name %}{{ quest.project_name }}{% elif quest.goal_title %}{{ quest.goal_title }}{% else %}No project linked{% endif %}
+                    </p>
+                    <progress class="progress is-small is-forest" value="{{ quest.progress or 0 }}" max="100">{{ quest.progress or 0 }}%</progress>
+                    <div class="is-flex is-justify-content-space-between mark-muted is-size-7">
+                        <span>{{ quest.progress or 0 }}% COMPLETE</span>
+                        <span>{% if quest.estimated_minutes %}{{ quest.estimated_minutes }} MIN EST.{% else %}NO ESTIMATE{% endif %}</span>
+                    </div>
+                </a>
+            </div>
+            {% else %}
+            <div class="column">
+                <div class="mark-card p-6 has-text-centered">
+                    <p class="mark-kicker">No Quests</p>
+                    <h2 class="title is-4">Create the first mission.</h2>
+                    <p class="mark-muted">A quest should be real work with a clear result.</p>
                 </div>
-                <div class="level-right"><span class="tag is-success is-light is-medium">+{{ quest.xp_reward }} XP</span></div>
             </div>
-
-            <h2 class="title is-4 has-text-light mb-2">{{ quest.title }}</h2>
-            {% if quest.description %}<p class="has-text-grey-light mb-4">{{ quest.description }}</p>{% endif %}
-
-            <progress class="progress is-success is-small mb-2" value="{{ quest.progress }}" max="100">{{ quest.progress }}%</progress>
-            <div class="level is-mobile mb-0">
-                <div class="level-left"><span class="is-size-7 has-text-grey-light is-family-monospace">{{ quest.progress }}% COMPLETE</span></div>
-                <div class="level-right"><span class="is-size-7 has-text-grey-light is-family-monospace">{% if quest.estimated_minutes %}{{ quest.estimated_minutes }} MIN EST.{% else %}NO ESTIMATE{% endif %}</span></div>
-            </div>
-        </a>
-        {% else %}
-        <div class="notification is-dark">No quests yet. Create the first one.</div>
-        {% endfor %}
+            {% endfor %}
+        </div>
     </div>
 
     <div class="column is-4">
-        <section class="box has-background-black-ter">
-            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">ADD QUEST</p>
-            <h2 class="title is-4 has-text-light">What needs to become real?</h2>
-
+        <div class="mark-card p-5" style="position: sticky; top: 6rem;">
+            <p class="mark-kicker">Add Quest</p>
+            <h2 class="title is-4">What needs to become real?</h2>
             <form method="post" action="/quests">
                 <div class="field">
-                    <label class="label has-text-grey-light">Quest title</label>
-                    <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="text" name="title" required placeholder="e.g. Send one qualified outreach"></div>
+                    <label class="label">Quest title</label>
+                    <input class="input" type="text" name="title" required placeholder="Deploy AI Chat UI">
                 </div>
-
                 <div class="field">
-                    <label class="label has-text-grey-light">Description</label>
-                    <div class="control"><textarea class="textarea is-success has-background-black-bis has-text-light" name="description" rows="3" placeholder="What does done look like?"></textarea></div>
+                    <label class="label">Description</label>
+                    <textarea class="textarea" name="description" rows="3" placeholder="What is the result?"></textarea>
                 </div>
-
                 <div class="field">
-                    <label class="label has-text-grey-light">Project</label>
-                    <div class="control"><div class="select is-success is-fullwidth"><select class="has-background-black-bis has-text-light" name="project_id"><option value="">No project</option>{% for project in projects %}<option value="{{ project.id }}">{{ project.name }}</option>{% endfor %}</select></div></div>
+                    <label class="label">Project</label>
+                    <div class="select is-fullwidth"><select name="project_id">
+                        <option value="">No project</option>
+                        {% for project in projects %}<option value="{{ project.id }}">{{ project.name }}</option>{% endfor %}
+                    </select></div>
                 </div>
-
-                <div class="columns is-mobile">
+                <div class="field">
+                    <label class="label">Goal</label>
+                    <div class="select is-fullwidth"><select name="goal_id">
+                        <option value="">No direct goal</option>
+                        {% for goal in goals %}<option value="{{ goal.id }}">{{ goal.title }}</option>{% endfor %}
+                    </select></div>
+                    <p class="help">Use direct goal only when the quest has no project.</p>
+                </div>
+                <div class="columns">
                     <div class="column">
-                        <div class="field">
-                            <label class="label has-text-grey-light">Difficulty</label>
-                            <div class="control"><div class="select is-success is-fullwidth"><select class="has-background-black-bis has-text-light" name="difficulty">{% for name, xp in xp_rewards.items() %}<option value="{{ name }}" {% if name == 'normal' %}selected{% endif %}>{{ name|title }} · +{{ xp }} XP</option>{% endfor %}</select></div></div>
-                        </div>
+                        <label class="label">Difficulty</label>
+                        <div class="select is-fullwidth"><select name="difficulty">
+                            {% for name, xp in xp_rewards.items() %}<option value="{{ name }}">{{ name|title }} · +{{ xp }} XP</option>{% endfor %}
+                        </select></div>
                     </div>
                     <div class="column">
-                        <div class="field">
-                            <label class="label has-text-grey-light">Estimate</label>
-                            <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="number" name="estimated_minutes" min="1" step="5" placeholder="30"></div>
-                        </div>
+                        <label class="label">Estimate</label>
+                        <input class="input" type="number" min="0" name="estimated_minutes" placeholder="45">
                     </div>
                 </div>
-
                 <div class="field">
-                    <label class="label has-text-grey-light">Due date</label>
-                    <div class="control"><input class="input is-success has-background-black-bis has-text-light" type="date" name="due_date"></div>
+                    <label class="label">Due date</label>
+                    <input class="input" type="date" name="due_date">
                 </div>
-
-                <button class="button is-success is-fullwidth has-text-weight-bold" type="submit">Create Quest</button>
+                <button class="button is-mark is-fullwidth" type="submit">Create Quest</button>
             </form>
-        </section>
+        </div>
     </div>
 </div>
 {% endblock %}

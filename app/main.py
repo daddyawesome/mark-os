@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -21,18 +20,19 @@ from app.auth import (
 )
 from app.database import get_db, init_db
 from app.services.director import choose_direction
-from app.services.gamification import (
-    XP_BY_DIFFICULTY,
-    apply_xp,
-    normalize_difficulty,
-    xp_for_difficulty,
+from app.services.gamification import XP_BY_DIFFICULTY, normalize_difficulty, xp_for_difficulty
+from app.services.quests import (
+    complete_quest as complete_quest_transaction,
+    normalize_minutes,
+    set_quest_status,
+    update_quest_progress,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(
     title="MARK OS",
-    version="0.2.1",
+    version="0.2.2-phase4-revised",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -70,7 +70,7 @@ def startup() -> None:
     init_db()
 
 
-def _optional_int(value: str | None) -> int | None:
+def _optional_int(value: str | int | None) -> int | None:
     if value is None or not str(value).strip():
         return None
     try:
@@ -79,13 +79,15 @@ def _optional_int(value: str | None) -> int | None:
         return None
 
 
+def _bounded_int(value: str | int | None, *, default: int, low: int, high: int) -> int:
+    number = _optional_int(value)
+    if number is None:
+        number = default
+    return max(low, min(high, number))
+
+
 def _compute_effective_priority(quest: dict) -> float:
-    """
-    Blend task priority with the project's priority and, through the
-    project or a direct link, the real goal's priority. A quest tied to
-    a top-priority goal scores higher even if its own priority field
-    was left at the default.
-    """
+    """Blend task priority with project and goal priority for future AI/Director use."""
     task_priority = quest.get("priority") or 5
     project_priority = quest.get("project_priority")
     goal_priority = quest.get("goal_priority")
@@ -98,13 +100,10 @@ def _compute_effective_priority(quest: dict) -> float:
     if goal_priority is not None:
         weighted += goal_priority * 0.2
         weight_total += 0.2
-
     return round(weighted / weight_total, 2)
 
 
 def _load_open_quests(db) -> list[dict]:
-    """Open (non-completed) quests, each carrying its project/goal chain
-    so the Director can score by effective priority, not just task.priority."""
     rows = db.execute(
         """
         SELECT
@@ -118,11 +117,10 @@ def _load_open_quests(db) -> list[dict]:
         LEFT JOIN projects p ON p.id = t.project_id
         LEFT JOIN goals gt ON gt.id = t.goal_id
         LEFT JOIN goals gp ON gp.id = p.goal_id
-        WHERE t.status != 'completed'
+        WHERE t.status NOT IN ('completed', 'abandoned')
         ORDER BY t.priority DESC, t.id
         """
     ).fetchall()
-
     quests = [dict(row) for row in rows]
     for quest in quests:
         quest["effective_priority"] = _compute_effective_priority(quest)
@@ -136,9 +134,7 @@ def load_system_state(db) -> dict:
         "xp_total": game_state["xp_total"] if game_state else None,
         "xp_into_level": game_state["xp_into_level"] if game_state else 0,
         "character_class": (
-            game_state["character_class"]
-            if game_state
-            else "Data Builder / Future Business Owner"
+            game_state["character_class"] if game_state else "Data Builder / Future Business Owner"
         ),
         "threshold_mode": game_state["threshold_mode"] if game_state else "hidden",
         "memory_count": db.execute(
@@ -148,7 +144,10 @@ def load_system_state(db) -> dict:
             "SELECT COUNT(*) AS count FROM timeline_events"
         ).fetchone()["count"],
         "task_count": db.execute(
-            "SELECT COUNT(*) AS count FROM tasks WHERE status != 'completed'"
+            "SELECT COUNT(*) AS count FROM tasks WHERE status NOT IN ('completed', 'abandoned')"
+        ).fetchone()["count"],
+        "blocked_count": db.execute(
+            "SELECT COUNT(*) AS count FROM tasks WHERE status = 'blocked'"
         ).fetchone()["count"],
     }
 
@@ -182,8 +181,8 @@ def dashboard_context(request: Request) -> dict:
             SELECT t.*, p.name AS project_name
             FROM tasks t
             LEFT JOIN projects p ON p.id = t.project_id
-            WHERE t.status != 'completed'
-            ORDER BY CASE t.status WHEN 'active' THEN 0 ELSE 1 END,
+            WHERE t.status NOT IN ('completed', 'abandoned')
+            ORDER BY CASE t.status WHEN 'active' THEN 0 WHEN 'blocked' THEN 1 ELSE 2 END,
                      t.priority DESC, t.id
             LIMIT 3
             """
@@ -310,14 +309,10 @@ def create_checkin(
             LIMIT 1
             """
         ).fetchone()
-
         open_quests = _load_open_quests(db)
 
         direction = choose_direction(
-            dict(checkin),
-            dict(project) if project else None,
-            previous_cash,
-            open_quests,
+            dict(checkin), dict(project) if project else None, previous_cash, open_quests
         )
         db.execute(
             """
@@ -359,16 +354,21 @@ def quests(request: Request):
             SELECT
                 t.*,
                 p.name AS project_name,
-                COALESCE(gt.title, gp.title) AS goal_title
+                COALESCE(gt.title, gp.title) AS goal_title,
+                COALESCE(SUM(COALESCE(qu.session_minutes, qu.actual_minutes, 0)), 0) AS total_session_minutes
             FROM tasks t
             LEFT JOIN projects p ON p.id = t.project_id
             LEFT JOIN goals gt ON gt.id = t.goal_id
             LEFT JOIN goals gp ON gp.id = p.goal_id
+            LEFT JOIN quest_updates qu ON qu.task_id = t.id
+            GROUP BY t.id
             ORDER BY CASE t.status
                         WHEN 'active' THEN 0
-                        WHEN 'backlog' THEN 1
-                        WHEN 'completed' THEN 2
-                        ELSE 3
+                        WHEN 'blocked' THEN 1
+                        WHEN 'backlog' THEN 2
+                        WHEN 'completed' THEN 3
+                        WHEN 'abandoned' THEN 4
+                        ELSE 5
                      END,
                      t.priority DESC,
                      t.id DESC
@@ -402,8 +402,11 @@ def create_quest(
     project_id: str = Form(default=""),
     goal_id: str = Form(default=""),
     difficulty: str = Form(default="normal"),
+    priority: int = Form(default=5),
     estimated_minutes: str = Form(default=""),
+    energy_required: int = Form(default=3),
     due_date: str = Form(default=""),
+    why: str = Form(default=""),
 ):
     clean_title = title.strip()
     if not clean_title:
@@ -413,25 +416,30 @@ def create_quest(
     xp_reward = xp_for_difficulty(clean_difficulty)
     parsed_project_id = _optional_int(project_id)
     parsed_goal_id = _optional_int(goal_id) if not parsed_project_id else None
-    parsed_minutes = _optional_int(estimated_minutes)
+    parsed_minutes = normalize_minutes(_optional_int(estimated_minutes))
+    safe_priority = _bounded_int(priority, default=5, low=1, high=10)
+    safe_energy = _bounded_int(energy_required, default=3, low=1, high=5)
 
     with get_db() as db:
         db.execute(
             """
             INSERT INTO tasks
             (project_id, goal_id, title, description, status, priority, estimated_minutes,
-             due_date, difficulty, xp_reward, progress)
-            VALUES (?, ?, ?, ?, 'backlog', 5, ?, ?, ?, ?, 0)
+             energy_required, due_date, difficulty, xp_reward, progress, quest_source, why)
+            VALUES (?, ?, ?, ?, 'backlog', ?, ?, ?, ?, ?, ?, 0, 'manual', ?)
             """,
             (
                 parsed_project_id,
                 parsed_goal_id,
                 clean_title,
                 description.strip(),
+                safe_priority,
                 parsed_minutes,
+                safe_energy,
                 due_date.strip() or None,
                 clean_difficulty,
                 xp_reward,
+                why.strip(),
             ),
         )
 
@@ -446,12 +454,15 @@ def quest_detail(request: Request, quest_id: int):
             SELECT
                 t.*,
                 p.name AS project_name,
-                COALESCE(gt.title, gp.title) AS goal_title
+                COALESCE(gt.title, gp.title) AS goal_title,
+                COALESCE(SUM(COALESCE(qu.session_minutes, qu.actual_minutes, 0)), 0) AS total_session_minutes
             FROM tasks t
             LEFT JOIN projects p ON p.id = t.project_id
             LEFT JOIN goals gt ON gt.id = t.goal_id
             LEFT JOIN goals gp ON gp.id = p.goal_id
+            LEFT JOIN quest_updates qu ON qu.task_id = t.id
             WHERE t.id = ?
+            GROUP BY t.id
             """,
             (quest_id,),
         ).fetchone()
@@ -480,6 +491,8 @@ def quest_detail(request: Request, quest_id: int):
             "xp_award": xp_award,
             "system_state": system_state,
             "completed_now": request.query_params.get("completed") == "1",
+            "duplicate_award": request.query_params.get("duplicate") == "1",
+            "result_required": request.query_params.get("error") == "result_required",
             "levels_gained": _optional_int(request.query_params.get("levels")) or 0,
         },
     )
@@ -488,28 +501,50 @@ def quest_detail(request: Request, quest_id: int):
 @app.post("/quests/{quest_id}/start")
 def start_quest(quest_id: int):
     with get_db() as db:
-        quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
-        if not quest:
+        try:
+            set_quest_status(db, quest_id=quest_id, status="active")
+        except ValueError:
             raise HTTPException(status_code=404, detail="Quest not found")
+    return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
 
-        if quest["status"] != "completed":
-            db.execute(
-                """
-                UPDATE tasks
-                SET status = 'active',
-                    started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
-                WHERE id = ?
-                """,
-                (quest_id,),
-            )
-            db.execute(
-                """
-                INSERT INTO quest_updates (task_id, note, progress, event_type)
-                VALUES (?, 'Quest started.', ?, 'started')
-                """,
-                (quest_id, quest["progress"]),
-            )
 
+@app.post("/quests/{quest_id}/block")
+def block_quest(
+    quest_id: int,
+    blocker_reason: str = Form(default=""),
+    note: str = Form(default=""),
+):
+    with get_db() as db:
+        try:
+            set_quest_status(
+                db,
+                quest_id=quest_id,
+                status="blocked",
+                note=note,
+                blocker_reason=blocker_reason,
+            )
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Quest not found")
+    return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
+
+
+@app.post("/quests/{quest_id}/unblock")
+def unblock_quest(quest_id: int):
+    with get_db() as db:
+        try:
+            set_quest_status(db, quest_id=quest_id, status="active", note="Quest unblocked.")
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Quest not found")
+    return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
+
+
+@app.post("/quests/{quest_id}/abandon")
+def abandon_quest(quest_id: int, note: str = Form(default="")):
+    with get_db() as db:
+        try:
+            set_quest_status(db, quest_id=quest_id, status="abandoned", note=note)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Quest not found")
     return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
 
 
@@ -518,38 +553,20 @@ def update_quest(
     quest_id: int,
     note: str = Form(default=""),
     progress: int = Form(default=0),
-    actual_minutes: str = Form(default=""),
+    session_minutes: str = Form(default=""),
 ):
-    safe_progress = max(0, min(99, progress))
-    parsed_minutes = _optional_int(actual_minutes)
-
+    parsed_minutes = normalize_minutes(_optional_int(session_minutes))
     with get_db() as db:
-        quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
-        if not quest:
+        try:
+            update_quest_progress(
+                db,
+                quest_id=quest_id,
+                note=note,
+                progress=progress,
+                session_minutes=parsed_minutes,
+            )
+        except ValueError:
             raise HTTPException(status_code=404, detail="Quest not found")
-        if quest["status"] == "completed":
-            return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
-
-        db.execute(
-            """
-            UPDATE tasks
-            SET status = 'active',
-                progress = ?,
-                actual_minutes = COALESCE(?, actual_minutes),
-                started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
-            WHERE id = ?
-            """,
-            (safe_progress, parsed_minutes, quest_id),
-        )
-        db.execute(
-            """
-            INSERT INTO quest_updates
-            (task_id, note, progress, actual_minutes, event_type)
-            VALUES (?, ?, ?, ?, 'update')
-            """,
-            (quest_id, note.strip(), safe_progress, parsed_minutes),
-        )
-
     return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
 
 
@@ -557,156 +574,30 @@ def update_quest(
 def complete_quest(
     quest_id: int,
     result_notes: str = Form(default=""),
-    actual_minutes: str = Form(default=""),
+    evidence: str = Form(default=""),
+    session_minutes: str = Form(default=""),
 ):
-    parsed_minutes = _optional_int(actual_minutes)
-    levels_gained = 0
+    if not result_notes.strip():
+        return RedirectResponse(url=f"/quests/{quest_id}?error=result_required", status_code=303)
 
+    parsed_minutes = normalize_minutes(_optional_int(session_minutes))
     with get_db() as db:
-        quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
-        if not quest:
-            raise HTTPException(status_code=404, detail="Quest not found")
-
-        if quest["status"] == "completed":
-            return RedirectResponse(url=f"/quests/{quest_id}", status_code=303)
-
-        state = db.execute("SELECT * FROM game_state WHERE id = 1").fetchone()
-        level_before = state["level"] if state else 1
-        xp_total_before = state["xp_total"] if state else None
-        xp_into_level_before = state["xp_into_level"] if state else 0
-        xp_reward = max(0, int(quest["xp_reward"] or 0))
-
-        db.execute(
-            """
-            UPDATE tasks
-            SET status = 'completed',
-                progress = 100,
-                completed_at = CURRENT_TIMESTAMP,
-                result_notes = ?,
-                actual_minutes = COALESCE(?, actual_minutes)
-            WHERE id = ?
-            """,
-            (result_notes.strip(), parsed_minutes, quest_id),
-        )
-
-        ledger_insert = db.execute(
-            """
-            INSERT OR IGNORE INTO xp_ledger
-            (task_id, xp_delta, level_before, level_after, reason)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                quest_id,
-                xp_reward,
-                level_before,
-                level_before,
-                f"Completed quest: {quest['title']}",
-            ),
-        )
-
-        if ledger_insert.rowcount:
-            award = apply_xp(
-                level=level_before,
-                xp_total=xp_total_before,
-                xp_into_level=xp_into_level_before,
-                awarded_xp=xp_reward,
+        try:
+            result = complete_quest_transaction(
+                db,
+                quest_id=quest_id,
+                result_notes=result_notes,
+                evidence=evidence,
+                session_minutes=parsed_minutes,
             )
-            levels_gained = award.levels_gained
+        except ValueError as exc:
+            if str(exc) == "Quest not found":
+                raise HTTPException(status_code=404, detail="Quest not found")
+            return RedirectResponse(url=f"/quests/{quest_id}?error=result_required", status_code=303)
 
-            db.execute(
-                """
-                UPDATE game_state
-                SET level = ?,
-                    xp_total = ?,
-                    xp_into_level = ?,
-                    updated_at = CURRENT_TIMESTAMP,
-                    last_level_up_at = CASE WHEN ? > 0 THEN CURRENT_TIMESTAMP ELSE last_level_up_at END,
-                    source = 'quest_engine'
-                WHERE id = 1
-                """,
-                (
-                    award.level,
-                    award.xp_total,
-                    award.xp_into_level,
-                    award.levels_gained,
-                ),
-            )
-            db.execute(
-                "UPDATE xp_ledger SET level_after = ? WHERE task_id = ?",
-                (award.level, quest_id),
-            )
-
-            db.execute(
-                """
-                INSERT INTO quest_updates
-                (task_id, note, progress, actual_minutes, event_type)
-                VALUES (?, ?, 100, ?, 'completed')
-                """,
-                (
-                    quest_id,
-                    result_notes.strip() or "Quest completed.",
-                    parsed_minutes,
-                ),
-            )
-
-            db.execute(
-                """
-                INSERT INTO timeline_events
-                (event_date, event_type, title, summary, details_json,
-                 status, importance, source)
-                VALUES (date('now', 'localtime'), 'quest_completed', ?, ?, ?,
-                        'completed', 8, 'quest_engine')
-                """,
-                (
-                    quest["title"],
-                    result_notes.strip() or f"Completed quest and earned {xp_reward} XP.",
-                    json.dumps(
-                        {
-                            "task_id": quest_id,
-                            "xp_awarded": xp_reward,
-                            "level_before": level_before,
-                            "level_after": award.level,
-                        }
-                    ),
-                ),
-            )
-
-            if award.levels_gained > 0:
-                db.execute(
-                    """
-                    INSERT INTO game_history
-                    (event_date, level, xp_total, event, source)
-                    VALUES (date('now', 'localtime'), ?, ?, ?, 'quest_engine')
-                    """,
-                    (
-                        award.level,
-                        award.xp_total,
-                        f"Level up after completing: {quest['title']}",
-                    ),
-                )
-                db.execute(
-                    """
-                    INSERT INTO timeline_events
-                    (event_date, event_type, title, summary, details_json,
-                     status, importance, source)
-                    VALUES (date('now', 'localtime'), 'level_up', ?, ?, ?,
-                            'completed', 10, 'quest_engine')
-                    """,
-                    (
-                        f"Reached Level {award.level}",
-                        "Quest progress crossed a hidden level threshold.",
-                        json.dumps(
-                            {
-                                "level_before": level_before,
-                                "level_after": award.level,
-                                "levels_gained": award.levels_gained,
-                            }
-                        ),
-                    ),
-                )
-
+    duplicate = "1" if result.duplicate_award else "0"
     return RedirectResponse(
-        url=f"/quests/{quest_id}?completed=1&levels={levels_gained}",
+        url=f"/quests/{quest_id}?completed=1&levels={result.levels_gained}&duplicate={duplicate}",
         status_code=303,
     )
 
@@ -723,12 +614,19 @@ def history(request: Request):
             LIMIT 30
             """
         ).fetchall()
+        timeline_rows = db.execute(
+            """
+            SELECT * FROM timeline_events
+            ORDER BY id DESC
+            LIMIT 30
+            """
+        ).fetchall()
         system_state = load_system_state(db)
 
     return templates.TemplateResponse(
         request=request,
         name="history.html",
-        context={"rows": rows, "system_state": system_state},
+        context={"rows": rows, "timeline_rows": timeline_rows, "system_state": system_state},
     )
 
 
@@ -749,77 +647,22 @@ def life_os(request: Request):
         system_state = load_system_state(db)
 
     modules = [
-        {
-            "icon": "⌂",
-            "name": "Today",
-            "status": "live",
-            "description": "Current state, daily check-in, and one highest-leverage direction.",
-        },
-        {
-            "icon": "◎",
-            "name": "Goals & Vision",
-            "status": "foundation",
-            "description": "Long-term outcomes and the reasons behind them.",
-        },
-        {
-            "icon": "▣",
-            "name": "Projects & Quests",
-            "status": "live",
-            "description": "Clickable quests with progress notes, completion evidence, XP, and automatic leveling.",
-            "recommended": True,
-        },
-        {
-            "icon": "✦",
-            "name": "AI Chat",
-            "status": "next build",
-            "description": "Budget-safe assistant chat using recent messages plus selected long-term memory.",
-        },
-        {
-            "icon": "✎",
-            "name": "Notes & Knowledge",
-            "status": "planned",
-            "description": "A second brain for ideas, technical solutions, lessons, and references.",
-        },
-        {
-            "icon": "◉",
-            "name": "Routines & Focus",
-            "status": "planned",
-            "description": "Morning, work-session, and evening operating routines.",
-        },
-        {
-            "icon": "🔥",
-            "name": "Habits",
-            "status": "planned",
-            "description": "Track systems that support goals instead of chasing motivation.",
-        },
-        {
-            "icon": "☰",
-            "name": "Journal & Reflection",
-            "status": "planned",
-            "description": "Daily and weekly evidence about what worked, failed, and changed.",
-        },
-        {
-            "icon": "₱",
-            "name": "Finance",
-            "status": "planned",
-            "description": "Cash, income, expenses, reserves, bills, and business revenue.",
-        },
-        {
-            "icon": "□",
-            "name": "Calendar",
-            "status": "planned",
-            "description": "Real time constraints so recommendations fit the day that actually exists.",
-        },
+        {"icon": "⌂", "name": "Today", "status": "live", "description": "Current state, daily check-in, and one highest-leverage direction."},
+        {"icon": "◎", "name": "Goals & Vision", "status": "foundation", "description": "Long-term outcomes and the reasons behind them."},
+        {"icon": "▣", "name": "Projects & Quests", "status": "live", "description": "Revised Phase 4: clickable quests with progress history, blockers, result-required completion, immutable XP, and level-up history.", "recommended": True},
+        {"icon": "✦", "name": "AI Chat", "status": "next build", "description": "Budget-safe assistant chat using recent messages plus selected long-term memory."},
+        {"icon": "✎", "name": "Notes & Knowledge", "status": "planned", "description": "A second brain for ideas, technical solutions, lessons, and references."},
+        {"icon": "◉", "name": "Routines & Focus", "status": "planned", "description": "Morning, work-session, and evening operating routines."},
+        {"icon": "🔥", "name": "Habits", "status": "planned", "description": "Track systems that support goals instead of chasing motivation."},
+        {"icon": "☰", "name": "Journal & Reflection", "status": "planned", "description": "Daily and weekly evidence about what worked, failed, and changed."},
+        {"icon": "₱", "name": "Finance", "status": "planned", "description": "Cash, income, expenses, reserves, bills, and business revenue."},
+        {"icon": "□", "name": "Calendar", "status": "planned", "description": "Real time constraints so recommendations fit the day that actually exists."},
     ]
 
     return templates.TemplateResponse(
         request=request,
         name="life_os.html",
-        context={
-            "modules": modules,
-            "counts": counts,
-            "system_state": system_state,
-        },
+        context={"modules": modules, "counts": counts, "system_state": system_state},
     )
 
 
@@ -829,7 +672,6 @@ def goals_page(request: Request):
         goal_rows = db.execute(
             "SELECT * FROM goals ORDER BY status ASC, priority DESC, id"
         ).fetchall()
-
         goals_view = []
         for goal in goal_rows:
             goal_dict = dict(goal)
@@ -838,8 +680,8 @@ def goals_page(request: Request):
                 for row in db.execute(
                     """
                     SELECT p.*,
-                        (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status != 'completed') AS open_quests,
-                        (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'completed') AS completed_quests
+                           (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status != 'completed') AS open_quests,
+                           (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'completed') AS completed_quests
                     FROM projects p
                     WHERE p.goal_id = ?
                     ORDER BY p.priority DESC, p.id
@@ -859,12 +701,10 @@ def goals_page(request: Request):
                 ).fetchall()
             ]
             goals_view.append(goal_dict)
-
         unlinked_projects = db.execute(
             "SELECT id, name FROM projects WHERE goal_id IS NULL ORDER BY priority DESC, id"
         ).fetchall()
         system_state = load_system_state(db)
-
     return templates.TemplateResponse(
         request=request,
         name="goals.html",
@@ -885,9 +725,7 @@ def create_goal(
     clean_title = title.strip()
     if not clean_title:
         return RedirectResponse(url="/goals", status_code=303)
-
     safe_priority = max(1, min(10, priority))
-
     with get_db() as db:
         db.execute(
             """
@@ -897,27 +735,20 @@ def create_goal(
             """,
             (clean_title, category.strip() or "general", safe_priority, clean_title),
         )
-
     return RedirectResponse(url="/goals", status_code=303)
 
 
 @app.post("/projects/{project_id}/link-goal")
 def link_project_goal(project_id: int, goal_id: str = Form(default="")):
     parsed_goal_id = _optional_int(goal_id)
-
     with get_db() as db:
         project = db.execute("SELECT id FROM projects WHERE id = ?", (project_id,)).fetchone()
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
-
-        db.execute(
-            "UPDATE projects SET goal_id = ? WHERE id = ?",
-            (parsed_goal_id, project_id),
-        )
-
+        db.execute("UPDATE projects SET goal_id = ? WHERE id = ?", (parsed_goal_id, project_id))
     return RedirectResponse(url="/goals", status_code=303)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.2.1"}
+    return {"status": "ok", "version": "0.2.2-phase4-revised"}

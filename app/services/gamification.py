@@ -16,6 +16,7 @@ class XPAwardResult:
     xp_total: int
     xp_into_level: int
     levels_gained: int
+    levels_crossed: tuple[int, ...]
 
 
 def normalize_difficulty(value: str) -> str:
@@ -27,9 +28,9 @@ def xp_for_difficulty(difficulty: str) -> int:
     return XP_BY_DIFFICULTY[normalize_difficulty(difficulty)]
 
 
-def _xp_required_for_next_level(level: int) -> int:
-    """Internal level curve. Thresholds are intentionally not exposed in the UI."""
-    safe_level = max(1, int(level))
+def xp_required_for_next_level(level: int) -> int:
+    """Internal level curve. Threshold values stay hidden in the UI."""
+    safe_level = max(1, int(level or 1))
     return 100 + (safe_level * 25)
 
 
@@ -40,23 +41,25 @@ def apply_xp(
     xp_into_level: int,
     awarded_xp: int,
 ) -> XPAwardResult:
-    current_level = max(1, int(level))
+    """Apply XP and support crossing multiple hidden thresholds in one award."""
+    current_level = max(1, int(level or 1))
     total = max(0, int(xp_total or 0))
     progress = max(0, int(xp_into_level or 0))
-    award = max(0, int(awarded_xp))
+    award = max(0, int(awarded_xp or 0))
 
     total += award
     progress += award
-    levels_gained = 0
+    crossed: list[int] = []
 
-    while progress >= _xp_required_for_next_level(current_level):
-        progress -= _xp_required_for_next_level(current_level)
+    while progress >= xp_required_for_next_level(current_level):
+        progress -= xp_required_for_next_level(current_level)
         current_level += 1
-        levels_gained += 1
+        crossed.append(current_level)
 
     return XPAwardResult(
         level=current_level,
         xp_total=total,
         xp_into_level=progress,
-        levels_gained=levels_gained,
+        levels_gained=len(crossed),
+        levels_crossed=tuple(crossed),
     )

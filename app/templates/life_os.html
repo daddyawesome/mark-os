@@ -1,105 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Life OS · MARK OS{% endblock %}
 {% block content %}
-<section class="hero is-dark mb-6">
-    <div class="hero-body px-0">
-        <div class="columns is-vcentered">
-            <div class="column is-8">
-                <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">LIFE OPERATING SYSTEM // SYSTEM MAP</p>
-                <h1 class="title is-1 has-text-light mb-3">Organize less. Decide better.</h1>
-                <p class="subtitle is-5 has-text-grey-light">Every area of life should connect to one question: what is the highest-leverage next action?</p>
-            </div>
-            <div class="column">
-                <div class="box has-background-black-ter">
-                    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-2">CURRENT BUILD PRIORITY</p>
-                    <h2 class="title is-4 has-text-light">Quest Engine → Budget AI Chat</h2>
-                    <p class="has-text-grey-light">Quests capture real work, progress, evidence, XP, and leveling. AI chat comes next.</p>
-                </div>
-            </div>
-        </div>
-    </div>
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Life OS Map</p>
+    <h1 class="title is-1 mb-3">A framework for living with intention.</h1>
+    <p class="subtitle is-5 mark-muted">MARK OS organizes life data, then uses memory and direction to choose what matters next.</p>
 </section>
 
 <div class="columns is-multiline mb-5">
-    <div class="column is-6-tablet is-3-desktop">
-        <div class="box has-background-black-ter">
-            <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">LEVEL</p>
-            <p class="title is-1 has-text-success-light mb-2">{{ system_state.level }}</p>
-            <p class="has-text-grey-light">{{ system_state.character_class }}</p>
-        </div>
-    </div>
-    <div class="column is-6-tablet is-3-desktop">
-        <div class="box has-background-black-ter">
-            <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">MEMORIES</p>
-            <p class="title is-1 has-text-success-light mb-2">{{ counts.memories }}</p>
-            <p class="has-text-grey-light">Long-term facts and lessons</p>
-        </div>
-    </div>
-    <div class="column is-6-tablet is-3-desktop">
-        <div class="box has-background-black-ter">
-            <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">TIMELINE</p>
-            <p class="title is-1 has-text-success-light mb-2">{{ counts.timeline }}</p>
-            <p class="has-text-grey-light">Life events remembered</p>
-        </div>
-    </div>
-    <div class="column is-6-tablet is-3-desktop">
-        <div class="box has-background-black-ter">
-            <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">ACTIVE SYSTEM</p>
-            <p class="title is-1 has-text-success-light mb-2">{{ counts.goals }}G</p>
-            <p class="has-text-grey-light">{{ counts.projects }} project · {{ counts.tasks }} tasks</p>
-        </div>
-    </div>
+    <div class="column is-one-fifth"><div class="mark-card p-4 has-text-centered"><p class="mark-panel-title">Level</p><p class="mark-number">{{ system_state.level }}</p></div></div>
+    <div class="column is-one-fifth"><div class="mark-card p-4 has-text-centered"><p class="mark-panel-title">Memories</p><p class="mark-number">{{ counts.memories }}</p></div></div>
+    <div class="column is-one-fifth"><div class="mark-card p-4 has-text-centered"><p class="mark-panel-title">Timeline</p><p class="mark-number">{{ counts.timeline }}</p></div></div>
+    <div class="column is-one-fifth"><div class="mark-card p-4 has-text-centered"><p class="mark-panel-title">Goals</p><p class="mark-number">{{ counts.goals }}</p></div></div>
+    <div class="column is-one-fifth"><div class="mark-card p-4 has-text-centered"><p class="mark-panel-title">Tasks</p><p class="mark-number">{{ counts.tasks }}</p></div></div>
 </div>
-
-<section class="box has-background-black-ter mb-6">
-    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">THE OPERATING CHAIN</p>
-    <h2 class="title is-4 has-text-light">Every task should know why it exists.</h2>
-    <div class="tags are-medium mt-4">
-        <span class="tag is-dark">Life Area</span><span class="tag is-success">→</span>
-        <span class="tag is-dark">Goal</span><span class="tag is-success">→</span>
-        <span class="tag is-dark">Project</span><span class="tag is-success">→</span>
-        <span class="tag is-dark">Task</span><span class="tag is-success">→</span>
-        <span class="tag is-dark">Today</span><span class="tag is-success">→</span>
-        <span class="tag is-dark">Review</span>
-    </div>
-</section>
 
 <div class="columns is-multiline">
     {% for module in modules %}
-    <div class="column is-6-tablet is-4-desktop">
-        <article class="box has-background-black-ter">
-            <div class="level is-mobile mb-4">
-                <div class="level-left"><span class="tag is-success is-medium is-family-monospace">{{ module.icon }}</span></div>
-                <div class="level-right"><span class="tag {% if module.recommended %}is-success is-light{% else %}is-dark{% endif %} is-family-monospace">{{ module.status|upper }}</span></div>
+    <div class="column is-one-third">
+        <div class="mark-card p-5 h-100 {% if module.recommended %}mark-card-2{% endif %}">
+            <div class="is-flex is-justify-content-space-between is-align-items-start mb-3">
+                <span class="mark-number" style="font-size: 1.4rem;">{{ module.icon }}</span>
+                <span class="mark-chip">{{ module.status|upper }}</span>
             </div>
-            <h3 class="title is-5 has-text-light">{{ module.name }}</h3>
-            <p class="has-text-grey-light">{{ module.description }}</p>
-            {% if module.recommended %}
-            <article class="message is-success mt-4">
-                <div class="message-header"><p>ACTIVE BUILD</p></div>
-                <div class="message-body">
-                    Open the Quest Engine, complete real work, and create evidence for the future AI Director.
-                    <div class="mt-3"><a class="button is-success is-small" href="/quests">Open Quests</a></div>
-                </div>
-            </article>
-            {% endif %}
-        </article>
+            <h2 class="title is-4 mb-2">{{ module.name }}</h2>
+            <p class="mark-muted">{{ module.description }}</p>
+            {% if module.recommended %}<p class="mt-4"><a class="button is-mark is-small" href="/quests">Build this now</a></p>{% endif %}
+        </div>
     </div>
     {% endfor %}
 </div>
 
-<section class="box has-background-black-ter mt-5">
-    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">BUILD ORDER</p>
-    <h2 class="title is-4 has-text-light">Do not build the whole Life OS at once.</h2>
-    <div class="table-container mt-4">
-        <table class="table is-fullwidth is-hoverable has-background-black-ter has-text-light">
-            <tbody>
-                <tr><th class="has-text-success-light">01 // DONE</th><td class="has-text-grey-light">Login + persistent memory + Level 3</td></tr>
-                <tr><th class="has-text-success-light">02 // NOW</th><td class="has-text-light"><strong>Quest Engine → Budget AI Chat → Director selection</strong></td></tr>
-                <tr><th class="has-text-success-light">03 // THEN</th><td class="has-text-grey-light">Notes & Knowledge</td></tr>
-                <tr><th class="has-text-success-light">04 // LATER</th><td class="has-text-grey-light">Habits, reflection, finance, calendar, then AI Director</td></tr>
-            </tbody>
-        </table>
-    </div>
-</section>
+<div class="mark-card p-5 mt-5">
+    <p class="mark-kicker">Operating Chain</p>
+    <h2 class="title is-4">Life Area → Goal → Project → Quest → Today → Review</h2>
+    <p class="mark-muted">This is the execution backbone. We build only what helps the Director give better next actions.</p>
+</div>
 {% endblock %}

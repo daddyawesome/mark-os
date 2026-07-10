@@ -1,58 +1,51 @@
-# MARK OS v0.2.2 — Real Quest-Scoring Director + Bigger Quest Backlog
+# MARK OS Revised Phase 4 — Quest Engine
 
-## What changed
+This patch implements the revised Phase 4 definition of done:
 
-**`app/services/director.py`** — rewritten. `choose_direction()` now takes
-an optional `open_quests` list and scores every real open quest instead of
-using only static if/else rules. It weighs:
+- Create/open/start/block/unblock/abandon/complete quests.
+- Store append-only progress updates with progress %, notes, session minutes, blocker reason, and timestamps.
+- Track estimated time vs accumulated actual time.
+- Require a completion result before XP can be awarded.
+- Store optional completion evidence.
+- Award immutable XP exactly once using a DB-level unique event key.
+- Support crossing multiple hidden level thresholds from one large XP reward.
+- Record level-up history and timeline events.
+- Feed completed quests into the MARK OS life timeline.
+- Keep check-in Director aware of open quests.
 
-- base priority
-- whether the quest is already `active`
-- fit between quest difficulty and today's energy (favors easy quests on
-  low-energy days, hard quests on high-energy days)
-- whether the estimated time fits your free hours
-- whether the quest's title/description overlaps words in today's blocker
-- whether cash dropped and the quest looks income-related (lead, client,
-  outreach, revenue, etc.)
-- a small tie-breaker toward higher-XP quests
-- whether it has a due date
-
-It picks the highest-scoring quest as **Main Quest**, the next two as
-**Side Quests**, and explains *why* in plain language. If a quest scored
-negative (doesn't fit today), it's called out under **Avoid**. If there are
-no open quests yet, it falls back to the original static rules — nothing
-breaks on a fresh install.
-
-**`app/main.py`** — `create_checkin()` now fetches all open (non-completed)
-quests from the DB and passes them into `choose_direction()`.
-
-**`app/database.py`** — added 8 more seed quests (AI chat endpoint, unit
-tests, outreach, expense review, protect family weekend, Goals→Projects→Tasks
-schema draft, weekly lesson log, portfolio update) across quick/normal/hard
-difficulty. Inserted with `WHERE NOT EXISTS`, so it's **safe to run against
-your live Railway database** — it won't duplicate quests or touch anything
-already completed.
-
-**`app/templates/partials/direction.html`** — Main Quest and Side Quests
-now link directly to their real `/quests/{id}` page when the Director picked
-an actual quest (not just fallback text).
-
-## Install
+## Install on your Mac
 
 From your real repo:
 
 ```bash
+cd ~/Documents/Projects/mark-os
 git pull
 git status
 ```
 
-Copy the patch over:
+Copy the patch files:
 
 ```bash
-cp -R mark-os-v0.2.2-director-patch/app/* app/
+cp -R ~/Downloads/mark-os-v0.2.2-revised-phase4/app/* app/
+cp -R ~/Downloads/mark-os-v0.2.2-revised-phase4/tests/* tests/
+cp -R ~/Downloads/mark-os-v0.2.2-revised-phase4/docs/* docs/
 ```
 
-Run locally to confirm nothing broke:
+Run tests:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+PYTHONPATH=. pytest -q
+```
+
+Expected:
+
+```text
+9 passed
+```
+
+Run locally:
 
 ```bash
 uvicorn app.main:app --reload
@@ -60,23 +53,21 @@ uvicorn app.main:app --reload
 
 Test:
 
-1. Log in, open `/quests` — you should see 10 quests instead of 2.
-2. Go to Today, fill in a check-in with **low energy (1-2)** and submit —
-   the Main Quest should be a `quick` difficulty quest, not a `hard` one.
-3. Submit again with a **blocker** that mentions "railway" or "deploy" —
-   the Main Quest should shift to the Railway deploy quest.
-4. Submit with **cash lower than your last check-in** — the Main Quest
-   should shift toward the outreach/lead quest.
-5. Click the Main Quest heading on the direction panel — it should open
-   the real quest detail page.
+- `/quests`
+- create a quest;
+- open it;
+- start it;
+- add progress with session minutes;
+- block it;
+- unblock it;
+- complete it with a required result and evidence;
+- refresh/submit again and confirm XP is not duplicated;
+- check `/history` for timeline events.
 
 Then commit and push:
 
 ```bash
-git add app
-git commit -m "Director now scores real quests; add 8 more seed quests"
+git add app tests docs
+git commit -m "Complete revised Phase 4 Quest Engine"
 git push
 ```
-
-Railway will pick up the new quests automatically on next deploy — no
-manual database changes needed.

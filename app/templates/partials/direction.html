@@ -1,59 +1,39 @@
-<section id="direction-panel" class="box has-background-black-ter">
-    {% if direction %}
-    <div class="level is-mobile mb-4">
-        <div class="level-left">
-            <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace">
-                CURRENT DIRECTION // {{ direction.signal|replace('-', ' ')|upper }}
-            </p>
+{% if direction %}
+<div class="mark-card p-5">
+    <div class="is-flex is-justify-content-space-between is-align-items-center mb-4">
+        <div>
+            <p class="mark-kicker">Director Signal</p>
+            <h2 class="title is-4 mb-0">{{ direction.signal }}</h2>
         </div>
-        <div class="level-right"><span class="tag is-success is-light is-family-monospace">DIRECTOR SIGNAL</span></div>
+        <span class="mark-chip">MAIN QUEST</span>
     </div>
 
-    <p class="is-size-7 has-text-grey-light is-family-monospace mb-2">MAIN QUEST</p>
-    {% if direction.main_quest_id %}
-    <h2 class="title is-3 has-text-light mb-2">
-        <a class="has-text-light" href="/quests/{{ direction.main_quest_id }}">{{ direction.main_quest }}</a>
-    </h2>
-    <a class="button is-success is-small is-outlined mb-5" href="/quests/{{ direction.main_quest_id }}">Open this quest</a>
-    {% else %}
-    <h2 class="title is-3 has-text-light mb-5">{{ direction.main_quest }}</h2>
-    {% endif %}
-
-    <article class="message is-success">
-        <div class="message-header"><p>Why this now?</p></div>
-        <div class="message-body">{{ direction.why }}</div>
-    </article>
-
-    <div class="columns mt-2">
-        <div class="column">
-            <div class="box has-background-black-bis">
-                <span class="tag is-success is-dark mb-3">SIDE QUEST 01</span>
-                {% if direction.side_quest_1_id %}
-                <p><a class="has-text-grey-light" href="/quests/{{ direction.side_quest_1_id }}">{{ direction.side_quest_1 }}</a></p>
-                {% else %}
-                <p class="has-text-grey-light">{{ direction.side_quest_1 }}</p>
-                {% endif %}
-            </div>
-        </div>
-        <div class="column">
-            <div class="box has-background-black-bis">
-                <span class="tag is-success is-dark mb-3">SIDE QUEST 02</span>
-                {% if direction.side_quest_2_id %}
-                <p><a class="has-text-grey-light" href="/quests/{{ direction.side_quest_2_id }}">{{ direction.side_quest_2 }}</a></p>
-                {% else %}
-                <p class="has-text-grey-light">{{ direction.side_quest_2 }}</p>
-                {% endif %}
-            </div>
-        </div>
+    <div class="content has-text-light">
+        <h3 class="title is-5 mb-2">🎯 {{ direction.main_quest }}</h3>
+        <p class="mark-muted">{{ direction.why }}</p>
     </div>
 
-    <article class="message is-danger mt-2">
-        <div class="message-header"><p>Avoid today</p></div>
-        <div class="message-body">{{ direction.avoid }}</div>
-    </article>
-    {% else %}
-    <p class="is-size-7 has-text-success-light has-text-weight-bold is-family-monospace mb-3">AWAITING FIRST SIGNAL</p>
-    <h2 class="title is-3 has-text-light">MARK OS needs current evidence.</h2>
-    <p class="has-text-grey-light">Complete your first real check-in. The Director will choose one main quest, two side quests, and one thing to avoid.</p>
-    {% endif %}
-</section>
+    <hr class="mark-divider">
+
+    <div class="columns">
+        <div class="column">
+            <p class="mark-panel-title mb-2">Side Quest 1</p>
+            <p>{{ direction.side_quest_1 }}</p>
+        </div>
+        <div class="column">
+            <p class="mark-panel-title mb-2">Side Quest 2</p>
+            <p>{{ direction.side_quest_2 }}</p>
+        </div>
+        <div class="column">
+            <p class="mark-panel-title mb-2">Avoid</p>
+            <p>{{ direction.avoid }}</p>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="mark-card p-5">
+    <p class="mark-kicker">Director</p>
+    <h2 class="title is-4">Waiting for evidence.</h2>
+    <p class="mark-muted">Complete a daily check-in so MARK OS can choose the next highest-leverage action.</p>
+</div>
+{% endif %}
