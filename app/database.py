@@ -87,6 +87,69 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (checkin_id) REFERENCES checkins(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS game_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                level INTEGER NOT NULL DEFAULT 1 CHECK(level >= 1),
+                xp_total INTEGER,
+                character_class TEXT NOT NULL,
+                threshold_mode TEXT NOT NULL DEFAULT 'hidden',
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                source TEXT NOT NULL DEFAULT 'system',
+                notes TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS memories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                memory_type TEXT NOT NULL,
+                memory_key TEXT NOT NULL UNIQUE,
+                memory_value TEXT NOT NULL,
+                importance INTEGER NOT NULL DEFAULT 5 CHECK(importance BETWEEN 1 AND 10),
+                source TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1)),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS timeline_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_date TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                details_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'completed',
+                importance INTEGER NOT NULL DEFAULT 5 CHECK(importance BETWEEN 1 AND 10),
+                source TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS system_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'backlog',
+                priority INTEGER NOT NULL DEFAULT 5,
+                estimated_minutes INTEGER,
+                due_date TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                completed_at TEXT,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_checkins_date ON checkins(checkin_date);
+            CREATE INDEX IF NOT EXISTS idx_timeline_events_date ON timeline_events(event_date);
+            CREATE INDEX IF NOT EXISTS idx_timeline_events_type ON timeline_events(event_type);
+            CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
+            CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+            CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
             """
         )
 
@@ -134,6 +197,19 @@ def init_db() -> None:
                 "Build a personal operating system that observes current reality and gives the highest-leverage next action.",
                 10,
                 10,
-                "Run the app, submit the first real daily check-in, and test whether the recommendation feels useful.",
+                "Secure the app, expose the Life OS map, then build Goals → Projects → Tasks.",
+            ),
+        )
+
+        # Imported history keeps Level 3 because this only inserts when no game state exists.
+        db.execute(
+            """
+            INSERT OR IGNORE INTO game_state
+            (id, level, xp_total, character_class, threshold_mode, source, notes)
+            VALUES (1, 1, NULL, ?, 'hidden', 'system', ?)
+            """,
+            (
+                "Data Builder / Future Business Owner",
+                "Default game state. Imported or user-confirmed state takes precedence.",
             ),
         )

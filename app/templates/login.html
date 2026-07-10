@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#163b26">
+    <title>Sign in · MARK OS</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <link rel="stylesheet" href="/static/styles.css?v=0.1.1">
+    <link rel="stylesheet" href="/static/v02.css?v=0.2.0">
+</head>
+<body class="forest-body">
+<section class="login-shell">
+    <div class="login-panel">
+        <div class="login-brand">
+            <span class="brand-mark brand-mark-large">M</span>
+            <div>
+                <p class="eyebrow mb-1">PERSONAL OPERATING SYSTEM</p>
+                <h1 class="title is-2 has-text-white mb-2">MARK OS</h1>
+                <p class="login-subtitle">Your life data is private. Sign in to continue.</p>
+            </div>
+        </div>
+
+        <div class="box forest-card login-card">
+            <h2 class="title is-4 mb-2">Welcome back, Mark.</h2>
+            <p class="mb-5">Observe reality. Remember the past. Decide what matters next.</p>
+
+            {% if error %}
+            <div class="notification is-danger is-light">{{ error }}</div>
+            {% endif %}
+
+            {% if not configured %}
+            <div class="notification is-warning is-light">
+                Login is waiting for configuration. Set <strong>MARK_OS_PASSWORD</strong> in Railway first.
+            </div>
+            {% endif %}
+
+            <form method="post" action="/login">
+                <input type="hidden" name="next" value="{{ next }}">
+
+                <div class="field">
+                    <label class="label" for="username">Username</label>
+                    <div class="control">
+                        <input class="input" id="username" name="username" autocomplete="username" required autofocus>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="password">Password</label>
+                    <div class="control">
+                        <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+                    </div>
+                </div>
+
+                <button class="button is-success is-fullwidth is-medium mt-5" type="submit" {% if not configured %}disabled{% endif %}>
+                    Enter MARK OS
+                </button>
+            </form>
+        </div>
+    </div>
+</section>
+</body>
+</html>

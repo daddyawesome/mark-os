@@ -1,0 +1,202 @@
+.brand-lockup {
+    display: flex;
+    gap: 0.7rem;
+    align-items: center;
+}
+
+.brand-lockup small {
+    color: var(--forest-300);
+    font-size: 0.7rem;
+}
+
+.brand-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--forest-500), var(--forest-300));
+    color: var(--forest-950);
+    font-weight: 900;
+}
+
+.brand-mark-large {
+    width: 3.4rem;
+    height: 3.4rem;
+    border-radius: 16px;
+    font-size: 1.4rem;
+}
+
+.level-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid rgba(156, 214, 174, 0.45);
+    border-radius: 999px;
+    color: var(--forest-300);
+    background: rgba(6, 19, 11, 0.35);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+}
+
+.login-shell {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 2rem 1rem;
+}
+
+.login-panel {
+    width: min(100%, 520px);
+}
+
+.login-brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.login-subtitle {
+    color: rgba(245, 251, 243, 0.78);
+}
+
+.login-card {
+    padding: clamp(1.5rem, 5vw, 2.5rem);
+}
+
+.metric-card {
+    height: 100%;
+}
+
+.metric-value {
+    margin: 0.3rem 0 0.2rem;
+    font-size: clamp(2rem, 6vw, 3.4rem);
+    line-height: 1;
+    font-weight: 900;
+    color: var(--forest-800) !important;
+}
+
+.operating-chain {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.operating-chain span {
+    padding: 0.7rem 0.9rem;
+    border-radius: 999px;
+    background: var(--forest-100);
+    color: var(--forest-800);
+    font-weight: 800;
+}
+
+.operating-chain b {
+    color: var(--forest-500);
+}
+
+.module-card {
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.module-card-recommended {
+    border: 2px solid var(--forest-500) !important;
+    box-shadow: 0 20px 48px rgba(41, 94, 62, 0.24) !important;
+}
+
+.module-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.module-icon {
+    display: grid;
+    place-items: center;
+    width: 2.7rem;
+    height: 2.7rem;
+    border-radius: 14px;
+    background: var(--forest-100);
+    color: var(--forest-700);
+    font-size: 1.25rem;
+    font-weight: 900;
+}
+
+.module-status {
+    padding: 0.3rem 0.6rem;
+    border-radius: 999px;
+    background: #edf3ee;
+    color: #5b6f60;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.module-status-live {
+    background: #dff7e6;
+    color: #1f6840;
+}
+
+.module-status-foundation {
+    background: #e8f2ff;
+    color: #2f5f90;
+}
+
+.module-status-next-build {
+    background: #fff2cc;
+    color: #7a5b00;
+}
+
+.recommendation-banner {
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #e7f8ea, #f7fbf7);
+    border: 1px solid #c5e5cd;
+    color: #244b31;
+}
+
+.roadmap-list {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.roadmap-list > div {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    background: #f3f8f4;
+}
+
+.roadmap-active {
+    background: #e7f8ea !important;
+    border: 1px solid #b9dfc3;
+}
+
+@media (max-width: 768px) {
+    .navbar-menu.is-active {
+        display: flex;
+        flex-wrap: wrap;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .navbar-start,
+    .navbar-end {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .roadmap-list > div {
+        grid-template-columns: 1fr;
+        gap: 0.25rem;
+    }
+}

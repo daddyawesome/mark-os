@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Life OS · MARK OS{% endblock %}
+{% block content %}
+<section class="forest-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column is-8">
+            <p class="eyebrow mb-3">LIFE OPERATING SYSTEM</p>
+            <h1 class="title is-2 has-text-white mb-3">Organize less. Decide better.</h1>
+            <p class="subtitle is-5 has-text-white-ter mb-0">
+                Other life systems store everything. MARK OS should connect every area of life to one question: what is the highest-leverage next action?
+            </p>
+        </div>
+        <div class="column">
+            <div class="forest-pill">
+                <p class="eyebrow">CURRENT BUILD PRIORITY</p>
+                <p class="title is-4 has-text-white mt-2 mb-2">Goals → Projects → Tasks</p>
+                <p class="has-text-white-ter">The Director should choose from real work, not invent generic actions.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="columns is-multiline mb-2">
+    <div class="column is-6-tablet is-3-desktop">
+        <div class="box forest-card metric-card">
+            <p class="eyebrow">LEVEL</p>
+            <p class="metric-value">{{ system_state.level }}</p>
+            <p>{{ system_state.character_class }}</p>
+        </div>
+    </div>
+    <div class="column is-6-tablet is-3-desktop">
+        <div class="box forest-card metric-card">
+            <p class="eyebrow">MEMORIES</p>
+            <p class="metric-value">{{ counts.memories }}</p>
+            <p>Long-term facts and lessons</p>
+        </div>
+    </div>
+    <div class="column is-6-tablet is-3-desktop">
+        <div class="box forest-card metric-card">
+            <p class="eyebrow">TIMELINE</p>
+            <p class="metric-value">{{ counts.timeline }}</p>
+            <p>Life events remembered</p>
+        </div>
+    </div>
+    <div class="column is-6-tablet is-3-desktop">
+        <div class="box forest-card metric-card">
+            <p class="eyebrow">ACTIVE SYSTEM</p>
+            <p class="metric-value">{{ counts.goals }}G</p>
+            <p>{{ counts.projects }} project · {{ counts.tasks }} tasks</p>
+        </div>
+    </div>
+</div>
+
+<div class="box forest-card mb-5">
+    <p class="eyebrow mb-2">THE OPERATING CHAIN</p>
+    <h2 class="title is-4 mb-4">Every task should know why it exists.</h2>
+    <div class="operating-chain">
+        <span>Life Area</span><b>→</b><span>Goal</span><b>→</b><span>Project</span><b>→</b><span>Task</span><b>→</b><span>Today</span><b>→</b><span>Review</span>
+    </div>
+</div>
+
+<div class="columns is-multiline">
+    {% for module in modules %}
+    <div class="column is-6-tablet is-4-desktop">
+        <article class="box forest-card module-card {% if module.recommended %}module-card-recommended{% endif %}">
+            <div class="module-card-top">
+                <span class="module-icon">{{ module.icon }}</span>
+                <span class="module-status module-status-{{ module.status|replace(' ', '-') }}">{{ module.status }}</span>
+            </div>
+            <h3 class="title is-5 mb-2">{{ module.name }}</h3>
+            <p>{{ module.description }}</p>
+            {% if module.recommended %}
+            <div class="recommendation-banner mt-4">
+                <strong>NEXT BUILD</strong><br>
+                Let the Director choose from real tasks that fit your time, energy, goals, and current blocker.
+            </div>
+            {% endif %}
+        </article>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="box forest-card mt-2">
+    <p class="eyebrow mb-2">BUILD ORDER</p>
+    <h2 class="title is-4">Do not build the whole Life OS at once.</h2>
+    <div class="roadmap-list mt-4">
+        <div><strong>1. Now</strong><span>Login + persistent memory + Level 3</span></div>
+        <div class="roadmap-active"><strong>2. Next</strong><span>Goals → Projects → Tasks → Director selection</span></div>
+        <div><strong>3. Then</strong><span>Notes & Knowledge</span></div>
+        <div><strong>4. Later</strong><span>Habits, reflection, finance, calendar, then AI Director</span></div>
+    </div>
+</div>
+{% endblock %}
