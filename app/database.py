@@ -221,14 +221,6 @@ def init_db() -> None:
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
 
-            CREATE INDEX IF NOT EXISTS idx_checkins_date ON checkins(checkin_date);
-            CREATE INDEX IF NOT EXISTS idx_timeline_events_date ON timeline_events(event_date);
-            CREATE INDEX IF NOT EXISTS idx_timeline_events_type ON timeline_events(event_type);
-            CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
-            CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-            CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
-            CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id);
-            CREATE INDEX IF NOT EXISTS idx_quest_updates_task ON quest_updates(task_id);
             """
         )
 
@@ -283,6 +275,35 @@ def init_db() -> None:
             """
         )
         
+        # Create ordinary indexes only after all legacy-schema migrations.
+        db.executescript(
+            """
+            CREATE INDEX IF NOT EXISTS idx_checkins_date
+            ON checkins(checkin_date);
+
+            CREATE INDEX IF NOT EXISTS idx_timeline_events_date
+            ON timeline_events(event_date);
+
+            CREATE INDEX IF NOT EXISTS idx_timeline_events_type
+            ON timeline_events(event_type);
+
+            CREATE INDEX IF NOT EXISTS idx_memories_type
+            ON memories(memory_type);
+
+            CREATE INDEX IF NOT EXISTS idx_tasks_status
+            ON tasks(status);
+
+            CREATE INDEX IF NOT EXISTS idx_tasks_project
+            ON tasks(project_id);
+
+            CREATE INDEX IF NOT EXISTS idx_tasks_goal
+            ON tasks(goal_id);
+
+            CREATE INDEX IF NOT EXISTS idx_quest_updates_task
+            ON quest_updates(task_id);
+            """
+        )
+
         # Create this index only after event_key is guaranteed to exist.
         db.execute(
             """
