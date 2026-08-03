@@ -173,7 +173,11 @@ def _best_fitting_quest(
     available_minutes = max(0, int(free_hours * 60))
     scored: list[tuple[float, Mapping[str, object]]] = []
     for quest in open_quests:
-        if str(quest.get("status") or "").lower() in {"completed", "abandoned"}:
+        if str(quest.get("status") or "").lower() in {
+            "completed",
+            "abandoned",
+            "closed",
+        }:
             continue
         estimated = int(quest.get("estimated_minutes") or 30)
         priority = float(quest.get("effective_priority") or quest.get("priority") or 5)

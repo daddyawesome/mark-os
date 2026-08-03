@@ -16,7 +16,7 @@ from app.auth import (
 )
 from app.database import init_db
 from app.routes import auth as auth_routes
-from app.routes import checkins, goals, pages, quests
+from app.routes import checkins, client_hunting, goals, pages, quests
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -35,7 +35,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="MARK OS",
-    version="0.2.2-phase4-revised",
+    version="0.3.0-client-hunting-mvp",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -72,4 +72,5 @@ app.include_router(auth_routes.router)
 app.include_router(checkins.router)
 app.include_router(quests.router)
 app.include_router(goals.router)
+app.include_router(client_hunting.router)
 app.include_router(pages.router)

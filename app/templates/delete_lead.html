@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Archive {{ lead.company }} · Client Hunting · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Client Hunting // Confirm Archive</p>
+    <h1 class="title is-1 mb-2">Archive {{ lead.company }}?</h1>
+    <p class="subtitle is-5 mark-muted">The lead will leave active CRM views. Its linked quest and historical record remain intact.</p>
+</section>
+
+<div class="mark-card p-6" style="max-width: 680px; margin: 0 auto;">
+    {% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+    <p class="mb-5">Type <strong>DELETE</strong> exactly to confirm.</p>
+    <form method="post" action="/crm/leads/{{ lead.id }}/delete">
+        <div class="field">
+            <label class="label" for="confirmation">Confirmation</label>
+            <input class="input" id="confirmation" name="confirmation" type="text" required autocomplete="off" placeholder="DELETE">
+        </div>
+        <div class="buttons is-justify-content-flex-end mt-5">
+            <a class="button is-ghost-forest" href="/crm/leads/{{ lead.id }}">Cancel</a>
+            <button class="button is-danger" type="submit">Archive Lead</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

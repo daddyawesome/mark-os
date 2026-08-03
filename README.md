@@ -1,113 +1,170 @@
-# MARK OS v0.1
+# MARK OS — Client Hunting MVP
 
-A personal operating system that records reality and gives one highest-leverage next action.
+MARK OS is a personal operating system for turning real-world priorities into
+clear quests. Its current product focus is practical and narrow: help Mark find,
+prioritize, contact, and win clients.
 
-## What v0.1 does
+The operating loop is:
 
-- Stores Mark's long-term goals and flagship project in SQLite.
-- Accepts a daily check-in: cash, expenses, free time, energy, accomplishments, blockers, and notes.
-- Uses a transparent Python decision engine to choose:
-  - one Main Quest;
-  - two Side Quests;
-  - one thing to avoid;
-  - the reason behind the priority.
-- Keeps a history of check-ins and directions.
-- Runs locally with FastAPI, Jinja templates, HTMX, and SQLite.
+```text
+Find a lead → qualify the fit → choose the next outreach action
+→ do the linked quest → move the pipeline → review results
+```
 
-## Why no AI yet?
+## Current status
 
-The first milestone is to prove the feedback loop:
+The Client Hunting CRM is the active business track. Phase 5 memory work pauses
+after the persistent-chat and agent-audit foundations so the product can first
+help create revenue.
 
-`Observe → Remember → Decide → Act → Review`
+| Track | Status | What exists |
+| --- | --- | --- |
+| MARK OS v0.1 foundation | Complete | SQLite profile, goals, projects, check-ins, history, and transparent direction logic |
+| Secure web and Life OS foundation | Complete | Login protection, Railway-safe session configuration, modular routes, and Life OS views |
+| Phase 4 — Quest Engine | Complete | Quest lifecycle, progress, blockers, evidence, immutable XP awards, levels, and timeline events |
+| Phase 5.1 — Persistent Chat | Complete | Additive chat storage, session/message lifecycle, recent history, and duplicate-request protection |
+| Phase 5.2 — Agent Audit | Complete | Persistent agent runs and steps, usage/cost estimates, lifecycle tracking, idempotency, and safe error summaries |
+| Client Hunting C1–C4 — CRM MVP | Complete locally | Lead storage, quest linkage, CRUD, pipeline, priority, next actions, duplicate prevention, and dashboard |
+| Client Hunting C5 — Railway release | Pending approval | Final production migration and deployment verification |
+| Phase 5.3 — Structured Memory | Paused | Next memory step after the Client Hunting MVP proves useful |
+| Phase 5.4+ — AI and integrations | Planned | Memory extraction, retrieval, AI routing, Neo4j, LangGraph, Gmail, and Calendar remain deferred |
 
-AI is useful only after the system has trustworthy data and clear actions. v0.1 keeps the decision logic visible, cheap, testable, and easy to improve.
+## Client Hunting CRM
+
+Open `/crm` to record and manage:
+
+- company and contact person;
+- job title;
+- source and source link;
+- the client problem or opportunity;
+- why Mark is a strong fit;
+- pipeline status and priority;
+- the next outreach action, due date, and notes.
+
+Pipeline stages are:
+
+```text
+New → Reviewed → Contacted → Replied → Meeting → Proposal → Won / Lost
+```
+
+Priorities are `High`, `Medium`, and `Low`.
+
+The dashboard shows total leads, high-priority leads, contacted leads, replies,
+meetings, proposals, and won clients.
+
+### Every lead is a quest
+
+Creating a lead atomically creates one linked Client Hunting quest. The quest
+title, priority, due date, reason, progress, and lifecycle follow the lead's
+current pipeline and next action. Won and lost leads use a reversible CRM
+`closed` quest state rather than the Quest Engine's immutable XP completion.
+CRM transitions never award or reverse XP, so correcting a mistaken pipeline
+entry cannot corrupt the XP ledger.
+
+Removing a mistaken or duplicate lead is confirmation-protected and reversible
+at the data level: the lead is hidden from active CRM views and its linked quest
+is abandoned instead of destroying quest, XP, or timeline history.
+
+Duplicate protection uses a request key plus an immutable creation fingerprint
+for exact retries, and a normalized identity derived from company, contact, and
+source information for semantic duplicates.
+
+## Existing MARK OS capabilities
+
+- Daily check-ins for cash movement, expenses, free time, energy, progress, and blockers.
+- A transparent Director that recommends one main quest and supporting actions.
+- Goals, projects, quests, progress updates, completion evidence, XP, and levels.
+- Persistent chat and agent-audit storage foundations without paid AI calls.
+- Safe additive SQLite startup migrations with legacy-data regression tests.
+- Single-user authentication suitable for Mark's private deployment.
 
 ## Project structure
 
 ```text
-mark-os-v0.1/
-├── app/
-│   ├── main.py
-│   ├── database.py
-│   ├── services/
-│   │   └── director.py
-│   ├── static/
-│   │   └── styles.css
-│   └── templates/
-│       ├── base.html
-│       ├── index.html
-│       ├── history.html
-│       └── partials/
-│           └── direction.html
-├── data/
-├── tests/
-│   └── test_director.py
-├── requirements.txt
-├── run.ps1
-└── README.md
+app/
+├── auth.py
+├── database.py
+├── main.py
+├── routes/
+│   ├── auth.py
+│   ├── checkins.py
+│   ├── client_hunting.py
+│   ├── goals.py
+│   ├── pages.py
+│   └── quests.py
+├── services/
+│   ├── agent_audit.py
+│   ├── chat.py
+│   ├── director.py
+│   ├── gamification.py
+│   ├── lead_identity.py
+│   ├── leads.py
+│   └── quests.py
+└── templates/
+    ├── client_hunting.html
+    ├── lead_detail.html
+    ├── edit_lead.html
+    └── delete_lead.html
+
+tests/
+├── test_application.py
+├── test_crm_migrations.py
+├── test_leads.py
+└── ...
 ```
 
-## Run on Windows PowerShell
+## Local setup
 
-From the project folder:
+Create a virtual environment, install the existing dependencies, and copy the
+documented environment variables:
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\run.ps1
-```
-
-Then open:
-
-```text
-http://127.0.0.1:8000
-```
-
-The health endpoint is:
-
-```text
-http://127.0.0.1:8000/health
-```
-
-## Manual setup
-
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
+```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-python -m uvicorn app.main:app --reload
+cp .env.example .env
 ```
 
-## Run tests
+Set `MARK_OS_PASSWORD` and `SESSION_SECRET` in `.env`, then run:
 
-```powershell
-pytest -q
+```bash
+uvicorn --env-file .env app.main:app --reload
 ```
 
-## First real test
+Open `http://127.0.0.1:8000/crm`. The health endpoint is
+`http://127.0.0.1:8000/health`.
 
-1. Open the Today page.
-2. Enter your actual current cash, today's expenses, available hours, energy, accomplishment, and real blocker.
-3. Click **Generate My Direction**.
-4. Judge the output with one question: **Would following this recommendation improve my real life today?**
-5. Record the result tomorrow. That evidence drives v0.2.
+On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1` or use the
+existing `run.ps1` helper, which loads `.env` automatically when the file exists.
 
-## Planned roadmap
+## Tests
 
-### v0.2 — Better memory
-- Mark quests done/not done.
-- Track project progress.
-- Learn recurring blockers.
-- Compare planned time with actual time.
+Tests always use temporary SQLite databases; they must never target
+`data/mark_os.db` or the Railway volume.
 
-### v0.3 — Integrations
-- Google Calendar read-only.
-- Gmail attention summary read-only.
-- GitHub activity and project progress.
+```bash
+python -m pytest -q
+```
 
-### v0.4 — AI Director
-- Add an LLM only for ambiguous decisions and weekly reviews.
-- Keep high-risk actions approval-only.
-- Preserve transparent rules as guardrails.
+Coverage includes fresh and legacy migrations, preserved quest/XP/check-in/
+memory data, lead CRUD, duplicate protection, quest linkage, pipeline syncing,
+dashboard totals, authentication, and application startup.
+
+## Railway release boundary
+
+Railway configuration is present, but a release is an explicit separate step.
+Before deployment:
+
+1. review and commit the CRM changes;
+2. back up the persistent SQLite volume;
+3. confirm `MARK_OS_USERNAME`, `MARK_OS_PASSWORD`, `SESSION_SECRET`, and the
+   persistent `MARK_OS_DB_PATH`;
+4. approve the push/deploy;
+5. verify `/health`, `/crm`, one test lead, its linked quest, and the dashboard.
+
+No deployment, production migration, external email, scraping, paid AI call,
+Neo4j connection, embedding job, or calendar integration is performed by the
+CRM MVP itself.
 
 ## Product principle
 

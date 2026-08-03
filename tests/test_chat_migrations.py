@@ -433,6 +433,7 @@ def test_pre_chat_phase4_database_upgrades_without_data_loss(tmp_path, monkeypat
         "chat_messages",
         "agent_runs",
         "agent_steps",
+        "leads",
     }.issubset(_table_names(after_db))
     assert after_db.execute("SELECT level FROM game_state WHERE id = 1").fetchone()[0] == 3
     assert after_db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 1
@@ -501,6 +502,7 @@ def test_older_tasks_schema_migrates_columns_before_dependent_indexes(
         "chat_messages",
         "agent_runs",
         "agent_steps",
+        "leads",
     }.issubset(_table_names(db))
     assert db.execute("PRAGMA quick_check").fetchone()[0] == "ok"
     db.close()
@@ -660,7 +662,7 @@ def test_existing_duplicate_request_keys_fail_with_clear_migration_error(
     db.close()
 
 
-def test_application_startup_initializes_phase_5_storage_on_temporary_database(
+def test_application_startup_initializes_current_storage_on_temporary_database(
     tmp_path,
     monkeypatch,
 ):
@@ -678,6 +680,7 @@ def test_application_startup_initializes_phase_5_storage_on_temporary_database(
         "chat_messages",
         "agent_runs",
         "agent_steps",
+        "leads",
     }.issubset(_table_names(db))
     assert db.execute("PRAGMA quick_check").fetchone()[0] == "ok"
     db.close()

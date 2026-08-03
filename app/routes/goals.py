@@ -23,7 +23,7 @@ def goals_page(request: Request):
                 for row in db.execute(
                     """
                     SELECT p.*,
-                           (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status != 'completed') AS open_quests,
+                           (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status NOT IN ('completed', 'abandoned', 'closed')) AS open_quests,
                            (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status = 'completed') AS completed_quests
                     FROM projects p
                     WHERE p.goal_id = ?

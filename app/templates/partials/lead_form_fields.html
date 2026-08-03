@@ -1,0 +1,90 @@
+{% set editing = lead is defined and lead %}
+{% set selected_status = lead.pipeline_status if editing else 'new' %}
+{% set selected_priority = lead.priority if editing else 'medium' %}
+
+<div class="columns is-multiline">
+    <div class="column is-half">
+        <div class="field">
+            <label class="label" for="company">Company</label>
+            <input class="input" id="company" name="company" type="text" required value="{{ lead.company if editing else '' }}" placeholder="Acme Studio">
+        </div>
+    </div>
+    <div class="column is-half">
+        <div class="field">
+            <label class="label" for="contact_person">Contact person</label>
+            <input class="input" id="contact_person" name="contact_person" type="text" required value="{{ lead.contact_person if editing else '' }}" placeholder="Alex Rivera">
+        </div>
+    </div>
+    <div class="column is-half">
+        <div class="field">
+            <label class="label" for="job_title">Job title</label>
+            <input class="input" id="job_title" name="job_title" type="text" value="{{ lead.job_title if editing else '' }}" placeholder="Founder">
+        </div>
+    </div>
+    <div class="column is-half">
+        <div class="field">
+            <label class="label" for="source">Source</label>
+            <input class="input" id="source" name="source" type="text" required value="{{ lead.source if editing else '' }}" placeholder="LinkedIn">
+        </div>
+    </div>
+    <div class="column is-full">
+        <div class="field">
+            <label class="label" for="source_url">Source link</label>
+            <input class="input" id="source_url" name="source_url" type="url" value="{{ lead.source_url if editing else '' }}" placeholder="https://…">
+        </div>
+    </div>
+    <div class="column is-half">
+        <div class="field">
+            <label class="label" for="problem_opportunity">Problem or opportunity</label>
+            <textarea class="textarea" id="problem_opportunity" name="problem_opportunity" rows="4" required placeholder="What could be improved or created?">{{ lead.problem_opportunity if editing else '' }}</textarea>
+        </div>
+    </div>
+    <div class="column is-half">
+        <div class="field">
+            <label class="label" for="why_mark_fits">Why Mark fits</label>
+            <textarea class="textarea" id="why_mark_fits" name="why_mark_fits" rows="4" required placeholder="Relevant experience, leverage, or insight">{{ lead.why_mark_fits if editing else '' }}</textarea>
+        </div>
+    </div>
+    <div class="column is-half">
+        <div class="field">
+            <label class="label" for="pipeline_status">Pipeline status</label>
+            <div class="select is-fullwidth">
+                <select id="pipeline_status" name="pipeline_status">
+                    {% for value, label in pipeline_options %}
+                    <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="column is-half">
+        <div class="field">
+            <label class="label" for="priority">Priority</label>
+            <div class="select is-fullwidth">
+                <select id="priority" name="priority">
+                    {% for value, label in priority_options %}
+                    <option value="{{ value }}" {% if selected_priority == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="column is-two-thirds">
+        <div class="field">
+            <label class="label" for="next_action">Next action</label>
+            <input class="input" id="next_action" name="next_action" type="text" required value="{{ lead.next_action if editing else '' }}" placeholder="Send a focused introduction">
+        </div>
+    </div>
+    <div class="column is-one-third">
+        <div class="field">
+            <label class="label" for="next_action_due_date">Due date</label>
+            <input class="input" id="next_action_due_date" name="next_action_due_date" type="date" value="{{ lead.next_action_due_date if editing and lead.next_action_due_date else '' }}">
+        </div>
+    </div>
+    <div class="column is-full">
+        <div class="field">
+            <label class="label" for="notes">Notes</label>
+            <textarea class="textarea" id="notes" name="notes" rows="4" placeholder="Context worth remembering">{{ lead.notes if editing else '' }}</textarea>
+        </div>
+    </div>
+</div>

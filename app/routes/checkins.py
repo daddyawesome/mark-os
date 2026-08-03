@@ -39,7 +39,7 @@ def dashboard_context(request: Request) -> dict:
             SELECT t.*, p.name AS project_name
             FROM tasks t
             LEFT JOIN projects p ON p.id = t.project_id
-            WHERE t.status NOT IN ('completed', 'abandoned')
+            WHERE t.status NOT IN ('completed', 'abandoned', 'closed')
             ORDER BY CASE t.status WHEN 'active' THEN 0 WHEN 'blocked' THEN 1 ELSE 2 END,
                      t.priority DESC, t.id
             LIMIT 3
