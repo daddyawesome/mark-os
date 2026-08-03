@@ -8,18 +8,34 @@ from fastapi import Request
 
 SESSION_USER_KEY = "mark_os_user"
 USERNAME = os.getenv("MARK_OS_USERNAME", "mark")
+DEFAULT_SESSION_SECRET = "dev-only-change-this-secret-before-production"
 
 IS_RAILWAY = bool(
     os.getenv("RAILWAY_ENVIRONMENT")
     or os.getenv("RAILWAY_PROJECT_ID")
 )
 
-SESSION_SECRET = os.getenv(
-    "SESSION_SECRET",
-    "dev-only-change-this-secret-before-production",
-)
+SESSION_SECRET = os.getenv("SESSION_SECRET") or DEFAULT_SESSION_SECRET
 
 PASSWORD = os.getenv("MARK_OS_PASSWORD", "")
+
+
+def validate_session_secret(*, is_railway: bool, session_secret: str) -> None:
+    """Reject the development cookie-signing secret in Railway environments."""
+    clean_secret = (session_secret or "").strip()
+    if is_railway and (
+        not clean_secret or clean_secret == DEFAULT_SESSION_SECRET
+    ):
+        raise RuntimeError(
+            "SESSION_SECRET must be set to a non-default value when running on Railway"
+        )
+
+
+def validate_auth_configuration() -> None:
+    validate_session_secret(
+        is_railway=IS_RAILWAY,
+        session_secret=SESSION_SECRET,
+    )
 
 
 def credentials_configured() -> bool:
