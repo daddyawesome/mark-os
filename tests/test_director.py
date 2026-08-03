@@ -316,6 +316,13 @@ def test_terminal_quests_are_not_recommended():
         "estimated_minutes": 10,
         "energy_required": 1,
     }
+    closed_crm_quest = {
+        "title": "Won client follow-up",
+        "status": "closed",
+        "priority": 10,
+        "estimated_minutes": 10,
+        "energy_required": 1,
+    }
     open_quest = {
         "title": "Still open",
         "status": "backlog",
@@ -325,7 +332,7 @@ def test_terminal_quests_are_not_recommended():
     }
 
     selected = _best_fitting_quest(
-        [completed_quest, open_quest],
+        [completed_quest, closed_crm_quest, open_quest],
         free_hours=1,
         energy=3,
     )

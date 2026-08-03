@@ -25,6 +25,7 @@
             </div>
             <h2 class="title is-4 mb-2">{{ module.name }}</h2>
             <p class="mark-muted">{{ module.description }}</p>
+            {% if module.count is defined %}<p class="mt-4"><span class="mark-chip">{{ module.count }} TOTAL LEADS</span></p>{% endif %}
             {% if module.recommended %}<p class="mt-4"><a class="button is-mark is-small" href="/quests">Build this now</a></p>{% endif %}
         </div>
     </div>

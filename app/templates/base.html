@@ -165,7 +165,7 @@
         <div class="navbar-brand">
             <a class="navbar-item has-text-weight-bold" href="/">
                 <span class="mark-brand-orb">M</span>
-                <span>MARK OS <span class="mark-muted">v0.2.1</span></span>
+                <span>MARK OS <span class="mark-muted">v0.3.0-client-hunting-mvp</span></span>
             </a>
             <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="markNavbar">
                 <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
@@ -176,6 +176,7 @@
                 <a class="navbar-item {% if request.url.path == '/' %}is-active{% endif %}" href="/">Today</a>
                 <a class="navbar-item {% if request.url.path.startswith('/quests') %}is-active{% endif %}" href="/quests">Quests</a>
                 <a class="navbar-item {% if request.url.path.startswith('/goals') %}is-active{% endif %}" href="/goals">Goals</a>
+                <a class="navbar-item {% if request.url.path.startswith('/crm') %}is-active{% endif %}" href="/crm">Client Hunting</a>
                 <a class="navbar-item {% if request.url.path == '/life-os' %}is-active{% endif %}" href="/life-os">Life OS</a>
                 <a class="navbar-item {% if request.url.path == '/history' %}is-active{% endif %}" href="/history">History</a>
             </div>

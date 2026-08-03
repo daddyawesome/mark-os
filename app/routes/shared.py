@@ -61,7 +61,7 @@ def load_open_quests(db) -> list[dict]:
         LEFT JOIN projects p ON p.id = t.project_id
         LEFT JOIN goals gt ON gt.id = t.goal_id
         LEFT JOIN goals gp ON gp.id = p.goal_id
-        WHERE t.status NOT IN ('completed', 'abandoned')
+        WHERE t.status NOT IN ('completed', 'abandoned', 'closed')
         ORDER BY t.priority DESC, t.id
         """
     ).fetchall()
@@ -92,7 +92,7 @@ def load_system_state(db) -> dict:
         "task_count": db.execute(
             """
             SELECT COUNT(*) AS count FROM tasks
-            WHERE status NOT IN ('completed', 'abandoned')
+            WHERE status NOT IN ('completed', 'abandoned', 'closed')
             """
         ).fetchone()["count"],
         "blocked_count": db.execute(

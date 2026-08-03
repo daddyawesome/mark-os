@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.company }} · Client Hunting · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="is-flex is-justify-content-space-between is-align-items-flex-start is-flex-wrap-wrap">
+        <div>
+            <p class="mark-kicker">Client Hunting // Lead {{ lead.id }}</p>
+            <h1 class="title is-1 mb-2">{{ lead.company }}</h1>
+            <p class="subtitle is-5 mark-muted">{{ lead.contact_person }}{% if lead.job_title %} · {{ lead.job_title }}{% endif %}</p>
+            <div class="tags">
+                <span class="mark-chip">{{ lead.pipeline_status|upper }}</span>
+                <span class="mark-chip">{{ lead.priority|upper }} PRIORITY</span>
+                <a class="mark-chip" href="/quests/{{ lead.quest_id }}">QUEST #{{ lead.quest_id }}</a>
+            </div>
+        </div>
+        <div class="buttons">
+            <a class="button is-ghost-forest" href="/crm">Back to CRM</a>
+            <a class="button is-mark" href="/crm/leads/{{ lead.id }}/edit">Edit lead</a>
+        </div>
+    </div>
+</section>
+
+{% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
+{% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+
+<div class="columns is-variable is-5">
+    <div class="column is-7">
+        <div class="mark-card p-5 mb-5">
+            <p class="mark-kicker">Lead Context</p>
+            <h2 class="title is-3">Full details</h2>
+            <div class="content">
+                <p><strong>Company</strong><br>{{ lead.company }}</p>
+                <p><strong>Contact person</strong><br>{{ lead.contact_person }}</p>
+                <p><strong>Job title</strong><br>{{ lead.job_title or '—' }}</p>
+                <p><strong>Source</strong><br>{{ lead.source }}</p>
+                <p><strong>Source link</strong><br>
+                    {% if lead.source_url %}<a href="{{ lead.source_url }}" target="_blank" rel="noopener noreferrer">{{ lead.source_url }}</a>{% else %}—{% endif %}
+                </p>
+                <hr class="mark-divider">
+                <p><strong>Problem or opportunity</strong><br>{{ lead.problem_opportunity }}</p>
+                <p><strong>Why Mark fits</strong><br>{{ lead.why_mark_fits }}</p>
+                <p><strong>Pipeline status</strong><br>{{ lead.pipeline_status|title }}</p>
+                <p><strong>Priority</strong><br>{{ lead.priority|title }}</p>
+                <p><strong>Next action</strong><br>{{ lead.next_action }}</p>
+                <p><strong>Due date</strong><br>{{ lead.next_action_due_date or '—' }}</p>
+                <p><strong>Notes</strong><br>{{ lead.notes or '—' }}</p>
+                <hr class="mark-divider">
+                <p class="mark-muted is-size-7">Created {{ lead.created_at }} · Updated {{ lead.updated_at }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="column is-5">
+        <div class="mark-card p-5 mb-5">
+            <p class="mark-kicker">Quick Update</p>
+            <h2 class="title is-4">Move the pipeline.</h2>
+            <form method="post" action="/crm/leads/{{ lead.id }}/pipeline">
+                <div class="field">
+                    <label class="label" for="pipeline_status">Pipeline status</label>
+                    <div class="select is-fullwidth">
+                        <select id="pipeline_status" name="pipeline_status">
+                            {% for value, label in pipeline_options %}
+                            <option value="{{ value }}" {% if lead.pipeline_status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <button class="button is-mark is-fullwidth" type="submit">Update Pipeline</button>
+            </form>
+        </div>
+
+        <div class="mark-card p-5 mb-5">
+            <p class="mark-kicker">Next Move</p>
+            <h2 class="title is-4">Keep momentum visible.</h2>
+            <form method="post" action="/crm/leads/{{ lead.id }}/next-action">
+                <div class="field">
+                    <label class="label" for="next_action">Next action</label>
+                    <input class="input" id="next_action" name="next_action" type="text" required value="{{ lead.next_action }}">
+                </div>
+                <div class="field">
+                    <label class="label" for="next_action_due_date">Due date</label>
+                    <input class="input" id="next_action_due_date" name="next_action_due_date" type="date" value="{{ lead.next_action_due_date or '' }}">
+                </div>
+                <button class="button is-mark is-fullwidth" type="submit">Update Next Action</button>
+            </form>
+        </div>
+
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Archive</p>
+            <p class="mark-muted mb-4">Remove this lead from the active CRM while preserving its linked quest history.</p>
+            <a class="button is-danger is-outlined is-fullwidth" href="/crm/leads/{{ lead.id }}/delete">Archive lead</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

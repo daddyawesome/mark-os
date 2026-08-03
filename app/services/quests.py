@@ -44,6 +44,12 @@ def normalize_status(value: str) -> str:
     return status if status in VALID_QUEST_STATUSES else "backlog"
 
 
+def _require_core_quest_mutation(quest: sqlite3.Row) -> None:
+    """Keep CRM-linked quests canonical to the lead service, even for API callers."""
+    if quest["quest_source"] == "client_hunting":
+        raise ValueError("Client Hunting quests must be managed through the CRM")
+
+
 def _total_minutes(db: sqlite3.Connection, quest_id: int) -> int:
     row = db.execute(
         """
@@ -97,6 +103,7 @@ def set_quest_status(
     quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
     if not quest:
         raise ValueError("Quest not found")
+    _require_core_quest_mutation(quest)
     if quest["status"] == "completed":
         return
 
@@ -170,6 +177,7 @@ def update_quest_progress(
     quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
     if not quest:
         raise ValueError("Quest not found")
+    _require_core_quest_mutation(quest)
     if quest["status"] == "completed":
         return int(quest["progress"] or 100)
 
@@ -217,6 +225,7 @@ def complete_quest(
     quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
     if not quest:
         raise ValueError("Quest not found")
+    _require_core_quest_mutation(quest)
 
     state = db.execute("SELECT * FROM game_state WHERE id = 1").fetchone()
     level_before = int(state["level"] if state else 1)

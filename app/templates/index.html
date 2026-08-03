@@ -136,9 +136,9 @@
                 <a class="box mark-card mark-card-2 mb-3" href="/quests/{{ quest.id }}">
                     <div class="is-flex is-justify-content-space-between">
                         <strong class="has-text-light">{{ quest.title }}</strong>
-                        <span class="mark-chip">+{{ quest.xp_reward or 25 }} XP</span>
+                        {% if quest.quest_source == 'client_hunting' %}<span class="mark-chip">CRM QUEST</span>{% else %}<span class="mark-chip">+{{ quest.xp_reward }} XP</span>{% endif %}
                     </div>
-                    <p class="mark-muted mt-2">{{ quest.project_name or "No project" }} · {{ quest.status|upper }} · {{ quest.progress or 0 }}%</p>
+                    <p class="mark-muted mt-2">{% if quest.quest_source == 'client_hunting' %}Client Hunting{% else %}{{ quest.project_name or "No project" }}{% endif %} · {{ quest.status|upper }} · {{ quest.progress or 0 }}%</p>
                     <progress class="progress is-small is-forest mt-2" value="{{ quest.progress or 0 }}" max="100">{{ quest.progress or 0 }}%</progress>
                 </a>
             {% else %}

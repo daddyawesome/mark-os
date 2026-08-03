@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ lead.company }} · Client Hunting · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Client Hunting // Edit Lead</p>
+    <h1 class="title is-1 mb-2">Edit {{ lead.company }}</h1>
+    <p class="subtitle is-5 mark-muted">Update the full client context without breaking its linked quest.</p>
+</section>
+
+{% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+
+<div class="mark-card p-6">
+    <form method="post" action="/crm/leads/{{ lead.id }}/edit">
+        {% include "partials/lead_form_fields.html" %}
+        <div class="buttons is-justify-content-flex-end">
+            <a class="button is-ghost-forest" href="/crm/leads/{{ lead.id }}">Cancel</a>
+            <button class="button is-mark" type="submit">Save Lead</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

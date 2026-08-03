@@ -25,6 +25,21 @@ from app.services.quests import (
 router = APIRouter()
 
 
+def _client_hunting_destination(db, quest_id: int) -> str | None:
+    lead = db.execute(
+        """
+        SELECT id, deleted_at FROM leads
+        WHERE quest_id = ?
+        """,
+        (quest_id,),
+    ).fetchone()
+    if not lead:
+        return None
+    if lead["deleted_at"] is not None:
+        return "/crm"
+    return f"/crm/leads/{lead['id']}"
+
+
 @router.get("/quests", response_class=HTMLResponse)
 def quests(request: Request):
     with get_db() as db:
@@ -34,11 +49,18 @@ def quests(request: Request):
                 t.*,
                 p.name AS project_name,
                 COALESCE(gt.title, gp.title) AS goal_title,
+                l.id AS lead_id,
+                l.company AS lead_company,
+                l.pipeline_status AS lead_pipeline_status,
+                l.next_action AS lead_next_action,
+                l.next_action_due_date AS lead_next_action_due_date,
+                l.deleted_at AS lead_deleted_at,
                 COALESCE(SUM(COALESCE(qu.session_minutes, qu.actual_minutes, 0)), 0) AS total_session_minutes
             FROM tasks t
             LEFT JOIN projects p ON p.id = t.project_id
             LEFT JOIN goals gt ON gt.id = t.goal_id
             LEFT JOIN goals gp ON gp.id = p.goal_id
+            LEFT JOIN leads l ON l.quest_id = t.id
             LEFT JOIN quest_updates qu ON qu.task_id = t.id
             GROUP BY t.id
             ORDER BY CASE t.status
@@ -46,8 +68,9 @@ def quests(request: Request):
                         WHEN 'blocked' THEN 1
                         WHEN 'backlog' THEN 2
                         WHEN 'completed' THEN 3
-                        WHEN 'abandoned' THEN 4
-                        ELSE 5
+                        WHEN 'closed' THEN 4
+                        WHEN 'abandoned' THEN 5
+                        ELSE 6
                      END,
                      t.priority DESC,
                      t.id DESC
@@ -142,11 +165,18 @@ def quest_detail(request: Request, quest_id: int):
                 t.*,
                 p.name AS project_name,
                 COALESCE(gt.title, gp.title) AS goal_title,
+                l.id AS lead_id,
+                l.company AS lead_company,
+                l.pipeline_status AS lead_pipeline_status,
+                l.next_action AS lead_next_action,
+                l.next_action_due_date AS lead_next_action_due_date,
+                l.deleted_at AS lead_deleted_at,
                 COALESCE(SUM(COALESCE(qu.session_minutes, qu.actual_minutes, 0)), 0) AS total_session_minutes
             FROM tasks t
             LEFT JOIN projects p ON p.id = t.project_id
             LEFT JOIN goals gt ON gt.id = t.goal_id
             LEFT JOIN goals gp ON gp.id = p.goal_id
+            LEFT JOIN leads l ON l.quest_id = t.id
             LEFT JOIN quest_updates qu ON qu.task_id = t.id
             WHERE t.id = ?
             GROUP BY t.id
@@ -188,6 +218,9 @@ def quest_detail(request: Request, quest_id: int):
 @router.post("/quests/{quest_id}/start")
 def start_quest(quest_id: int):
     with get_db() as db:
+        client_hunting_url = _client_hunting_destination(db, quest_id)
+        if client_hunting_url:
+            return RedirectResponse(url=client_hunting_url, status_code=303)
         try:
             set_quest_status(db, quest_id=quest_id, status="active")
         except ValueError:
@@ -202,6 +235,9 @@ def block_quest(
     note: str = Form(default=""),
 ):
     with get_db() as db:
+        client_hunting_url = _client_hunting_destination(db, quest_id)
+        if client_hunting_url:
+            return RedirectResponse(url=client_hunting_url, status_code=303)
         try:
             set_quest_status(
                 db,
@@ -218,6 +254,9 @@ def block_quest(
 @router.post("/quests/{quest_id}/unblock")
 def unblock_quest(quest_id: int):
     with get_db() as db:
+        client_hunting_url = _client_hunting_destination(db, quest_id)
+        if client_hunting_url:
+            return RedirectResponse(url=client_hunting_url, status_code=303)
         try:
             set_quest_status(
                 db,
@@ -233,6 +272,9 @@ def unblock_quest(quest_id: int):
 @router.post("/quests/{quest_id}/abandon")
 def abandon_quest(quest_id: int, note: str = Form(default="")):
     with get_db() as db:
+        client_hunting_url = _client_hunting_destination(db, quest_id)
+        if client_hunting_url:
+            return RedirectResponse(url=client_hunting_url, status_code=303)
         try:
             set_quest_status(db, quest_id=quest_id, status="abandoned", note=note)
         except ValueError:
@@ -249,6 +291,9 @@ def update_quest(
 ):
     parsed_minutes = normalize_minutes(optional_int(session_minutes))
     with get_db() as db:
+        client_hunting_url = _client_hunting_destination(db, quest_id)
+        if client_hunting_url:
+            return RedirectResponse(url=client_hunting_url, status_code=303)
         try:
             update_quest_progress(
                 db,
@@ -277,6 +322,9 @@ def complete_quest(
 
     parsed_minutes = normalize_minutes(optional_int(session_minutes))
     with get_db() as db:
+        client_hunting_url = _client_hunting_destination(db, quest_id)
+        if client_hunting_url:
+            return RedirectResponse(url=client_hunting_url, status_code=303)
         try:
             result = complete_quest_transaction(
                 db,

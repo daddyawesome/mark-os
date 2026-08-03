@@ -28,6 +28,9 @@ def life_os(request: Request):
             "timeline": db.execute(
                 "SELECT COUNT(*) AS count FROM timeline_events"
             ).fetchone()["count"],
+            "leads": db.execute(
+                "SELECT COUNT(*) AS count FROM leads WHERE deleted_at IS NULL"
+            ).fetchone()["count"],
         }
         system_state = load_system_state(db)
 
@@ -50,6 +53,13 @@ def life_os(request: Request):
             "status": "live",
             "description": "Revised Phase 4: clickable quests with progress history, blockers, result-required completion, immutable XP, and level-up history.",
             "recommended": True,
+        },
+        {
+            "icon": "✦",
+            "name": "Client Hunting",
+            "status": "live",
+            "description": "A focused CRM for turning qualified opportunities into concrete follow-up quests.",
+            "count": counts["leads"],
         },
         {
             "icon": "✦",
@@ -104,4 +114,4 @@ def life_os(request: Request):
 
 @router.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.2.2-phase4-revised"}
+    return {"status": "ok", "version": "0.3.0-client-hunting-mvp"}

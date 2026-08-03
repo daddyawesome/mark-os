@@ -3,7 +3,7 @@
 {% block content %}
 <a class="button is-ghost-forest mb-5" href="/quests">← Back to quests</a>
 
-{% if completed_now %}
+{% if completed_now and not quest.lead_id %}
 <div class="notification is-mark mb-5">
     <strong>QUEST COMPLETE // +{{ quest.xp_reward }} XP</strong><br>
     Real work recorded. Experience awarded.
@@ -19,15 +19,22 @@
                 <span class="mark-chip">{{ quest.difficulty|upper }}</span>
                 {% if quest.project_name %}<span class="mark-chip">{{ quest.project_name }}</span>{% endif %}
                 {% if quest.goal_title %}<span class="mark-chip">{{ quest.goal_title }}</span>{% endif %}
+                {% if quest.lead_id %}<span class="mark-chip">CLIENT HUNTING · {% if quest.lead_deleted_at %}ARCHIVED{% else %}{{ quest.lead_pipeline_status|upper }}{% endif %}</span>{% endif %}
             </div>
             <h1 class="title is-1 mb-3">{{ quest.title }}</h1>
             {% if quest.description %}<p class="subtitle is-5 mark-muted">{{ quest.description }}</p>{% endif %}
         </div>
         <div class="column is-narrow">
             <div class="mark-card p-5 has-text-centered">
+                {% if quest.lead_id %}
+                <p class="mark-panel-title">Quest Type</p>
+                <p class="mark-number">CRM</p>
+                <p class="mark-muted">No automatic XP</p>
+                {% else %}
                 <p class="mark-panel-title">Reward</p>
                 <p class="mark-number">+{{ quest.xp_reward }}</p>
                 <p class="mark-muted">XP</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -40,7 +47,29 @@
 
 <div class="columns">
     <div class="column is-7">
-        {% if quest.status != 'completed' %}
+        {% if quest.lead_id %}
+            <div class="mark-card p-5">
+                <p class="mark-kicker">Client Hunting Quest</p>
+                <h2 class="title is-4">{% if quest.lead_deleted_at %}Archived Client Hunting quest{% else %}Managed from the CRM{% endif %}</h2>
+                <p class="mark-muted mb-4">
+                    {% if quest.lead_deleted_at %}
+                    This lead was archived. Its quest is read-only so the preserved CRM history cannot drift.
+                    {% else %}
+                    This quest follows <strong>{{ quest.lead_company }}</strong> through the client pipeline.
+                    Update the pipeline and next outreach action in Client Hunting so both records stay aligned.
+                    {% endif %}
+                </p>
+                <div class="content mb-5">
+                    <p><strong>Next action:</strong> {{ quest.lead_next_action }}</p>
+                    <p><strong>Due:</strong> {{ quest.lead_next_action_due_date or "No date set" }}</p>
+                </div>
+                {% if quest.lead_deleted_at %}
+                <a class="button is-ghost-forest" href="/crm">Back to Client Hunting</a>
+                {% else %}
+                <a class="button is-mark" href="/crm/leads/{{ quest.lead_id }}">Open lead in Client Hunting</a>
+                {% endif %}
+            </div>
+        {% elif quest.status != 'completed' %}
             <div class="mark-card p-5 mb-5">
                 <div class="is-flex is-justify-content-space-between is-align-items-center mb-4">
                     <div>

@@ -39,7 +39,7 @@
             {% for quest in goal.direct_quests %}
                 <a class="box mark-card mark-card-2 mb-3" href="/quests/{{ quest.id }}">
                     <strong class="has-text-light">{{ quest.title }}</strong>
-                    <p class="mark-muted">{{ quest.status|upper }} · {{ quest.progress or 0 }}% · +{{ quest.xp_reward or 25 }} XP</p>
+                    <p class="mark-muted">{{ quest.status|upper }} · {{ quest.progress or 0 }}% · +{{ quest.xp_reward }} XP</p>
                 </a>
             {% endfor %}
             {% endif %}

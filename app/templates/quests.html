@@ -6,7 +6,7 @@
         <div class="column">
             <p class="mark-kicker">Quest Engine // Execution Layer</p>
             <h1 class="title is-1 mb-2">Turn intention into experience.</h1>
-            <p class="subtitle is-5 mark-muted">Every quest is clickable, updateable, and worth XP. Real completed work moves the game forward.</p>
+            <p class="subtitle is-5 mark-muted">Every quest is clickable and updateable. Manual completions earn XP; client quests follow the CRM pipeline.</p>
         </div>
         <div class="column is-narrow">
             <div class="mark-card p-5 has-text-centered">
@@ -28,13 +28,14 @@
                         <div>
                             <span class="mark-chip">{{ quest.status|upper }}</span>
                             <span class="mark-chip">{{ quest.difficulty|upper }}</span>
+                            {% if quest.lead_id %}<span class="mark-chip">CLIENT · {% if quest.lead_deleted_at %}ARCHIVED{% else %}{{ quest.lead_pipeline_status|upper }}{% endif %}</span>{% endif %}
                         </div>
-                        <span class="mark-chip">+{{ quest.xp_reward }} XP</span>
+                        {% if quest.lead_id %}<span class="mark-chip">CRM QUEST</span>{% else %}<span class="mark-chip">+{{ quest.xp_reward }} XP</span>{% endif %}
                     </div>
                     <h2 class="title is-4 mb-2">{{ quest.title }}</h2>
                     {% if quest.description %}<p class="mark-muted mb-3">{{ quest.description }}</p>{% endif %}
                     <p class="mark-muted is-size-7 mb-2">
-                        {% if quest.project_name %}{{ quest.project_name }}{% elif quest.goal_title %}{{ quest.goal_title }}{% else %}No project linked{% endif %}
+                        {% if quest.lead_id %}{{ quest.lead_company }} · {% if quest.lead_deleted_at %}archived CRM history{% else %}managed in Client Hunting{% endif %}{% elif quest.project_name %}{{ quest.project_name }}{% elif quest.goal_title %}{{ quest.goal_title }}{% else %}No project linked{% endif %}
                     </p>
                     <progress class="progress is-small is-forest" value="{{ quest.progress or 0 }}" max="100">{{ quest.progress or 0 }}%</progress>
                     <div class="is-flex is-justify-content-space-between mark-muted is-size-7">

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 from collections import Counter
+from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
 from fastapi.routing import APIRoute
@@ -36,6 +37,15 @@ EXPECTED_ROUTES = [
     ("GET", "/goals", "goals_page"),
     ("POST", "/goals", "create_goal"),
     ("POST", "/projects/{project_id}/link-goal", "link_project_goal"),
+    ("GET", "/crm", "crm_dashboard"),
+    ("POST", "/crm/leads", "create_lead"),
+    ("GET", "/crm/leads/{lead_id}", "lead_detail"),
+    ("GET", "/crm/leads/{lead_id}/edit", "edit_lead_page"),
+    ("POST", "/crm/leads/{lead_id}/edit", "edit_lead"),
+    ("POST", "/crm/leads/{lead_id}/pipeline", "update_pipeline"),
+    ("POST", "/crm/leads/{lead_id}/next-action", "update_next_action"),
+    ("GET", "/crm/leads/{lead_id}/delete", "delete_lead_page"),
+    ("POST", "/crm/leads/{lead_id}/delete", "delete_lead"),
     ("GET", "/health", "health"),
 ]
 
@@ -207,7 +217,15 @@ def test_lifespan_initializes_temporary_database(tmp_path, monkeypatch):
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             ).fetchall()
         }
-    assert {"profile", "tasks", "chat_sessions", "chat_messages"} <= tables
+    assert {
+        "profile",
+        "tasks",
+        "chat_sessions",
+        "chat_messages",
+        "agent_runs",
+        "agent_steps",
+        "leads",
+    } <= tables
 
 
 def test_lifespan_rejects_default_secret_on_railway_before_database_access(
@@ -238,6 +256,14 @@ def test_all_routes_and_static_mount_are_preserved():
         isinstance(route, Mount) and route.path == "/static" and route.name == "static"
         for route in app.routes
     )
+    assert app.version == "0.3.0-client-hunting-mvp"
+
+
+def test_windows_helper_loads_local_env_when_present():
+    script = (Path(__file__).resolve().parent.parent / "run.ps1").read_text()
+    assert 'Test-Path ".env"' in script
+    assert '@("--env-file", ".env")' in script
+    assert "python -m uvicorn @markOsUvicornArgs" in script
 
 
 def test_public_health_static_and_protected_home_behavior():
@@ -246,7 +272,7 @@ def test_public_health_static_and_protected_home_behavior():
     static_status, _, _ = asyncio.run(_request("/static/quests.css"))
 
     assert health_status == 200
-    assert health_body == b'{"status":"ok","version":"0.2.2-phase4-revised"}'
+    assert health_body == b'{"status":"ok","version":"0.3.0-client-hunting-mvp"}'
     assert home_status == 303
     assert _header_values(home_headers, b"location") == [b"/login?next=/"]
     assert static_status == 200
@@ -275,7 +301,15 @@ def test_authenticated_pages_render_with_temporary_database(
     database.init_db()
     cookie, _ = _login_cookie(monkeypatch)
 
-    for target in ("/", "/quests", "/quests/1", "/goals", "/life-os", "/history"):
+    for target in (
+        "/",
+        "/quests",
+        "/quests/1",
+        "/goals",
+        "/crm",
+        "/life-os",
+        "/history",
+    ):
         status, _, _ = asyncio.run(_request(target, headers=[(b"cookie", cookie)]))
         assert status == 200, target
 
@@ -353,3 +387,223 @@ def test_representative_post_routes_persist_to_temporary_database(
     assert direction_count == 1
     assert tuple(quest) == ("backlog", 7)
     assert tuple(goal) == ("engineering", 8)
+
+
+def test_crm_create_edit_pipeline_next_action_and_delete_routes_persist(
+    tmp_path,
+    monkeypatch,
+):
+    database_path = tmp_path / "crm-routes.db"
+    monkeypatch.setattr(database, "DB_PATH", database_path)
+    database.init_db()
+    cookie, _ = _login_cookie(monkeypatch)
+
+    missing_status, _, _ = asyncio.run(
+        _request("/crm/leads/999", headers=[(b"cookie", cookie)])
+    )
+    assert missing_status == 404
+
+    create_data = {
+        "company": "Northstar Analytics",
+        "contact_person": "Ada Reyes",
+        "job_title": "Founder",
+        "source": "LinkedIn",
+        "source_url": "https://example.com/northstar",
+        "problem_opportunity": "Reporting is slow and difficult to trust.",
+        "why_mark_fits": "Data engineering and product delivery experience.",
+        "pipeline_status": "new",
+        "priority": "high",
+        "next_action": "Send a focused introduction",
+        "next_action_due_date": "2026-08-05",
+        "notes": "Warm signal from a public post.",
+        "request_key": "application-route-create-1",
+    }
+    create_status, create_headers, _ = _post_form(
+        "/crm/leads",
+        create_data,
+        cookie=cookie,
+    )
+    duplicate_status, duplicate_headers, _ = _post_form(
+        "/crm/leads",
+        create_data,
+        cookie=cookie,
+    )
+
+    assert (create_status, _header_values(create_headers, b"location")) == (
+        303,
+        [b"/crm/leads/1?notice=created"],
+    )
+    assert (duplicate_status, _header_values(duplicate_headers, b"location")) == (
+        303,
+        [b"/crm/leads/1?notice=duplicate"],
+    )
+
+    detail_status, _, detail_body = asyncio.run(
+        _request("/crm/leads/1", headers=[(b"cookie", cookie)])
+    )
+    assert detail_status == 200
+    assert b"Northstar Analytics" in detail_body
+    assert b"QUEST #" in detail_body
+
+    dashboard_status, _, dashboard_body = asyncio.run(
+        _request("/crm", headers=[(b"cookie", cookie)])
+    )
+    assert dashboard_status == 200
+    for metric_label in (
+        b"Total leads",
+        b"High-priority leads",
+        b"Contacted",
+        b"Replies",
+        b"Meetings",
+        b"Proposals",
+        b"Won clients",
+    ):
+        assert metric_label in dashboard_body
+
+    today_status, _, today_body = asyncio.run(
+        _request("/", headers=[(b"cookie", cookie)])
+    )
+    assert today_status == 200
+    assert b"Client: Northstar Analytics" in today_body
+    assert b"CRM QUEST" in today_body
+
+    edit_status, edit_headers, _ = _post_form(
+        "/crm/leads/1/edit",
+        {
+            **create_data,
+            "company": "Northstar Data Studio",
+            "contact_person": "Ada Santos",
+            "pipeline_status": "reviewed",
+            "priority": "medium",
+            "next_action": "Draft a one-page audit offer",
+            "next_action_due_date": "2026-08-06",
+            "notes": "Qualified after reviewing the company site.",
+        },
+        cookie=cookie,
+    )
+    pipeline_status, pipeline_headers, _ = _post_form(
+        "/crm/leads/1/pipeline",
+        {"pipeline_status": "replied"},
+        cookie=cookie,
+    )
+    next_action_status, next_action_headers, _ = _post_form(
+        "/crm/leads/1/next-action",
+        {
+            "next_action": "Book a discovery call",
+            "next_action_due_date": "2026-08-08",
+        },
+        cookie=cookie,
+    )
+
+    assert (edit_status, _header_values(edit_headers, b"location")) == (
+        303,
+        [b"/crm/leads/1?notice=updated"],
+    )
+    assert (pipeline_status, _header_values(pipeline_headers, b"location")) == (
+        303,
+        [b"/crm/leads/1?notice=pipeline"],
+    )
+    assert (
+        next_action_status,
+        _header_values(next_action_headers, b"location"),
+    ) == (303, [b"/crm/leads/1?notice=next_action"])
+
+    rejected_status, _, rejected_body = _post_form(
+        "/crm/leads/1/delete",
+        {"confirmation": "delete"},
+        cookie=cookie,
+    )
+    assert rejected_status == 400
+    assert b"Type DELETE exactly" in rejected_body
+
+    with database.get_db() as db:
+        lead_before_delete = db.execute(
+            """
+            SELECT company, contact_person, pipeline_status, priority,
+                   next_action, next_action_due_date, quest_id, deleted_at
+            FROM leads WHERE id = 1
+            """
+        ).fetchone()
+        lead_count = db.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+        quest = db.execute(
+            "SELECT id, title FROM tasks WHERE id = ?",
+            (lead_before_delete["quest_id"],),
+        ).fetchone()
+
+    assert lead_count == 1
+    assert tuple(lead_before_delete) == (
+        "Northstar Data Studio",
+        "Ada Santos",
+        "replied",
+        "medium",
+        "Book a discovery call",
+        "2026-08-08",
+        quest["id"],
+        None,
+    )
+    assert "Northstar" in quest["title"]
+
+    quest_detail_status, _, quest_detail_body = asyncio.run(
+        _request(f"/quests/{quest['id']}", headers=[(b"cookie", cookie)])
+    )
+    assert quest_detail_status == 200
+    assert b"Managed from the CRM" in quest_detail_body
+
+    guarded_completion_status, guarded_completion_headers, _ = _post_form(
+        f"/quests/{quest['id']}/complete",
+        {"result_notes": "Should be managed through the CRM"},
+        cookie=cookie,
+    )
+    assert (
+        guarded_completion_status,
+        _header_values(guarded_completion_headers, b"location"),
+    ) == (303, [b"/crm/leads/1"])
+
+    with database.get_db() as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM xp_ledger WHERE task_id = ?", (quest["id"],)
+        ).fetchone()[0] == 0
+
+    delete_status, delete_headers, _ = _post_form(
+        "/crm/leads/1/delete",
+        {"confirmation": "DELETE"},
+        cookie=cookie,
+    )
+    assert (delete_status, _header_values(delete_headers, b"location")) == (
+        303,
+        [b"/crm?notice=deleted"],
+    )
+
+    with database.get_db() as db:
+        archived_lead = db.execute(
+            "SELECT deleted_at, quest_id FROM leads WHERE id = 1"
+        ).fetchone()
+        linked_quest = db.execute(
+            "SELECT id, status FROM tasks WHERE id = ?",
+            (archived_lead["quest_id"],),
+        ).fetchone()
+
+    assert archived_lead["deleted_at"] is not None
+    assert linked_quest is not None
+    assert linked_quest["status"] == "abandoned"
+
+    archived_quest_status, _, archived_quest_body = asyncio.run(
+        _request(f"/quests/{linked_quest['id']}", headers=[(b"cookie", cookie)])
+    )
+    assert archived_quest_status == 200
+    assert b"Archived Client Hunting quest" in archived_quest_body
+
+    guarded_archived_status, guarded_archived_headers, _ = _post_form(
+        f"/quests/{linked_quest['id']}/start",
+        {},
+        cookie=cookie,
+    )
+    assert (
+        guarded_archived_status,
+        _header_values(guarded_archived_headers, b"location"),
+    ) == (303, [b"/crm"])
+
+    with database.get_db() as db:
+        assert db.execute(
+            "SELECT status FROM tasks WHERE id = ?", (linked_quest["id"],)
+        ).fetchone()[0] == "abandoned"
