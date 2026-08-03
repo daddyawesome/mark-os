@@ -25,3 +25,7 @@ data/*.db
 # Operating system files
 .DS_Store
 Thumbs.db
+
+
+*.backup
+*.log
