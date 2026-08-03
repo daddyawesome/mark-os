@@ -207,7 +207,14 @@ def test_lifespan_initializes_temporary_database(tmp_path, monkeypatch):
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             ).fetchall()
         }
-    assert {"profile", "tasks", "chat_sessions", "chat_messages"} <= tables
+    assert {
+        "profile",
+        "tasks",
+        "chat_sessions",
+        "chat_messages",
+        "agent_runs",
+        "agent_steps",
+    } <= tables
 
 
 def test_lifespan_rejects_default_secret_on_railway_before_database_access(
