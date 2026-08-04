@@ -158,6 +158,197 @@
             color: var(--mist);
         }
     </style>
+
+    <!-- MARK_OS_SIDEBAR_USERS_V1 -->
+    <
+{% if request.state.current_user %}
+<aside class="mark-sidebar" id="markSidebar" aria-label="MARK OS navigation">
+    <a class="mark-sidebar-brand"
+       href="{{ '/' if request.state.current_user.role in ['owner', 'member'] else '/crm' }}">
+        <span class="mark-sidebar-brand-title">MARK OS</span>
+        <span class="mark-sidebar-brand-subtitle">Family Workspace</span>
+    </a>
+
+    <nav class="mark-sidebar-menu">
+        {% if request.state.current_user.role in ['owner', 'member'] %}
+        <p class="mark-sidebar-label">Personal OS</p>
+
+        <a class="mark-sidebar-link {% if request.url.path == '/' %}is-active{% endif %}"
+           href="/">Today</a>
+        <a class="mark-sidebar-link {% if request.url.path.startswith('/quests') %}is-active{% endif %}"
+           href="/quests">Quests</a>
+        <a class="mark-sidebar-link {% if request.url.path.startswith('/goals') %}is-active{% endif %}"
+           href="/goals">Goals</a>
+        <a class="mark-sidebar-link {% if request.url.path == '/life-os' %}is-active{% endif %}"
+           href="/life-os">Life OS</a>
+        <a class="mark-sidebar-link {% if request.url.path == '/history' %}is-active{% endif %}"
+           href="/history">History</a>
+        {% endif %}
+
+        {% if request.state.current_user.role in ['owner', 'lead_sourcer'] %}
+        <p class="mark-sidebar-label">Business</p>
+        <a class="mark-sidebar-link {% if request.url.path.startswith('/crm') %}is-active{% endif %}"
+           href="/crm">Client Hunting</a>
+        {% endif %}
+
+        {% if request.state.current_user.role == 'owner' %}
+        <p class="mark-sidebar-label">Administration</p>
+        <details class="mark-sidebar-group"
+                 {% if request.url.path.startswith('/settings/users') %}open{% endif %}>
+            <summary class="mark-sidebar-summary {% if request.url.path.startswith('/settings/users') %}is-active{% endif %}">
+                Users
+            </summary>
+            <div class="mark-sidebar-submenu">
+                <a class="mark-sidebar-link {% if request.url.path.startswith('/settings/users') and request.query_params.get('role') == 'member' %}is-active{% endif %}"
+                   href="/settings/users?role=member">Family</a>
+                <a class="mark-sidebar-link {% if request.url.path.startswith('/settings/users') and request.query_params.get('role') == 'lead_sourcer' %}is-active{% endif %}"
+                   href="/settings/users?role=lead_sourcer">Sourcer</a>
+            </div>
+        </details>
+        {% endif %}
+    </nav>
+
+    <div class="mark-sidebar-footer">
+        <div class="mark-sidebar-user">
+            <div class="mark-sidebar-user-name">
+                {{ request.state.current_user.display_name }}
+            </div>
+            <div class="mark-sidebar-user-role">
+                {{ request.state.current_user.role|replace('_', ' ') }}
+            </div>
+        </div>
+        <form method="post" action="/logout">
+            <button class="button is-small is-fullwidth is-ghost-forest mark-sidebar-logout"
+                    type="submit">Log out</button>
+        </form>
+    </div>
+</aside>
+
+<button class="mark-sidebar-toggle"
+        id="markSidebarToggle"
+        type="button"
+        aria-controls="markSidebar"
+        aria-expanded="false"
+        aria-label="Open navigation">☰</button>
+<div class="mark-sidebar-overlay" id="markSidebarOverlay"></div>
+{% endif %}
+
+<main class="mark-layout-content{% if request.state.current_user %} has-sidebar{% endif %}">
+ transform 0.15s ease;
+        }
+
+        .mark-sidebar-group[open] .mark-sidebar-summary::after {
+            transform: rotate(90deg);
+        }
+
+        .mark-sidebar-submenu {
+            margin: 0.2rem 0 0.4rem 0.72rem;
+            padding-left: 0.6rem;
+            border-left: 1px solid var(--mark-sidebar-border);
+        }
+
+        .mark-sidebar-submenu .mark-sidebar-link {
+            min-height: 2.35rem;
+            font-size: 0.91rem;
+        }
+
+        .mark-sidebar-footer {
+            padding: 0.9rem;
+            border-top: 1px solid var(--mark-sidebar-border);
+            background: rgba(0, 0, 0, 0.12);
+        }
+
+        .mark-sidebar-user {
+            margin-bottom: 0.7rem;
+            padding: 0.7rem 0.75rem;
+            border: 1px solid var(--mark-sidebar-border);
+            border-radius: 0.7rem;
+            background: var(--mark-sidebar-panel);
+        }
+
+        .mark-sidebar-user-name {
+            color: var(--mark-sidebar-text);
+            font-weight: 750;
+        }
+
+        .mark-sidebar-user-role {
+            margin-top: 0.12rem;
+            color: var(--mark-sidebar-muted);
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .mark-sidebar-logout {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .mark-layout-content {
+            min-height: 100vh;
+            transition: margin-left 0.2s ease;
+        }
+
+        .mark-layout-content.has-sidebar {
+            margin-left: var(--mark-sidebar-width);
+        }
+
+        .mark-sidebar-toggle,
+        .mark-sidebar-overlay {
+            display: none;
+        }
+
+        @media (max-width: 900px) {
+            .mark-sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.2s ease;
+            }
+
+            body.mark-sidebar-open {
+                overflow: hidden;
+            }
+
+            body.mark-sidebar-open .mark-sidebar {
+                transform: translateX(0);
+            }
+
+            .mark-layout-content.has-sidebar {
+                margin-left: 0;
+                padding-top: 3.6rem;
+            }
+
+            .mark-sidebar-toggle {
+                position: fixed;
+                top: 0.75rem;
+                left: 0.75rem;
+                z-index: 60;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 2.75rem;
+                height: 2.75rem;
+                color: var(--mark-sidebar-text);
+                background: var(--mark-sidebar-panel);
+                border: 1px solid var(--mark-sidebar-border);
+                border-radius: 0.7rem;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+                cursor: pointer;
+                font-size: 1.25rem;
+            }
+
+            .mark-sidebar-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 40;
+                background: rgba(0, 0, 0, 0.58);
+            }
+
+            body.mark-sidebar-open .mark-sidebar-overlay {
+                display: block;
+            }
+        }
+    </style>
+
 </head>
 <body>
 <div class="mark-shell">
@@ -230,5 +421,47 @@
         });
     });
 </script>
+
+</main>
+
+<script>
+(() => {
+    const toggle = document.getElementById("markSidebarToggle");
+    const overlay = document.getElementById("markSidebarOverlay");
+    const sidebar = document.getElementById("markSidebar");
+
+    if (!toggle || !sidebar) {
+        return;
+    }
+
+    const setOpen = (isOpen) => {
+        document.body.classList.toggle("mark-sidebar-open", isOpen);
+        toggle.setAttribute("aria-expanded", String(isOpen));
+        toggle.setAttribute(
+            "aria-label",
+            isOpen ? "Close navigation" : "Open navigation"
+        );
+    };
+
+    toggle.addEventListener("click", () => {
+        setOpen(!document.body.classList.contains("mark-sidebar-open"));
+    });
+
+    if (overlay) {
+        overlay.addEventListener("click", () => setOpen(false));
+    }
+
+    sidebar.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", () => setOpen(false));
+    });
+
+    window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            setOpen(false);
+        }
+    });
+})();
+</script>
+
 </body>
 </html>

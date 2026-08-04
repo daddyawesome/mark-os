@@ -50,14 +50,29 @@ def users_page(
     request: Request,
     message: str | None = None,
     error: str | None = None,
+    role: str | None = None,
 ):
+    selected_role = (role or "").strip().casefold()
+    if selected_role not in {"member", "lead_sourcer"}:
+        selected_role = ""
+
     with get_db() as db:
+        users = list_users_with_stats(db)
+        if selected_role:
+            users = [
+                user
+                for user in users
+                if user["role"] == selected_role
+            ]
+
         context = {
             **_shared_context(db, request),
-            "users": list_users_with_stats(db),
+            "users": users,
+            "selected_role": selected_role,
             "message": message,
             "error": error,
         }
+
     return templates.TemplateResponse(
         request=request,
         name="users.html",

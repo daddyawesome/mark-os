@@ -1,22 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Team Access · MARK OS{% endblock %}
+{% block title %}Users · MARK OS{% endblock %}
 {% block content %}
 <section class="mark-hero p-6 mb-5">
     <div class="columns is-vcentered">
         <div class="column">
-            <p class="mark-kicker">Settings // Team Access</p>
-            <h1 class="title is-1 mb-2">Manage CRM users.</h1>
+            <p class="mark-kicker">Settings // Users</p>
+
+            {% if selected_role == "member" %}
+            <h1 class="title is-1 mb-2">Family users.</h1>
             <p class="subtitle is-5 mark-muted">
-                Create Lead Sourcers, review activity, reset passwords, and revoke access.
+                Manage private MARK OS workspaces for family members.
             </p>
+            {% elif selected_role == "lead_sourcer" %}
+            <h1 class="title is-1 mb-2">Lead sourcers.</h1>
+            <p class="subtitle is-5 mark-muted">
+                Manage CRM-only accounts used to find and submit leads.
+            </p>
+            {% else %}
+            <h1 class="title is-1 mb-2">Manage users.</h1>
+            <p class="subtitle is-5 mark-muted">
+                Review family members, lead sourcers, and account access.
+            </p>
+            {% endif %}
         </div>
+
         <div class="column is-narrow">
             <a class="button is-mark" href="/settings/users/new">
-                Add Lead Sourcer
+                Add User
             </a>
         </div>
     </div>
 </section>
+
+<div class="tabs is-toggle is-toggle-rounded mb-5">
+    <ul>
+        <li class="{% if selected_role == 'member' %}is-active{% endif %}">
+            <a href="/settings/users?role=member">Family</a>
+        </li>
+        <li class="{% if selected_role == 'lead_sourcer' %}is-active{% endif %}">
+            <a href="/settings/users?role=lead_sourcer">Sourcer</a>
+        </li>
+        <li class="{% if not selected_role %}is-active{% endif %}">
+            <a href="/settings/users">All</a>
+        </li>
+    </ul>
+</div>
 
 {% if message %}
 <div class="notification is-success is-light">{{ message }}</div>
@@ -60,20 +88,22 @@
                     </td>
                     <td>{{ user.active_lead_count }}</td>
                     <td>{{ user.lead_count }}</td>
-                    <td>
-                        {{ user.last_login_at or "Never" }}
-                    </td>
+                    <td>{{ user.last_login_at or "Never" }}</td>
                     <td class="has-text-right">
                         <a class="button is-small is-ghost-forest"
-                           href="/settings/users/{{ user.id }}">
-                            Manage
-                        </a>
+                           href="/settings/users/{{ user.id }}">Manage</a>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
                     <td colspan="7" class="has-text-centered mark-muted p-6">
+                        {% if selected_role == "member" %}
+                        No family users found.
+                        {% elif selected_role == "lead_sourcer" %}
+                        No lead sourcers found.
+                        {% else %}
                         No users found.
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
