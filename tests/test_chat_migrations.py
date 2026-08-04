@@ -36,10 +36,39 @@ def _index_names(db: sqlite3.Connection) -> set[str]:
     }
 
 
-def _snapshot(db: sqlite3.Connection, table_name: str) -> list[tuple]:
+def _column_names(
+    db: sqlite3.Connection,
+    table_name: str,
+) -> list[str]:
+    return [
+        row[1]
+        for row in db.execute(
+            f"PRAGMA table_info({table_name})"
+        ).fetchall()
+    ]
+
+
+def _snapshot(
+    db: sqlite3.Connection,
+    table_name: str,
+    columns: list[str] | None = None,
+) -> list[tuple]:
+    selected_columns = columns or _column_names(db, table_name)
+
+    # Column names come from SQLite's own PRAGMA output.
+    quoted_columns = ", ".join(
+        f'"{column}"' for column in selected_columns
+    )
+
     return [
         tuple(row)
-        for row in db.execute(f"SELECT * FROM {table_name} ORDER BY id").fetchall()
+        for row in db.execute(
+            f"""
+            SELECT {quoted_columns}
+            FROM {table_name}
+            ORDER BY id
+            """
+        ).fetchall()
     ]
 
 
@@ -415,18 +444,39 @@ def test_pre_chat_phase4_database_upgrades_without_data_loss(tmp_path, monkeypat
     monkeypatch.setattr(database, "DB_PATH", database_path)
 
     before_db = sqlite3.connect(database_path)
-    before = {
-        table: _snapshot(before_db, table) for table in PROTECTED_PHASE4_TABLES
+
+    # Capture the exact Phase 4 columns that existed before migration.
+    # Additive Phase 5 columns should not cause a false data-loss failure.
+    protected_columns = {
+        table: _column_names(before_db, table)
+        for table in PROTECTED_PHASE4_TABLES
     }
+
+    before = {
+        table: _snapshot(
+            before_db,
+            table,
+            protected_columns[table],
+        )
+        for table in PROTECTED_PHASE4_TABLES
+    }
+
     before_db.close()
 
     database.init_db()
     database.init_db()
 
     after_db = sqlite3.connect(database_path)
+
     after = {
-        table: _snapshot(after_db, table) for table in PROTECTED_PHASE4_TABLES
+        table: _snapshot(
+            after_db,
+            table,
+            protected_columns[table],
+        )
+        for table in PROTECTED_PHASE4_TABLES
     }
+
     assert before == after
     assert {
         "chat_sessions",
