@@ -47,6 +47,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     goals.migrate(db)
     quests.migrate_quest_tables(db)
     checkins.migrate(db)
+    memory.migrate(db)
 
     # Ordinary indexes must be created only after legacy columns exist.
     db.executescript(INDEX_SQL)
