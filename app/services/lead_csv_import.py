@@ -163,12 +163,15 @@ def _read_rows(content: bytes) -> tuple[list[tuple[int, dict[str, str]]], str]:
 def import_leads_from_csv(
     db: sqlite3.Connection,
     content: bytes,
+    *,
+    pipeline_status_override: str | None = None,
 ) -> LeadCsvImportResult:
     """Import valid rows while reporting duplicates and row-level errors.
 
     Every valid row goes through the existing create_lead service. This keeps
     CRM duplicate handling, linked-quest creation, pipeline synchronization,
-    and zero-XP behavior identical to manual lead creation.
+    and zero-XP behavior identical to manual lead creation. A role-aware route
+    may force all imported rows to a safe review status.
     """
     rows, file_digest = _read_rows(content)
 
@@ -188,7 +191,11 @@ def import_leads_from_csv(
                 source_url=values["source_url"],
                 problem_opportunity=values["problem_opportunity"],
                 why_mark_fits=values["why_mark_fits"],
-                pipeline_status=values["pipeline_status"] or "new",
+                pipeline_status=(
+                    pipeline_status_override
+                    or values["pipeline_status"]
+                    or "new"
+                ),
                 priority=values["priority"] or "medium",
                 next_action=values["next_action"],
                 next_action_due_date=values["next_action_due_date"] or None,

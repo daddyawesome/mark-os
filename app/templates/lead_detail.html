@@ -10,12 +10,16 @@
             <div class="tags">
                 <span class="mark-chip">{{ lead.pipeline_status|upper }}</span>
                 <span class="mark-chip">{{ lead.priority|upper }} PRIORITY</span>
+                {% if can_manage_crm %}
                 <a class="mark-chip" href="/quests/{{ lead.quest_id }}">QUEST #{{ lead.quest_id }}</a>
+                {% endif %}
             </div>
         </div>
         <div class="buttons">
             <a class="button is-ghost-forest" href="/crm">Back to CRM</a>
+            {% if can_manage_crm %}
             <a class="button is-mark" href="/crm/leads/{{ lead.id }}/edit">Edit lead</a>
+            {% endif %}
         </div>
     </div>
 </section>
@@ -51,6 +55,7 @@
     </div>
 
     <div class="column is-5">
+        {% if can_manage_crm %}
         <div class="mark-card p-5 mb-5">
             <p class="mark-kicker">Quick Update</p>
             <h2 class="title is-4">Move the pipeline.</h2>
@@ -90,6 +95,15 @@
             <p class="mark-muted mb-4">Remove this lead from the active CRM while preserving its linked quest history.</p>
             <a class="button is-danger is-outlined is-fullwidth" href="/crm/leads/{{ lead.id }}/delete">Archive lead</a>
         </div>
+        {% else %}
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Read-only review</p>
+            <h2 class="title is-4">Lead submitted for Mark.</h2>
+            <p class="mark-muted">
+                You can review this lead, but only the owner can edit it, update the contact pipeline, change the next action, or archive it.
+            </p>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

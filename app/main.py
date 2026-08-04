@@ -2,21 +2,24 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import (
     IS_RAILWAY,
     SESSION_SECRET,
-    is_authenticated,
+    current_user,
     validate_auth_configuration,
 )
 from app.database import init_db
 from app.routes import auth as auth_routes
 from app.routes import checkins, client_hunting, goals, pages, quests
+from app.services.access_control import can_access_request
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -48,16 +51,43 @@ PUBLIC_PATHS = {"/login", "/health"}
 
 
 @app.middleware("http")
-async def login_guard(request: Request, call_next):
+async def login_and_permission_guard(request: Request, call_next):
     path = request.url.path
+    method = request.method.upper()
+
+    # Templates can always inspect this state value, including public pages.
+    request.state.current_user = None
+
     is_public = path in PUBLIC_PATHS or path.startswith("/static/")
-    if not is_public and not is_authenticated(request):
-        return RedirectResponse(url=f"/login?next={path}", status_code=303)
+    if is_public:
+        return await call_next(request)
+
+    user = current_user(request)
+    if user is None:
+        next_path = quote(path, safe="/")
+        return RedirectResponse(
+            url=f"/login?next={next_path}",
+            status_code=303,
+        )
+
+    request.state.current_user = user
+
+    if not can_access_request(user, method, path):
+        if method in {"GET", "HEAD"}:
+            return RedirectResponse(
+                url="/crm?error=forbidden",
+                status_code=303,
+            )
+        return PlainTextResponse(
+            "Forbidden",
+            status_code=403,
+        )
+
     return await call_next(request)
 
 
-# SessionMiddleware is added after the login guard so it wraps the guard and
-# request.session is always available before authentication is checked.
+# SessionMiddleware is added after the guard so it wraps the guard and makes
+# request.session available before authentication and authorization checks.
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
@@ -66,7 +96,6 @@ app.add_middleware(
     same_site="lax",
     https_only=IS_RAILWAY,
 )
-
 
 app.include_router(auth_routes.router)
 app.include_router(checkins.router)

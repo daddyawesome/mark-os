@@ -17,6 +17,11 @@
 {% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
 {% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
 {% if import_error %}<div class="notification is-danger is-light">{{ import_error }}</div>{% endif %}
+{% if not can_manage_crm %}
+<div class="notification is-mark">
+    Leads you submit are saved as <strong>New</strong> for Mark to review. You cannot move the contact pipeline or archive leads.
+</div>
+{% endif %}
 
 {% if import_result %}
 <div class="notification {% if import_result.invalid_count %}is-warning is-light{% else %}is-success is-light{% endif %}">
@@ -109,9 +114,13 @@
                 </ul>
             </div>
             <p class="mark-muted is-size-7">
+                {% if can_manage_crm %}
                 Pipeline status accepts New, Reviewed, Contacted, Replied, Meeting,
-                Proposal, Won, or Lost. Priority accepts High, Medium, or Low.
-                Due date must use YYYY-MM-DD.
+                Proposal, Won, or Lost.
+                {% else %}
+                Pipeline status from your CSV is safely saved as New for owner review.
+                {% endif %}
+                Priority accepts High, Medium, or Low. Due date must use YYYY-MM-DD.
             </p>
         </div>
     </div>
