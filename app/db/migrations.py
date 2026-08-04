@@ -42,6 +42,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     chat.validate_schema(db)
     agent_audit.validate_schema(db)
     leads.migrate_request_fingerprint(db)
+    leads.migrate_ownership(db)
     leads.validate_schema(db)
     users.validate_schema(db)
 

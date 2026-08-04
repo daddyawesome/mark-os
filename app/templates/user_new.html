@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Add Team Member · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">Settings // Team Access</p>
+            <h1 class="title is-1 mb-2">Create a Lead Sourcer account.</h1>
+            <p class="subtitle is-5 mark-muted">
+                This account can add, import, and review its own leads. It cannot access your private MARK-OS pages or manage the contact pipeline.
+            </p>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-light" href="/crm">← Back to CRM</a>
+        </div>
+    </div>
+</section>
+
+{% if error %}
+<div class="notification is-danger is-light">{{ error }}</div>
+{% endif %}
+
+{% if created_user %}
+<div class="notification is-success is-light">
+    <p class="has-text-weight-bold">Account created.</p>
+    <p>
+        {{ created_user.display_name }} can sign in with username
+        <strong>{{ created_user.username }}</strong>.
+        Share the password privately; MARK OS does not display it again.
+    </p>
+</div>
+{% endif %}
+
+<div class="columns is-centered">
+    <div class="column is-7">
+        <div class="mark-card p-5">
+            <form method="post" action="/settings/users/new" autocomplete="off">
+                <div class="field">
+                    <label class="label" for="display_name">Display name</label>
+                    <div class="control">
+                        <input class="input" id="display_name" name="display_name" type="text" maxlength="100" required>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="username">Username</label>
+                    <div class="control">
+                        <input class="input" id="username" name="username" type="text" maxlength="50" autocapitalize="none" autocomplete="off" required>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="password">Temporary password</label>
+                    <div class="control">
+                        <input class="input" id="password" name="password" type="password" minlength="10" maxlength="200" autocomplete="new-password" required>
+                    </div>
+                    <p class="help">Use at least 10 characters. Share it privately.</p>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="password_confirmation">Confirm password</label>
+                    <div class="control">
+                        <input class="input" id="password_confirmation" name="password_confirmation" type="password" minlength="10" maxlength="200" autocomplete="new-password" required>
+                    </div>
+                </div>
+
+                <button class="button is-mark is-fullwidth" type="submit">
+                    Create Lead Sourcer
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

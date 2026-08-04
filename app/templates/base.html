@@ -180,6 +180,7 @@
                 <a class="navbar-item {% if request.url.path.startswith('/crm') %}is-active{% endif %}" href="/crm">Client Hunting</a>
                 <a class="navbar-item {% if request.url.path == '/life-os' %}is-active{% endif %}" href="/life-os">Life OS</a>
                 <a class="navbar-item {% if request.url.path == '/history' %}is-active{% endif %}" href="/history">History</a>
+                <a class="navbar-item {% if request.url.path.startswith('/settings/users') %}is-active{% endif %}" href="/settings/users/new">Team</a>
                 {% elif request.state.current_user %}
                 <a class="navbar-item is-active" href="/crm">Client Hunting</a>
                 {% endif %}

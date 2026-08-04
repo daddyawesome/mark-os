@@ -17,7 +17,7 @@ from app.auth import (
 )
 from app.database import init_db
 from app.routes import auth as auth_routes
-from app.routes import checkins, client_hunting, goals, pages, quests
+from app.routes import checkins, client_hunting, goals, pages, quests, users
 from app.services.access_control import can_access_request
 
 
@@ -102,4 +102,5 @@ app.include_router(checkins.router)
 app.include_router(quests.router)
 app.include_router(goals.router)
 app.include_router(client_hunting.router)
+app.include_router(users.router)
 app.include_router(pages.router)

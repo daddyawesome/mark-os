@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from app.db.schema import column_names, table_exists
+from app.db.schema import column_names, ensure_column, table_exists
 from app.services.lead_identity import (
     CREATION_FINGERPRINT_FIELDS,
     lead_creation_fingerprint,
@@ -16,6 +16,8 @@ SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS leads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     quest_id INTEGER NOT NULL,
+    created_by_user_id INTEGER,
+    assigned_to_user_id INTEGER,
     request_key TEXT,
     request_fingerprint TEXT NOT NULL
         CHECK(length(trim(request_fingerprint)) > 0),
@@ -60,6 +62,12 @@ ON leads(
 
 CREATE INDEX IF NOT EXISTS idx_leads_due_action
 ON leads(deleted_at, next_action_due_date, id);
+
+CREATE INDEX IF NOT EXISTS idx_leads_creator_activity
+ON leads(created_by_user_id, deleted_at, updated_at DESC, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_leads_assignee_pipeline
+ON leads(assigned_to_user_id, deleted_at, pipeline_status, id DESC);
 """
 
 
@@ -68,11 +76,14 @@ def validate_schema(
     *,
     require_request_fingerprint: bool = True,
     allow_pending_request_fingerprint: bool = False,
+    require_ownership: bool = True,
 ) -> None:
     """Reject partial or weakened lead schemas without rewriting lead data."""
     required_columns = {
         "id",
         "quest_id",
+        "created_by_user_id",
+        "assigned_to_user_id",
         "request_key",
         "request_fingerprint",
         "dedupe_key",
@@ -112,6 +123,8 @@ def validate_schema(
     }
     must_remain_nullable = {
         "request_key",
+        "created_by_user_id",
+        "assigned_to_user_id",
         "next_action_due_date",
         "deleted_at",
     }
@@ -127,6 +140,12 @@ def validate_schema(
     if not require_request_fingerprint:
         required_columns.remove("request_fingerprint")
         required_not_null.remove("request_fingerprint")
+
+    if not require_ownership:
+        required_columns.remove("created_by_user_id")
+        required_columns.remove("assigned_to_user_id")
+        must_remain_nullable.remove("created_by_user_id")
+        must_remain_nullable.remove("assigned_to_user_id")
 
     table_info = db.execute("PRAGMA table_info(leads)").fetchall()
     columns = {row["name"]: row for row in table_info}
@@ -165,9 +184,15 @@ def validate_schema(
             f"Incompatible leads schema; columns have incorrect defaults: {default_names}"
         )
 
+    integer_columns = {"id", "quest_id"}
+    if require_ownership:
+        integer_columns.update(
+            {"created_by_user_id", "assigned_to_user_id"}
+        )
+
     wrong_integer_types = {
         name
-        for name in ("id", "quest_id")
+        for name in integer_columns
         if columns[name]["type"].upper() != "INTEGER"
     }
     if wrong_integer_types:
@@ -176,7 +201,12 @@ def validate_schema(
             f"Incompatible leads schema; columns must be INTEGER: {type_names}"
         )
 
-    text_columns = required_columns - {"id", "quest_id"}
+    text_columns = required_columns - {
+        "id",
+        "quest_id",
+        "created_by_user_id",
+        "assigned_to_user_id",
+    }
     wrong_text_types = {
         name
         for name in text_columns
@@ -251,6 +281,7 @@ def migrate_request_fingerprint(db: sqlite3.Connection) -> None:
         validate_schema(
             db,
             allow_pending_request_fingerprint=True,
+            require_ownership=False,
         )
         pending_count = db.execute(
             "SELECT COUNT(*) FROM leads WHERE request_fingerprint = ?",
@@ -261,7 +292,11 @@ def migrate_request_fingerprint(db: sqlite3.Connection) -> None:
     else:
         # Only upgrade the complete prior schema. Partial/experimental tables
         # must continue to fail closed without being rewritten.
-        validate_schema(db, require_request_fingerprint=False)
+        validate_schema(
+        db,
+        require_request_fingerprint=False,
+        require_ownership=False,
+    )
 
     owns_transaction = not db.in_transaction
     if owns_transaction:
@@ -313,6 +348,76 @@ def migrate_request_fingerprint(db: sqlite3.Connection) -> None:
         db.execute("RELEASE SAVEPOINT crm_fingerprint_migration")
 
 
+
+def migrate_ownership(db: sqlite3.Connection) -> None:
+    """Add lead ownership only to a complete supported CRM schema.
+
+    Partial or experimental tables must fail closed without being altered.
+    This preserves the existing CRM migration guarantee that incompatible
+    schemas are rejected without changing their rows or column layout.
+    """
+    if not table_exists(db, "leads"):
+        return
+
+    existing_columns = set(column_names(db, "leads"))
+
+    pre_m4_required_columns = {
+        "id",
+        "quest_id",
+        "request_key",
+        "request_fingerprint",
+        "dedupe_key",
+        "company",
+        "contact_person",
+        "job_title",
+        "source",
+        "source_url",
+        "problem_opportunity",
+        "why_mark_fits",
+        "pipeline_status",
+        "priority",
+        "next_action",
+        "next_action_due_date",
+        "notes",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+    }
+
+    if not pre_m4_required_columns.issubset(existing_columns):
+        return
+
+    ensure_column(db, "leads", "created_by_user_id", "INTEGER")
+    ensure_column(db, "leads", "assigned_to_user_id", "INTEGER")
+
+    if not table_exists(db, "users"):
+        return
+
+    owner = db.execute(
+        """
+        SELECT id
+        FROM users
+        WHERE role = 'owner'
+        ORDER BY active DESC, id
+        LIMIT 1
+        """
+    ).fetchone()
+    if owner is None:
+        return
+
+    owner_id = int(owner["id"])
+    db.execute(
+        """
+        UPDATE leads
+        SET
+            created_by_user_id = COALESCE(created_by_user_id, ?),
+            assigned_to_user_id = COALESCE(assigned_to_user_id, ?)
+        WHERE created_by_user_id IS NULL
+           OR assigned_to_user_id IS NULL
+        """,
+        (owner_id, owner_id),
+    )
+
 def create_unique_indexes(db: sqlite3.Connection) -> None:
     # Leads keep a single quest link, semantic duplicate key, and network retry
     # key. Soft-deleted leads release only their semantic dedupe key.
@@ -350,6 +455,14 @@ def validate_indexes(db: sqlite3.Connection) -> None:
         "idx_leads_due_action": (
             False,
             ["deleted_at", "next_action_due_date", "id"],
+        ),
+        "idx_leads_creator_activity": (
+            False,
+            ["created_by_user_id", "deleted_at", "updated_at", "id"],
+        ),
+        "idx_leads_assignee_pipeline": (
+            False,
+            ["assigned_to_user_id", "deleted_at", "pipeline_status", "id"],
         ),
     }
     partial_index_names = {

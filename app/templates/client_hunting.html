@@ -58,6 +58,8 @@
                     <th>Lead</th>
                     <th>Status</th>
                     <th>Priority</th>
+                    <th>Added by</th>
+                    <th>Assigned to</th>
                     <th>Next action</th>
                     {% if can_manage_crm %}<th>Quest</th>{% endif %}
                 </tr>
@@ -71,6 +73,8 @@
                     </td>
                     <td><span class="mark-chip">{{ lead.pipeline_status|upper }}</span></td>
                     <td>{{ lead.priority|title }}</td>
+                    <td>{{ lead.created_by_name or 'Unassigned history' }}</td>
+                    <td>{{ lead.assigned_to_name or 'Not assigned' }}</td>
                     <td>
                         {{ lead.next_action }}
                         {% if lead.next_action_due_date %}<br><span class="mark-muted is-size-7">Due {{ lead.next_action_due_date }}</span>{% endif %}
@@ -81,7 +85,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="{{ 5 if can_manage_crm else 4 }}" class="has-text-centered mark-muted p-6">
+                    <td colspan="{{ 7 if can_manage_crm else 6 }}" class="has-text-centered mark-muted p-6">
                         No leads yet. Use Add Leads to create one manually or import a CSV.
                     </td>
                 </tr>
