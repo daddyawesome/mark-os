@@ -393,6 +393,7 @@ def create_indexes(db: sqlite3.Connection) -> None:
 
 
 
+
 def migrate(db: sqlite3.Connection) -> None:
     """Complete the M10 schema rebuilds safely.
 
@@ -468,6 +469,7 @@ def migrate(db: sqlite3.Connection) -> None:
             "PRAGMA foreign_keys = "
             + ("ON" if foreign_keys_enabled else "OFF")
         )
+
 
 
 
