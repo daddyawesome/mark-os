@@ -1,5 +1,7 @@
 # MARK OS — Client Hunting MVP
 
+[![Tests](https://github.com/daddyawesome/mark-os/actions/workflows/tests.yml/badge.svg)](https://github.com/daddyawesome/mark-os/actions/workflows/tests.yml)
+
 MARK OS is a personal operating system for turning real-world priorities into
 clear quests. Its current product focus is practical and narrow: help Mark find,
 prioritize, contact, and win clients.
@@ -24,8 +26,8 @@ help create revenue.
 | Phase 4 — Quest Engine | Complete | Quest lifecycle, progress, blockers, evidence, immutable XP awards, levels, and timeline events |
 | Phase 5.1 — Persistent Chat | Complete | Additive chat storage, session/message lifecycle, recent history, and duplicate-request protection |
 | Phase 5.2 — Agent Audit | Complete | Persistent agent runs and steps, usage/cost estimates, lifecycle tracking, idempotency, and safe error summaries |
-| Client Hunting C1–C4 — CRM MVP | Complete locally | Lead storage, quest linkage, CRUD, pipeline, priority, next actions, duplicate prevention, and dashboard |
-| Client Hunting C5 — Railway release | Pending approval | Final production migration and deployment verification |
+| Client Hunting C1–C4 — CRM MVP | Complete | Lead storage, quest linkage, CRUD, pipeline, priority, next actions, duplicate prevention, and dashboard |
+| Client Hunting C5 — Railway release | Complete | Production volume mounted, startup migration completed, health verified, and CRM routes live |
 | Phase 5.3 — Structured Memory | Paused | Next memory step after the Client Hunting MVP proves useful |
 | Phase 5.4+ — AI and integrations | Planned | Memory extraction, retrieval, AI routing, Neo4j, LangGraph, Gmail, and Calendar remain deferred |
 
@@ -83,7 +85,17 @@ source information for semantic duplicates.
 ```text
 app/
 ├── auth.py
-├── database.py
+├── database.py              # stable connection/initialization facade
+├── db/
+│   ├── agent_audit.py       # agent audit schema and validation
+│   ├── chat.py              # persistent chat schema and validation
+│   ├── checkins.py          # check-in and direction migrations
+│   ├── goals.py             # profile, goal, and project migrations
+│   ├── leads.py             # CRM schema, migration, and validation
+│   ├── memory.py            # timeline, memory, and system metadata
+│   ├── migrations.py        # ordered cross-domain migration runner
+│   ├── quests.py            # quest, game state, and XP migrations
+│   └── schema.py            # hardcoded migration helpers
 ├── main.py
 ├── routes/
 │   ├── auth.py
@@ -148,23 +160,23 @@ python -m pytest -q
 
 Coverage includes fresh and legacy migrations, preserved quest/XP/check-in/
 memory data, lead CRUD, duplicate protection, quest linkage, pipeline syncing,
-dashboard totals, authentication, and application startup.
+dashboard totals, authentication, and application startup. GitHub Actions runs
+the same command on every push and pull request.
 
-## Railway release boundary
+## Railway release safety
 
-Railway configuration is present, but a release is an explicit separate step.
-Before deployment:
+The Client Hunting MVP is live on Railway. Every future release remains an
+explicit separate step. Before deployment:
 
-1. review and commit the CRM changes;
+1. review, test, and commit the release changes;
 2. back up the persistent SQLite volume;
 3. confirm `MARK_OS_USERNAME`, `MARK_OS_PASSWORD`, `SESSION_SECRET`, and the
    persistent `MARK_OS_DB_PATH`;
 4. approve the push/deploy;
 5. verify `/health`, `/crm`, one test lead, its linked quest, and the dashboard.
 
-No deployment, production migration, external email, scraping, paid AI call,
-Neo4j connection, embedding job, or calendar integration is performed by the
-CRM MVP itself.
+External email, scraping, paid AI calls, Neo4j, embeddings, and calendar
+integrations remain outside the CRM MVP.
 
 ## Product principle
 
