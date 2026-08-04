@@ -29,3 +29,5 @@ Thumbs.db
 
 *.backup
 *.log
+# Local MARK OS installer backups
+.mark_os_backups/
