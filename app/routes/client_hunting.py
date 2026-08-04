@@ -2,11 +2,20 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.database import get_db
 from app.routes.shared import load_system_state, templates
+from app.services.lead_csv_import import (
+    CSV_HEADERS,
+    LEAD_CSV_TEMPLATE_FILENAME,
+    MAX_CSV_BYTES,
+    MAX_CSV_ROWS,
+    LeadCsvImportError,
+    import_leads_from_csv,
+    lead_csv_template_bytes,
+)
 from app.services.leads import (
     PIPELINE_STATUSES,
     PRIORITIES,
@@ -21,7 +30,6 @@ from app.services.leads import (
 )
 
 router = APIRouter(prefix="/crm")
-
 PIPELINE_LABELS = {
     "new": "New",
     "reviewed": "Reviewed",
@@ -39,7 +47,6 @@ PIPELINE_OPTIONS = tuple(
 PRIORITY_OPTIONS = tuple(
     (priority, PRIORITY_LABELS[priority]) for priority in PRIORITIES
 )
-
 NOTICE_MESSAGES = {
     "created": "Lead and linked quest created.",
     "duplicate": "That request was already saved. The existing lead is shown below.",
@@ -83,6 +90,26 @@ def _shared_context(db) -> dict:
     }
 
 
+def _add_leads_context(
+    db,
+    request: Request,
+    *,
+    import_result=None,
+    import_error: str | None = None,
+) -> dict:
+    return {
+        "request_key": uuid4().hex,
+        "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
+        "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
+        "import_result": import_result,
+        "import_error": import_error,
+        "csv_headers": CSV_HEADERS,
+        "max_csv_rows": MAX_CSV_ROWS,
+        "max_csv_size_mb": MAX_CSV_BYTES // 1_000_000,
+        **_shared_context(db),
+    }
+
+
 @router.get("", response_class=HTMLResponse)
 def crm_dashboard(request: Request):
     with get_db() as db:
@@ -93,16 +120,87 @@ def crm_dashboard(request: Request):
                 {"label": label, "value": metrics[key]}
                 for label, key in METRIC_DEFINITIONS
             ],
-            "request_key": uuid4().hex,
             "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
             **_shared_context(db),
         }
-
     return templates.TemplateResponse(
         request=request,
         name="client_hunting.html",
         context=context,
+    )
+
+
+# These static routes must stay above /leads/{lead_id}.
+@router.get("/leads/new", response_class=HTMLResponse)
+def new_lead_page(request: Request):
+    with get_db() as db:
+        context = _add_leads_context(db, request)
+    return templates.TemplateResponse(
+        request=request,
+        name="add_leads.html",
+        context=context,
+    )
+
+
+@router.get("/leads/import/template")
+def download_lead_csv_template():
+    return Response(
+        content=lead_csv_template_bytes(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{LEAD_CSV_TEMPLATE_FILENAME}"'
+            ),
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.post("/leads/import", response_class=HTMLResponse)
+async def import_leads_csv(
+    request: Request,
+    csv_file: UploadFile = File(...),
+):
+    filename = (csv_file.filename or "").strip()
+    content = b""
+    import_error: str | None = None
+    import_result = None
+
+    try:
+        if not filename.lower().endswith(".csv"):
+            raise LeadCsvImportError("Choose a file with a .csv extension.")
+
+        content = await csv_file.read(MAX_CSV_BYTES + 1)
+        if len(content) > MAX_CSV_BYTES:
+            raise LeadCsvImportError(
+                f"The CSV is too large. The maximum size is "
+                f"{MAX_CSV_BYTES // 1_000_000} MB."
+            )
+    except LeadCsvImportError as exc:
+        import_error = str(exc)
+    finally:
+        await csv_file.close()
+
+    with get_db() as db:
+        if import_error is None:
+            try:
+                import_result = import_leads_from_csv(db, content)
+            except LeadCsvImportError as exc:
+                import_error = str(exc)
+
+        context = _add_leads_context(
+            db,
+            request,
+            import_result=import_result,
+            import_error=import_error,
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="add_leads.html",
+        context=context,
+        status_code=400 if import_error else 200,
     )
 
 
@@ -141,8 +239,10 @@ def create_lead(
                 request_key=request_key or None,
             )
         except ValueError:
-            return RedirectResponse(url="/crm?error=invalid", status_code=303)
-
+            return RedirectResponse(
+                url="/crm/leads/new?error=invalid",
+                status_code=303,
+            )
     notice = "created" if result.created else "duplicate"
     return RedirectResponse(
         url=f"/crm/leads/{result.lead['id']}?notice={notice}",
@@ -160,7 +260,6 @@ def lead_detail(request: Request, lead_id: int):
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
             **_shared_context(db),
         }
-
     return templates.TemplateResponse(
         request=request,
         name="lead_detail.html",
@@ -177,7 +276,6 @@ def edit_lead_page(request: Request, lead_id: int):
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
             **_shared_context(db),
         }
-
     return templates.TemplateResponse(
         request=request,
         name="edit_lead.html",
@@ -225,7 +323,6 @@ def edit_lead(
                 url=f"/crm/leads/{lead_id}/edit?error=invalid",
                 status_code=303,
             )
-
     return RedirectResponse(
         url=f"/crm/leads/{lead_id}?notice=updated",
         status_code=303,
@@ -250,7 +347,6 @@ def update_pipeline(
                 url=f"/crm/leads/{lead_id}?error=invalid",
                 status_code=303,
             )
-
     return RedirectResponse(
         url=f"/crm/leads/{lead_id}?notice=pipeline",
         status_code=303,
@@ -277,7 +373,6 @@ def update_next_action(
                 url=f"/crm/leads/{lead_id}?error=invalid",
                 status_code=303,
             )
-
     return RedirectResponse(
         url=f"/crm/leads/{lead_id}?notice=next_action",
         status_code=303,
@@ -316,8 +411,6 @@ def delete_lead(
                 },
                 status_code=400,
             )
-
-        # The destructive service flag is only supplied after exact confirmation.
         delete_lead_record(db, lead_id, confirmed=True)
 
     return RedirectResponse(url="/crm?notice=deleted", status_code=303)

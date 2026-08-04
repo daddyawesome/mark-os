@@ -38,6 +38,9 @@ EXPECTED_ROUTES = [
     ("POST", "/goals", "create_goal"),
     ("POST", "/projects/{project_id}/link-goal", "link_project_goal"),
     ("GET", "/crm", "crm_dashboard"),
+    ("GET", "/crm/leads/new", "new_lead_page"),
+    ("GET", "/crm/leads/import/template", "download_lead_csv_template"),
+    ("POST", "/crm/leads/import", "import_leads_csv"),
     ("POST", "/crm/leads", "create_lead"),
     ("GET", "/crm/leads/{lead_id}", "lead_detail"),
     ("GET", "/crm/leads/{lead_id}/edit", "edit_lead_page"),
@@ -307,6 +310,7 @@ def test_authenticated_pages_render_with_temporary_database(
         "/quests/1",
         "/goals",
         "/crm",
+        "/crm/leads/new",
         "/life-os",
         "/history",
     ):
