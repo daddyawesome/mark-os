@@ -1,0 +1,564 @@
+:root {
+    --forest-950: #06130b;
+    --forest-925: #081910;
+    --forest-900: #0b1f17;
+    --forest-850: #0f2a1d;
+    --forest-800: #143725;
+    --forest-700: #1f5b3f;
+    --forest-500: #35c481;
+    --forest-300: #90e7bd;
+    --cream: #fffaf0;
+    --mist: #dff6e8;
+    --line: rgba(144, 231, 189, 0.18);
+    --panel: rgba(8, 26, 18, 0.86);
+    --panel-2: rgba(13, 39, 27, 0.92);
+    --text-soft: #b7d9c5;
+    --mark-sidebar-width: 272px;
+}
+
+html {
+    min-height: 100%;
+    background: var(--forest-950);
+}
+
+body {
+    min-height: 100vh;
+    margin: 0;
+    color: var(--mist);
+    background:
+        radial-gradient(
+            circle at top left,
+            rgba(53, 196, 129, 0.22),
+            transparent 34rem
+        ),
+        radial-gradient(
+            circle at bottom right,
+            rgba(31, 91, 63, 0.28),
+            transparent 30rem
+        ),
+        linear-gradient(
+            135deg,
+            #06130b 0%,
+            #0b1f17 48%,
+            #050b08 100%
+        );
+}
+
+body::before {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    content: "";
+    pointer-events: none;
+    background-image:
+        linear-gradient(
+            rgba(144, 231, 189, 0.035) 1px,
+            transparent 1px
+        ),
+        linear-gradient(
+            90deg,
+            rgba(144, 231, 189, 0.035) 1px,
+            transparent 1px
+        );
+    background-size: 34px 34px;
+    mask-image: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.8),
+        rgba(0, 0, 0, 0.15)
+    );
+}
+
+a {
+    color: var(--forest-300);
+}
+
+a:hover {
+    color: white;
+}
+
+.mark-app {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    transition: margin-left 180ms ease;
+}
+
+.mark-app.has-sidebar {
+    margin-left: var(--mark-sidebar-width);
+}
+
+.mark-container {
+    width: 100%;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+}
+
+.mark-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    width: var(--mark-sidebar-width);
+    overflow-y: auto;
+    background:
+        radial-gradient(
+            circle at top left,
+            rgba(53, 196, 129, 0.14),
+            transparent 20rem
+        ),
+        rgba(6, 19, 11, 0.98);
+    border-right: 1px solid var(--line);
+    box-shadow: 18px 0 60px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(18px);
+}
+
+.mark-sidebar-brand {
+    display: flex;
+    align-items: center;
+    min-height: 76px;
+    padding: 1rem 1.1rem;
+    color: var(--mist);
+    border-bottom: 1px solid var(--line);
+}
+
+.mark-sidebar-brand:hover {
+    color: white;
+    background: rgba(53, 196, 129, 0.06);
+}
+
+.mark-brand-orb {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-right: 0.8rem;
+    color: var(--forest-950);
+    font-weight: 900;
+    border-radius: 999px;
+    background:
+        linear-gradient(
+            135deg,
+            var(--forest-300),
+            var(--forest-500)
+        );
+    box-shadow: 0 0 28px rgba(53, 196, 129, 0.42);
+}
+
+.mark-sidebar-brand-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.mark-sidebar-brand-copy strong {
+    color: var(--mist);
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+}
+
+.mark-sidebar-brand-copy small {
+    margin-top: 0.15rem;
+    overflow: hidden;
+    color: var(--text-soft);
+    font-size: 0.67rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mark-sidebar-menu {
+    flex: 1;
+    padding: 0.9rem 0.75rem 1.25rem;
+}
+
+.mark-sidebar-section + .mark-sidebar-section {
+    margin-top: 1rem;
+}
+
+.mark-sidebar-label {
+    margin: 0;
+    padding: 0.45rem 0.75rem 0.35rem;
+    color: rgba(183, 217, 197, 0.7);
+    font-size: 0.64rem;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.mark-sidebar-link,
+.mark-sidebar-summary {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 2.65rem;
+    margin: 0.15rem 0;
+    padding: 0.62rem 0.78rem;
+    color: var(--mist);
+    font-weight: 700;
+    border: 1px solid transparent;
+    border-radius: 0.72rem;
+    background: transparent;
+    transition:
+        color 140ms ease,
+        background-color 140ms ease,
+        border-color 140ms ease,
+        transform 140ms ease;
+}
+
+.mark-sidebar-link:hover,
+.mark-sidebar-summary:hover {
+    color: white;
+    border-color: var(--line);
+    background: rgba(53, 196, 129, 0.08);
+    transform: translateX(2px);
+}
+
+.mark-sidebar-link.is-active,
+.mark-sidebar-summary.is-active {
+    color: var(--forest-950);
+    border-color: var(--forest-300);
+    background:
+        linear-gradient(
+            135deg,
+            var(--forest-300),
+            #69dca2
+        );
+    box-shadow: 0 8px 24px rgba(53, 196, 129, 0.16);
+}
+
+.mark-sidebar-group {
+    margin: 0;
+}
+
+.mark-sidebar-summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.mark-sidebar-summary::-webkit-details-marker {
+    display: none;
+}
+
+.mark-sidebar-chevron {
+    margin-left: auto;
+    font-size: 1.25rem;
+    transition: transform 140ms ease;
+}
+
+.mark-sidebar-group[open] .mark-sidebar-chevron {
+    transform: rotate(90deg);
+}
+
+.mark-sidebar-submenu {
+    margin: 0.18rem 0 0.35rem 0.85rem;
+    padding-left: 0.62rem;
+    border-left: 1px solid var(--line);
+}
+
+.mark-sidebar-sublink {
+    min-height: 2.25rem;
+    font-size: 0.88rem;
+    font-weight: 650;
+}
+
+.mark-sidebar-footer {
+    padding: 0.85rem;
+    border-top: 1px solid var(--line);
+    background: rgba(0, 0, 0, 0.14);
+}
+
+.mark-sidebar-level,
+.mark-sidebar-user {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.7rem;
+    margin-bottom: 0.65rem;
+    padding: 0.66rem 0.72rem;
+    border: 1px solid var(--line);
+    border-radius: 0.72rem;
+    background: rgba(13, 39, 27, 0.72);
+}
+
+.mark-sidebar-level {
+    color: var(--forest-300);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.mark-sidebar-user {
+    flex-direction: column;
+    gap: 0.08rem;
+}
+
+.mark-sidebar-user strong {
+    overflow: hidden;
+    color: var(--mist);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mark-sidebar-user span {
+    color: var(--text-soft);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.mark-sidebar-toggle,
+.mark-sidebar-overlay {
+    display: none;
+}
+
+.mark-hero {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    background:
+        linear-gradient(
+            135deg,
+            rgba(13, 39, 27, 0.95),
+            rgba(6, 19, 11, 0.92)
+        ),
+        radial-gradient(
+            circle at top right,
+            rgba(53, 196, 129, 0.18),
+            transparent 20rem
+        );
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+}
+
+.mark-card,
+.box.mark-card,
+.card.mark-card {
+    color: var(--mist);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: var(--panel);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+.mark-card-2 {
+    background: var(--panel-2);
+}
+
+.mark-card .title,
+.mark-card .subtitle,
+.mark-hero .title,
+.mark-hero .subtitle {
+    color: var(--mist);
+}
+
+.mark-muted {
+    color: var(--text-soft);
+}
+
+.mark-kicker {
+    color: var(--forest-300);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.17em;
+    text-transform: uppercase;
+}
+
+.mark-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.65rem;
+    color: var(--forest-300);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(53, 196, 129, 0.11);
+}
+
+.mark-number {
+    color: white;
+    font-size: 1.8rem;
+    font-weight: 900;
+}
+
+.mark-panel-title {
+    color: var(--forest-300);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.mark-divider {
+    border-color: var(--line);
+    background-color: var(--line);
+}
+
+.input,
+.textarea,
+.select select {
+    color: var(--mist) !important;
+    border-color: rgba(144, 231, 189, 0.28) !important;
+    background: rgba(4, 14, 9, 0.84) !important;
+    box-shadow: none !important;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+    color: rgba(183, 217, 197, 0.62);
+}
+
+.label {
+    color: var(--mist);
+}
+
+.help {
+    color: var(--text-soft);
+}
+
+.button.is-mark {
+    color: var(--forest-950);
+    font-weight: 900;
+    border: 0;
+    background:
+        linear-gradient(
+            135deg,
+            var(--forest-500),
+            #80e8b2
+        );
+    box-shadow: 0 0 28px rgba(53, 196, 129, 0.26);
+}
+
+.button.is-mark:hover {
+    color: var(--forest-950);
+    filter: brightness(1.08);
+}
+
+.button.is-ghost-forest {
+    color: var(--forest-300);
+    text-decoration: none;
+    border-color: rgba(144, 231, 189, 0.32);
+    background: rgba(53, 196, 129, 0.08);
+}
+
+.button.is-ghost-forest:hover {
+    color: white;
+    background: rgba(53, 196, 129, 0.15);
+}
+
+.progress.is-forest::-webkit-progress-value {
+    background-color: var(--forest-500);
+}
+
+.progress.is-forest::-moz-progress-bar {
+    background-color: var(--forest-500);
+}
+
+.table {
+    color: var(--mist);
+    background: transparent;
+}
+
+.table td,
+.table th {
+    color: var(--mist);
+    border-color: var(--line);
+}
+
+.table th {
+    color: var(--forest-300);
+}
+
+.notification.is-mark {
+    color: var(--mist);
+    border: 1px solid var(--line);
+    background: rgba(53, 196, 129, 0.12);
+}
+
+.tabs a {
+    color: var(--text-soft);
+    border-color: var(--line) !important;
+}
+
+.tabs li.is-active a {
+    color: var(--forest-950) !important;
+    border-color: var(--forest-300) !important;
+    background: var(--forest-300) !important;
+}
+
+@media (max-width: 900px) {
+    .mark-sidebar {
+        width: min(86vw, var(--mark-sidebar-width));
+        transform: translateX(-105%);
+        transition: transform 180ms ease;
+    }
+
+    body.mark-sidebar-open {
+        overflow: hidden;
+    }
+
+    body.mark-sidebar-open .mark-sidebar {
+        transform: translateX(0);
+    }
+
+    .mark-app.has-sidebar {
+        margin-left: 0;
+    }
+
+    .mark-container {
+        padding-top: 4.75rem;
+    }
+
+    .mark-sidebar-toggle {
+        position: fixed;
+        top: 0.85rem;
+        left: 0.85rem;
+        z-index: 70;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.75rem;
+        height: 2.75rem;
+        padding: 0;
+        color: var(--mist);
+        font-size: 1.2rem;
+        border: 1px solid var(--line);
+        border-radius: 0.72rem;
+        background: rgba(8, 26, 18, 0.96);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+        cursor: pointer;
+    }
+
+    .mark-sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        background: rgba(0, 0, 0, 0.62);
+        backdrop-filter: blur(2px);
+    }
+
+    body.mark-sidebar-open .mark-sidebar-overlay {
+        display: block;
+    }
+}
+
+@media (max-width: 520px) {
+    .mark-container {
+        padding-right: 0.8rem;
+        padding-left: 0.8rem;
+    }
+
+    .mark-hero {
+        border-radius: 20px;
+    }
+
+    .mark-card,
+    .box.mark-card,
+    .card.mark-card {
+        border-radius: 18px;
+    }
+}

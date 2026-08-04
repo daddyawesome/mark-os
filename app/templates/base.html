@@ -1,467 +1,192 @@
 <!doctype html>
 <html lang="en">
 <head>
+<!-- MARK_OS_SIDEBAR_USERS_V1 -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#06130b">
     <title>{% block title %}MARK OS{% endblock %}</title>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css"
+    >
+    <link
+        rel="stylesheet"
+        href="/static/css/mark-os-frontend.css?v=20260804-1"
+    >
     <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+</head>
 
-    <style>
-        :root {
-            --forest-950: #06130b;
-            --forest-900: #0b1f17;
-            --forest-850: #0f2a1d;
-            --forest-800: #143725;
-            --forest-700: #1f5b3f;
-            --forest-500: #35c481;
-            --forest-300: #90e7bd;
-            --cream: #fffaf0;
-            --mist: #dff6e8;
-            --line: rgba(144, 231, 189, 0.18);
-            --panel: rgba(8, 26, 18, 0.86);
-            --panel-2: rgba(13, 39, 27, 0.92);
-            --text-soft: #b7d9c5;
-        }
+<body>
+{% set current_user = request.state.current_user %}
 
-        html { background: var(--forest-950); }
-        body {
-            min-height: 100vh;
-            color: var(--mist);
-            background:
-                radial-gradient(circle at top left, rgba(53,196,129,.22), transparent 34rem),
-                radial-gradient(circle at bottom right, rgba(31,91,63,.28), transparent 30rem),
-                linear-gradient(135deg, #06130b 0%, #0b1f17 48%, #050b08 100%);
-        }
+{% if current_user %}
+<button
+    class="mark-sidebar-toggle"
+    id="markSidebarToggle"
+    type="button"
+    aria-controls="markSidebar"
+    aria-expanded="false"
+    aria-label="Open navigation"
+>
+    <span aria-hidden="true">☰</span>
+</button>
 
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background-image:
-                linear-gradient(rgba(144,231,189,.035) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(144,231,189,.035) 1px, transparent 1px);
-            background-size: 34px 34px;
-            mask-image: linear-gradient(to bottom, rgba(0,0,0,.8), rgba(0,0,0,.15));
-        }
+<div
+    class="mark-sidebar-overlay"
+    id="markSidebarOverlay"
+    aria-hidden="true"
+></div>
 
-        .mark-shell { position: relative; z-index: 1; }
-        .mark-nav {
-            background: rgba(6, 19, 11, 0.88);
-            backdrop-filter: blur(14px);
-            border-bottom: 1px solid var(--line);
-            box-shadow: 0 18px 60px rgba(0, 0, 0, .28);
-        }
-        .mark-brand-orb {
-            width: 2.25rem;
-            height: 2.25rem;
-            border-radius: 999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: .7rem;
-            color: var(--forest-950);
-            font-weight: 900;
-            background: linear-gradient(135deg, var(--forest-300), var(--forest-500));
-            box-shadow: 0 0 28px rgba(53,196,129,.42);
-        }
-        .navbar-item, .navbar-link { color: var(--mist) !important; }
-        .navbar-item:hover, .navbar-item.is-active { background: rgba(53,196,129,.12) !important; color: white !important; }
-        .navbar-burger { color: var(--mist); }
-
-        .mark-container { max-width: 1180px; margin: 0 auto; padding: 2rem 1rem 4rem; }
-        .mark-hero {
-            border: 1px solid var(--line);
-            background:
-                linear-gradient(135deg, rgba(13,39,27,.95), rgba(6,19,11,.92)),
-                radial-gradient(circle at top right, rgba(53,196,129,.18), transparent 20rem);
-            border-radius: 28px;
-            box-shadow: 0 24px 80px rgba(0,0,0,.38);
-            overflow: hidden;
-        }
-        .mark-card, .box.mark-card, .card.mark-card {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 22px;
-            color: var(--mist);
-            box-shadow: 0 18px 50px rgba(0,0,0,.28);
-        }
-        .mark-card-2 { background: var(--panel-2); }
-        .mark-card .title, .mark-card .subtitle, .mark-hero .title, .mark-hero .subtitle { color: var(--mist); }
-        .mark-muted { color: var(--text-soft); }
-        .mark-kicker {
-            color: var(--forest-300);
-            font-size: .72rem;
-            font-weight: 800;
-            letter-spacing: .17em;
-            text-transform: uppercase;
-        }
-        .mark-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: .35rem;
-            padding: .35rem .65rem;
-            border-radius: 999px;
-            border: 1px solid var(--line);
-            background: rgba(53,196,129,.11);
-            color: var(--forest-300);
-            font-weight: 800;
-            font-size: .75rem;
-            letter-spacing: .03em;
-        }
-        .mark-number { color: white; font-weight: 900; font-size: 1.8rem; }
-        .mark-panel-title { color: var(--forest-300); font-weight: 900; letter-spacing: .1em; text-transform: uppercase; font-size: .78rem; }
-        .mark-divider { border-color: var(--line); background-color: var(--line); }
-
-        .input, .textarea, .select select {
-            background: rgba(4, 14, 9, .84) !important;
-            color: var(--mist) !important;
-            border-color: rgba(144,231,189,.28) !important;
-            box-shadow: none !important;
-        }
-        .input::placeholder, .textarea::placeholder { color: rgba(183,217,197,.62); }
-        .label { color: var(--mist); }
-        .help { color: var(--text-soft); }
-
-        .button.is-mark {
-            background: linear-gradient(135deg, var(--forest-500), #80e8b2);
-            color: var(--forest-950);
-            border: 0;
-            font-weight: 900;
-            box-shadow: 0 0 28px rgba(53,196,129,.26);
-        }
-        .button.is-mark:hover { filter: brightness(1.08); color: var(--forest-950); }
-        .button.is-ghost-forest {
-            color: var(--forest-300);
-            border-color: rgba(144,231,189,.32);
-            background: rgba(53,196,129,.08);
-            text-decoration: none;
-        }
-        .button.is-ghost-forest:hover { color: white; background: rgba(53,196,129,.15); }
-
-        .progress.is-forest::-webkit-progress-value { background-color: var(--forest-500); }
-        .progress.is-forest::-moz-progress-bar { background-color: var(--forest-500); }
-        .table {
-            background: transparent;
-            color: var(--mist);
-        }
-        .table td, .table th { border-color: var(--line); color: var(--mist); }
-        .table th { color: var(--forest-300); }
-        a { color: var(--forest-300); }
-        a:hover { color: white; }
-        .notification.is-mark {
-            background: rgba(53,196,129,.12);
-            border: 1px solid var(--line);
-            color: var(--mist);
-        }
-    </style>
-
-    <!-- MARK_OS_SIDEBAR_USERS_V1 -->
-    <
-{% if request.state.current_user %}
-<aside class="mark-sidebar" id="markSidebar" aria-label="MARK OS navigation">
-    <a class="mark-sidebar-brand"
-       href="{{ '/' if request.state.current_user.role in ['owner', 'member'] else '/crm' }}">
-        <span class="mark-sidebar-brand-title">MARK OS</span>
-        <span class="mark-sidebar-brand-subtitle">Family Workspace</span>
+<aside
+    class="mark-sidebar"
+    id="markSidebar"
+    aria-label="MARK OS navigation"
+>
+    <a
+        class="mark-sidebar-brand"
+        href="{{ '/' if current_user.role in ['owner', 'member'] else '/crm' }}"
+    >
+        <span class="mark-brand-orb">M</span>
+        <span class="mark-sidebar-brand-copy">
+            <strong>MARK OS</strong>
+            <small>v0.4.0-family-workspaces</small>
+        </span>
     </a>
 
     <nav class="mark-sidebar-menu">
         {% if request.state.current_user.role in ['owner', 'member'] %}
-        <p class="mark-sidebar-label">Personal OS</p>
+        <div class="mark-sidebar-section">
+            <p class="mark-sidebar-label">Personal OS</p>
 
-        <a class="mark-sidebar-link {% if request.url.path == '/' %}is-active{% endif %}"
-           href="/">Today</a>
-        <a class="mark-sidebar-link {% if request.url.path.startswith('/quests') %}is-active{% endif %}"
-           href="/quests">Quests</a>
-        <a class="mark-sidebar-link {% if request.url.path.startswith('/goals') %}is-active{% endif %}"
-           href="/goals">Goals</a>
-        <a class="mark-sidebar-link {% if request.url.path == '/life-os' %}is-active{% endif %}"
-           href="/life-os">Life OS</a>
-        <a class="mark-sidebar-link {% if request.url.path == '/history' %}is-active{% endif %}"
-           href="/history">History</a>
+            <a
+                class="mark-sidebar-link {% if request.url.path == '/' %}is-active{% endif %}"
+                href="/"
+            >
+                <span>Today</span>
+            </a>
+
+            <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/quests') %}is-active{% endif %}"
+                href="/quests"
+            >
+                <span>Quests</span>
+            </a>
+
+            <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/goals') %}is-active{% endif %}"
+                href="/goals"
+            >
+                <span>Goals</span>
+            </a>
+
+            <a
+                class="mark-sidebar-link {% if request.url.path == '/life-os' %}is-active{% endif %}"
+                href="/life-os"
+            >
+                <span>Life OS</span>
+            </a>
+
+            <a
+                class="mark-sidebar-link {% if request.url.path == '/history' %}is-active{% endif %}"
+                href="/history"
+            >
+                <span>History</span>
+            </a>
+        </div>
         {% endif %}
 
-        {% if request.state.current_user.role in ['owner', 'lead_sourcer'] %}
-        <p class="mark-sidebar-label">Business</p>
-        <a class="mark-sidebar-link {% if request.url.path.startswith('/crm') %}is-active{% endif %}"
-           href="/crm">Client Hunting</a>
+        {% if current_user.role in ['owner', 'lead_sourcer'] %}
+        <div class="mark-sidebar-section">
+            <p class="mark-sidebar-label">Business</p>
+
+            <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/crm') %}is-active{% endif %}"
+                href="/crm"
+            >
+                <span>Client Hunting</span>
+            </a>
+        </div>
         {% endif %}
 
         {% if request.state.current_user.role == 'owner' %}
-        <p class="mark-sidebar-label">Administration</p>
-        <details class="mark-sidebar-group"
-                 {% if request.url.path.startswith('/settings/users') %}open{% endif %}>
-            <summary class="mark-sidebar-summary {% if request.url.path.startswith('/settings/users') %}is-active{% endif %}">
-                Users
-            </summary>
-            <div class="mark-sidebar-submenu">
-                <a class="mark-sidebar-link {% if request.url.path.startswith('/settings/users') and request.query_params.get('role') == 'member' %}is-active{% endif %}"
-                   href="/settings/users?role=member">Family</a>
-                <a class="mark-sidebar-link {% if request.url.path.startswith('/settings/users') and request.query_params.get('role') == 'lead_sourcer' %}is-active{% endif %}"
-                   href="/settings/users?role=lead_sourcer">Sourcer</a>
-            </div>
-        </details>
+        <div class="mark-sidebar-section">
+            <p class="mark-sidebar-label">Administration</p>
+
+            <details
+                class="mark-sidebar-group"
+                {% if request.url.path.startswith('/settings/users') %}open{% endif %}
+            >
+                <summary
+                    class="mark-sidebar-summary {% if request.url.path.startswith('/settings/users') %}is-active{% endif %}"
+                >
+                    <span>Users</span>
+                    <span class="mark-sidebar-chevron" aria-hidden="true">›</span>
+                </summary>
+
+                <div class="mark-sidebar-submenu">
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink
+                        {% if request.url.path.startswith('/settings/users')
+                              and request.query_params.get('role') == 'member' %}
+                        is-active
+                        {% endif %}"
+                        href="/settings/users?role=member"
+                    >
+                        Family
+                    </a>
+
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink
+                        {% if request.url.path.startswith('/settings/users')
+                              and request.query_params.get('role') == 'lead_sourcer' %}
+                        is-active
+                        {% endif %}"
+                        href="/settings/users?role=lead_sourcer"
+                    >
+                        Sourcer
+                    </a>
+                </div>
+            </details>
+        </div>
         {% endif %}
     </nav>
 
-    <div class="mark-sidebar-footer">
-        <div class="mark-sidebar-user">
-            <div class="mark-sidebar-user-name">
-                {{ request.state.current_user.display_name }}
-            </div>
-            <div class="mark-sidebar-user-role">
-                {{ request.state.current_user.role|replace('_', ' ') }}
-            </div>
+    <footer class="mark-sidebar-footer">
+        {% if system_state and current_user.role == 'owner' %}
+        <div class="mark-sidebar-level">
+            <span>Level {{ system_state.level }}</span>
+            <span>{{ system_state.xp_total or 0 }} XP</span>
         </div>
-        <form method="post" action="/logout">
-            <button class="button is-small is-fullwidth is-ghost-forest mark-sidebar-logout"
-                    type="submit">Log out</button>
-        </form>
-    </div>
-</aside>
+        {% endif %}
 
-<button class="mark-sidebar-toggle"
-        id="markSidebarToggle"
-        type="button"
-        aria-controls="markSidebar"
-        aria-expanded="false"
-        aria-label="Open navigation">☰</button>
-<div class="mark-sidebar-overlay" id="markSidebarOverlay"></div>
+        <div class="mark-sidebar-user">
+            <strong>{{ current_user.display_name }}</strong>
+            <span>{{ current_user.role|replace('_', ' ') }}</span>
+        </div>
+
+        <form method="post" action="/logout">
+            <button
+                class="button is-small is-fullwidth is-ghost-forest"
+                type="submit"
+            >
+                Log out
+            </button>
+        </form>
+    </footer>
+</aside>
 {% endif %}
 
-<main class="mark-layout-content{% if request.state.current_user %} has-sidebar{% endif %}">
- transform 0.15s ease;
-        }
-
-        .mark-sidebar-group[open] .mark-sidebar-summary::after {
-            transform: rotate(90deg);
-        }
-
-        .mark-sidebar-submenu {
-            margin: 0.2rem 0 0.4rem 0.72rem;
-            padding-left: 0.6rem;
-            border-left: 1px solid var(--mark-sidebar-border);
-        }
-
-        .mark-sidebar-submenu .mark-sidebar-link {
-            min-height: 2.35rem;
-            font-size: 0.91rem;
-        }
-
-        .mark-sidebar-footer {
-            padding: 0.9rem;
-            border-top: 1px solid var(--mark-sidebar-border);
-            background: rgba(0, 0, 0, 0.12);
-        }
-
-        .mark-sidebar-user {
-            margin-bottom: 0.7rem;
-            padding: 0.7rem 0.75rem;
-            border: 1px solid var(--mark-sidebar-border);
-            border-radius: 0.7rem;
-            background: var(--mark-sidebar-panel);
-        }
-
-        .mark-sidebar-user-name {
-            color: var(--mark-sidebar-text);
-            font-weight: 750;
-        }
-
-        .mark-sidebar-user-role {
-            margin-top: 0.12rem;
-            color: var(--mark-sidebar-muted);
-            font-size: 0.72rem;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-
-        .mark-sidebar-logout {
-            width: 100%;
-            justify-content: center;
-        }
-
-        .mark-layout-content {
-            min-height: 100vh;
-            transition: margin-left 0.2s ease;
-        }
-
-        .mark-layout-content.has-sidebar {
-            margin-left: var(--mark-sidebar-width);
-        }
-
-        .mark-sidebar-toggle,
-        .mark-sidebar-overlay {
-            display: none;
-        }
-
-        @media (max-width: 900px) {
-            .mark-sidebar {
-                transform: translateX(-100%);
-                transition: transform 0.2s ease;
-            }
-
-            body.mark-sidebar-open {
-                overflow: hidden;
-            }
-
-            body.mark-sidebar-open .mark-sidebar {
-                transform: translateX(0);
-            }
-
-            .mark-layout-content.has-sidebar {
-                margin-left: 0;
-                padding-top: 3.6rem;
-            }
-
-            .mark-sidebar-toggle {
-                position: fixed;
-                top: 0.75rem;
-                left: 0.75rem;
-                z-index: 60;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                width: 2.75rem;
-                height: 2.75rem;
-                color: var(--mark-sidebar-text);
-                background: var(--mark-sidebar-panel);
-                border: 1px solid var(--mark-sidebar-border);
-                border-radius: 0.7rem;
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-                cursor: pointer;
-                font-size: 1.25rem;
-            }
-
-            .mark-sidebar-overlay {
-                position: fixed;
-                inset: 0;
-                z-index: 40;
-                background: rgba(0, 0, 0, 0.58);
-            }
-
-            body.mark-sidebar-open .mark-sidebar-overlay {
-                display: block;
-            }
-        }
-    </style>
-
-</head>
-<body>
-<div class="mark-shell">
-    <nav class="navbar mark-nav is-fixed-top" role="navigation" aria-label="main navigation">
-        <div class="navbar-brand">
-            <a class="navbar-item has-text-weight-bold" href="{{ '/' if request.state.current_user and request.state.current_user.role in ['owner', 'member'] else '/crm' }}">
-                <span class="mark-brand-orb">M</span>
-                <span>MARK OS <span class="mark-muted">v0.4.0-family-workspaces</span></span>
-            </a>
-            <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="markNavbar">
-                <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
-            </a>
-        </div>
-        <div id="markNavbar" class="navbar-menu">
-            <div class="navbar-start">
-                {% if request.state.current_user and request.state.current_user.role in ['owner', 'member'] %}
-                <a class="navbar-item {% if request.url.path == '/' %}is-active{% endif %}" href="/">Today</a>
-                <a class="navbar-item {% if request.url.path.startswith('/quests') %}is-active{% endif %}" href="/quests">Quests</a>
-                <a class="navbar-item {% if request.url.path.startswith('/goals') %}is-active{% endif %}" href="/goals">Goals</a>
-                {% if request.state.current_user.role == 'owner' %}
-                <a class="navbar-item {% if request.url.path.startswith('/crm') %}is-active{% endif %}" href="/crm">Client Hunting</a>
-                {% endif %}
-                {% if request.state.current_user and request.state.current_user.role == 'owner' %}
-                {% if request.state.current_user.role == 'owner' %}
-                <a class="navbar-item {% if request.url.path.startswith('/settings/users') %}is-active{% endif %}" href="/settings/users">Team</a>
-                {% endif %}
-                {% endif %}
-                <a class="navbar-item {% if request.url.path == '/life-os' %}is-active{% endif %}" href="/life-os">Life OS</a>
-                <a class="navbar-item {% if request.url.path == '/history' %}is-active{% endif %}" href="/history">History</a>
-                <a class="navbar-item {% if request.url.path.startswith('/settings/users') %}is-active{% endif %}" href="/settings/users/new">Team</a>
-                {% elif request.state.current_user %}
-                <a class="navbar-item is-active" href="/crm">Client Hunting</a>
-                {% endif %}
-            </div>
-            <div class="navbar-end">
-                {% if request.state.current_user %}
-                <div class="navbar-item">
-                    <span class="mark-chip">
-                        {{ request.state.current_user.display_name }}
-                        · {{ request.state.current_user.role|replace('_', ' ')|upper }}
-                    </span>
-                </div>
-                {% endif %}
-                {% if system_state and request.state.current_user and request.state.current_user.role in ['owner', 'member'] %}
-                <div class="navbar-item">
-                    <span class="mark-chip">LEVEL {{ system_state.level }} · {{ system_state.xp_total or 0 }} XP</span>
-                </div>
-                {% endif %}
-                <div class="navbar-item">
-                    <form method="post" action="/logout">
-                        <button class="button is-ghost-forest is-small" type="submit">Log out</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </nav>
-
-    <main class="mark-container" style="padding-top: 5.5rem;">
+<div class="mark-app mark-layout-content{% if current_user %} has-sidebar{% endif %}">
+    <main class="mark-container">
         {% block content %}{% endblock %}
     </main>
 </div>
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.navbar-burger').forEach((burger) => {
-            burger.addEventListener('click', () => {
-                const target = document.getElementById(burger.dataset.target);
-                burger.classList.toggle('is-active');
-                target.classList.toggle('is-active');
-            });
-        });
-    });
-</script>
 
-</main>
-
-<script>
-(() => {
-    const toggle = document.getElementById("markSidebarToggle");
-    const overlay = document.getElementById("markSidebarOverlay");
-    const sidebar = document.getElementById("markSidebar");
-
-    if (!toggle || !sidebar) {
-        return;
-    }
-
-    const setOpen = (isOpen) => {
-        document.body.classList.toggle("mark-sidebar-open", isOpen);
-        toggle.setAttribute("aria-expanded", String(isOpen));
-        toggle.setAttribute(
-            "aria-label",
-            isOpen ? "Close navigation" : "Open navigation"
-        );
-    };
-
-    toggle.addEventListener("click", () => {
-        setOpen(!document.body.classList.contains("mark-sidebar-open"));
-    });
-
-    if (overlay) {
-        overlay.addEventListener("click", () => setOpen(false));
-    }
-
-    sidebar.querySelectorAll("a").forEach((link) => {
-        link.addEventListener("click", () => setOpen(false));
-    });
-
-    window.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-            setOpen(false);
-        }
-    });
-})();
-</script>
-
+<script
+    src="/static/js/mark-sidebar.js?v=20260804-1"
+    defer
+></script>
 </body>
 </html>
