@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Add Leads · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">Client Hunting // Lead Intake</p>
+            <h1 class="title is-1 mb-2">Add one lead or import a prepared list.</h1>
+            <p class="subtitle is-5 mark-muted">Every new lead uses the same CRM validation, duplicate protection, and linked-quest creation.</p>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-light" href="/crm">← Back to CRM</a>
+        </div>
+    </div>
+</section>
+
+{% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
+{% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+{% if import_error %}<div class="notification is-danger is-light">{{ import_error }}</div>{% endif %}
+
+{% if import_result %}
+<div class="notification {% if import_result.invalid_count %}is-warning is-light{% else %}is-success is-light{% endif %}">
+    <p class="has-text-weight-bold mb-2">CSV import finished.</p>
+    <p>
+        {{ import_result.created_count }} created ·
+        {{ import_result.duplicate_count }} duplicates skipped ·
+        {{ import_result.invalid_count }} invalid ·
+        {{ import_result.total_rows }} rows processed
+    </p>
+</div>
+
+{% if import_result.errors %}
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">Rows needing attention</p>
+    <h2 class="title is-4">Import errors</h2>
+    <div class="table-container">
+        <table class="table is-fullwidth">
+            <thead>
+                <tr>
+                    <th>CSV row</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row_error in import_result.errors %}
+                <tr>
+                    <td>{{ row_error.row_number }}</td>
+                    <td>{{ row_error.message }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+<div class="columns is-variable is-5">
+    <div class="column is-7">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Manual entry</p>
+            <h2 class="title is-3">Create one lead.</h2>
+            <form method="post" action="/crm/leads">
+                <input type="hidden" name="request_key" value="{{ request_key }}">
+                {% include "partials/lead_form_fields.html" %}
+                <button class="button is-mark is-fullwidth" type="submit">Create Lead + Quest</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="column is-5" id="csv-import">
+        <div class="mark-card p-5 mb-5">
+            <p class="mark-kicker">Bulk import</p>
+            <h2 class="title is-3">Upload a CSV.</h2>
+            <p class="mark-muted mb-4">
+                Import up to {{ max_csv_rows }} leads in one UTF-8 CSV file,
+                with a maximum size of {{ max_csv_size_mb }} MB.
+            </p>
+
+            <form method="post" action="/crm/leads/import" enctype="multipart/form-data">
+                <div class="field">
+                    <label class="label" for="csv_file">Lead CSV</label>
+                    <div class="file has-name is-fullwidth">
+                        <label class="file-label">
+                            <input class="file-input" id="csv_file" name="csv_file" type="file" accept=".csv,text/csv" required>
+                            <span class="file-cta">
+                                <span class="file-label">Choose CSV</span>
+                            </span>
+                            <span class="file-name" id="csv-file-name">No file selected</span>
+                        </label>
+                    </div>
+                </div>
+                <button class="button is-mark is-fullwidth mt-4" type="submit">Import Leads + Create Quests</button>
+            </form>
+
+            <a class="button is-light is-fullwidth mt-3" href="/crm/leads/import/template">
+                Download blank CSV template
+            </a>
+        </div>
+
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Required columns</p>
+            <h3 class="title is-5">Use these exact headers.</h3>
+            <div class="content">
+                <ul>
+                    {% for header in csv_headers %}
+                    <li><code>{{ header }}</code></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <p class="mark-muted is-size-7">
+                Pipeline status accepts New, Reviewed, Contacted, Replied, Meeting,
+                Proposal, Won, or Lost. Priority accepts High, Medium, or Low.
+                Due date must use YYYY-MM-DD.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const input = document.getElementById("csv_file");
+    const name = document.getElementById("csv-file-name");
+    if (input && name) {
+        input.addEventListener("change", function () {
+            name.textContent = input.files && input.files.length
+                ? input.files[0].name
+                : "No file selected";
+        });
+    }
+});
+</script>
+{% endblock %}

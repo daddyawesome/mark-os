@@ -6,10 +6,16 @@
         <div class="column">
             <p class="mark-kicker">Client Hunting // Opportunity Pipeline</p>
             <h1 class="title is-1 mb-2">Turn good fits into clear next moves.</h1>
-            <p class="subtitle is-5 mark-muted">Each lead creates one linked quest, keeps its full context, and stays anchored to a concrete follow-up.</p>
+            <p class="subtitle is-5 mark-muted">Review your dashboard and pipeline here. Add leads manually or import several from CSV through the dedicated Add Leads page.</p>
         </div>
         <div class="column is-narrow">
-            <span class="mark-chip">{{ metric_cards[0].value }} TOTAL LEADS</span>
+            <div class="buttons is-justify-content-flex-end">
+                <a class="button is-mark" href="/crm/leads/new">Add Leads</a>
+                <a class="button is-light" href="/crm/leads/new#csv-import">Import CSV</a>
+            </div>
+            <div class="has-text-right mt-3">
+                <span class="mark-chip">{{ metric_cards[0].value }} TOTAL LEADS</span>
+            </div>
         </div>
     </div>
 </section>
@@ -28,62 +34,53 @@
     {% endfor %}
 </div>
 
-<div class="columns is-variable is-5">
-    <div class="column is-7">
-        <div class="mark-card p-5">
-            <div class="is-flex is-justify-content-space-between is-align-items-center mb-4">
-                <div>
-                    <p class="mark-kicker">Pipeline</p>
-                    <h2 class="title is-3 mb-0">Current leads</h2>
-                </div>
-                <span class="mark-chip">{{ leads|length }} SHOWN</span>
-            </div>
-
-            <div class="table-container">
-                <table class="table is-fullwidth is-hoverable">
-                    <thead>
-                        <tr>
-                            <th>Lead</th>
-                            <th>Status</th>
-                            <th>Priority</th>
-                            <th>Next action</th>
-                            <th>Quest</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for lead in leads %}
-                        <tr>
-                            <td>
-                                <a class="has-text-weight-bold" href="/crm/leads/{{ lead.id }}">{{ lead.company }}</a><br>
-                                <span class="mark-muted is-size-7">{{ lead.contact_person }}{% if lead.job_title %} · {{ lead.job_title }}{% endif %}</span>
-                            </td>
-                            <td><span class="mark-chip">{{ lead.pipeline_status|upper }}</span></td>
-                            <td>{{ lead.priority|title }}</td>
-                            <td>
-                                {{ lead.next_action }}
-                                {% if lead.next_action_due_date %}<br><span class="mark-muted is-size-7">Due {{ lead.next_action_due_date }}</span>{% endif %}
-                            </td>
-                            <td><a href="/quests/{{ lead.quest_id }}">Quest #{{ lead.quest_id }}</a></td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="5" class="has-text-centered mark-muted p-6">No leads yet. Add one with a real opportunity and next action.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+<div class="mark-card p-5">
+    <div class="is-flex is-justify-content-space-between is-align-items-center is-flex-wrap-wrap mb-4">
+        <div>
+            <p class="mark-kicker">Pipeline</p>
+            <h2 class="title is-3 mb-0">Current leads</h2>
+        </div>
+        <div class="is-flex is-align-items-center" style="gap: .75rem;">
+            <span class="mark-chip">{{ leads|length }} SHOWN</span>
+            <a class="button is-small is-mark" href="/crm/leads/new">+ Add Leads</a>
         </div>
     </div>
 
-    <div class="column is-5">
-        <div class="mark-card p-5">
-            <p class="mark-kicker">Add Lead</p>
-            <h2 class="title is-3">Capture the opportunity.</h2>
-            <form method="post" action="/crm/leads">
-                <input type="hidden" name="request_key" value="{{ request_key }}">
-                {% include "partials/lead_form_fields.html" %}
-                <button class="button is-mark is-fullwidth" type="submit">Create Lead + Quest</button>
-            </form>
-        </div>
+    <div class="table-container">
+        <table class="table is-fullwidth is-hoverable">
+            <thead>
+                <tr>
+                    <th>Lead</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Next action</th>
+                    <th>Quest</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in leads %}
+                <tr>
+                    <td>
+                        <a class="has-text-weight-bold" href="/crm/leads/{{ lead.id }}">{{ lead.company }}</a><br>
+                        <span class="mark-muted is-size-7">{{ lead.contact_person }}{% if lead.job_title %} · {{ lead.job_title }}{% endif %}</span>
+                    </td>
+                    <td><span class="mark-chip">{{ lead.pipeline_status|upper }}</span></td>
+                    <td>{{ lead.priority|title }}</td>
+                    <td>
+                        {{ lead.next_action }}
+                        {% if lead.next_action_due_date %}<br><span class="mark-muted is-size-7">Due {{ lead.next_action_due_date }}</span>{% endif %}
+                    </td>
+                    <td><a href="/quests/{{ lead.quest_id }}">Quest #{{ lead.quest_id }}</a></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="has-text-centered mark-muted p-6">
+                        No leads yet. Use Add Leads to create one manually or import a CSV.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}
