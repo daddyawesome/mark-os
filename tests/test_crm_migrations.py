@@ -9,6 +9,8 @@ from app.services.lead_identity import lead_creation_fingerprint
 LEAD_COLUMNS = [
     "id",
     "quest_id",
+    "created_by_user_id",
+    "assigned_to_user_id",
     "request_key",
     "request_fingerprint",
     "dedupe_key",
@@ -54,6 +56,16 @@ EXPECTED_LEAD_INDEXES = {
         False,
         False,
         ["deleted_at", "next_action_due_date", "id"],
+    ),
+    "idx_leads_creator_activity": (
+        False,
+        False,
+        ["created_by_user_id", "deleted_at", "updated_at", "id"],
+    ),
+    "idx_leads_assignee_pipeline": (
+        False,
+        False,
+        ["assigned_to_user_id", "deleted_at", "pipeline_status", "id"],
     ),
 }
 
@@ -367,13 +379,20 @@ def test_fresh_database_has_exact_crm_schema_constraints_indexes_and_fk(
         dedupe_key="v1:acme-alex",
         request_key="lead-request-1",
     )
-    lead = db.execute("SELECT * FROM leads WHERE id = ?", (lead_id,)).fetchone()
-    assert lead is not None
-    assert lead[7] == ""
-    assert lead[9] == ""
-    assert lead[12] == "new"
-    assert lead[13] == "medium"
-    assert lead[16] == ""
+    lead_defaults = db.execute(
+        """
+        SELECT
+            job_title,
+            source_url,
+            pipeline_status,
+            priority,
+            notes
+        FROM leads
+        WHERE id = ?
+        """,
+        (lead_id,),
+    ).fetchone()
+    assert lead_defaults == ("", "", "new", "medium", "")
 
     with pytest.raises(sqlite3.IntegrityError):
         _insert_lead(
@@ -487,7 +506,9 @@ def test_prior_crm_schema_adds_and_backfills_request_fingerprint(
     db.row_factory = sqlite3.Row
     migrated_columns = _column_names(db, "leads")
     assert set(migrated_columns) == set(LEAD_COLUMNS)
-    assert migrated_columns[-1] == "request_fingerprint"
+    assert "request_fingerprint" in migrated_columns
+    assert "created_by_user_id" in migrated_columns
+    assert "assigned_to_user_id" in migrated_columns
     lead = db.execute("SELECT * FROM leads WHERE id = ?", (lead_id,)).fetchone()
     expected_values = {
         "dedupe_key": "v1:prior-crm-lead",

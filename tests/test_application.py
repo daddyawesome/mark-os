@@ -50,6 +50,8 @@ EXPECTED_ROUTES = [
     ("POST", "/crm/leads/{lead_id}/next-action", "update_next_action"),
     ("GET", "/crm/leads/{lead_id}/delete", "delete_lead_page"),
     ("POST", "/crm/leads/{lead_id}/delete", "delete_lead"),
+    ("GET", "/settings/users/new", "new_user_page"),
+    ("POST", "/settings/users/new", "create_user"),
     ("GET", "/health", "health"),
 ]
 
@@ -333,6 +335,7 @@ def test_authenticated_pages_render_with_temporary_database(
         "/goals",
         "/crm",
         "/crm/leads/new",
+        "/settings/users/new",
         "/life-os",
         "/history",
     ):

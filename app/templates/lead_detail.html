@@ -27,6 +27,19 @@
 {% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
 {% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
 
+<div class="mark-card p-4 mb-5">
+    <div class="columns is-mobile is-multiline">
+        <div class="column is-half">
+            <p class="mark-kicker">Added by</p>
+            <p class="has-text-weight-bold">{{ lead.created_by_name or 'Historical lead' }}</p>
+        </div>
+        <div class="column is-half">
+            <p class="mark-kicker">Assigned to</p>
+            <p class="has-text-weight-bold">{{ lead.assigned_to_name or 'Not assigned' }}</p>
+        </div>
+    </div>
+</div>
+
 <div class="columns is-variable is-5">
     <div class="column is-7">
         <div class="mark-card p-5 mb-5">

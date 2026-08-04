@@ -17,6 +17,7 @@ from app.services.lead_csv_import import (
     lead_csv_template_bytes,
 )
 from app.services.access_control import is_lead_sourcer, is_owner
+from app.services.team_users import get_primary_owner_id
 from app.services.leads import (
     PIPELINE_STATUSES,
     PRIORITIES,
@@ -77,10 +78,24 @@ def _message(mapping: dict[str, str], key: str | None) -> str | None:
     return mapping.get(key or "")
 
 
-def _lead_or_404(db, lead_id: int):
+def _lead_or_404(
+    db,
+    lead_id: int,
+    request: Request | None = None,
+):
     lead = get_lead(db, lead_id)
     if lead is None:
         raise HTTPException(status_code=404, detail="Lead not found")
+
+    if request is not None:
+        user = request.state.current_user
+        if (
+            is_lead_sourcer(user)
+            and lead["created_by_user_id"] != user["id"]
+        ):
+            # Do not reveal whether another user's lead exists.
+            raise HTTPException(status_code=404, detail="Lead not found")
+
     return lead
 
 
@@ -118,10 +133,19 @@ def _add_leads_context(
 
 @router.get("", response_class=HTMLResponse)
 def crm_dashboard(request: Request):
+    user = request.state.current_user
+    creator_filter = user["id"] if is_lead_sourcer(user) else None
+
     with get_db() as db:
-        metrics = get_crm_dashboard_metrics(db)
+        metrics = get_crm_dashboard_metrics(
+            db,
+            created_by_user_id=creator_filter,
+        )
         context = {
-            "leads": list_leads(db),
+            "leads": list_leads(
+                db,
+                created_by_user_id=creator_filter,
+            ),
             "metric_cards": [
                 {"label": label, "value": metrics[key]}
                 for label, key in METRIC_DEFINITIONS
@@ -189,6 +213,10 @@ async def import_leads_csv(
         await csv_file.close()
 
     with get_db() as db:
+        owner_id = get_primary_owner_id(db)
+        if owner_id is None:
+            import_error = "No owner account is available for lead assignment."
+
         if import_error is None:
             try:
                 import_result = import_leads_from_csv(
@@ -199,6 +227,8 @@ async def import_leads_csv(
                         if is_lead_sourcer(request.state.current_user)
                         else None
                     ),
+                    created_by_user_id=request.state.current_user["id"],
+                    assigned_to_user_id=owner_id,
                 )
             except LeadCsvImportError as exc:
                 import_error = str(exc)
@@ -236,6 +266,13 @@ def create_lead(
     request_key: str = Form(default=""),
 ):
     with get_db() as db:
+        owner_id = get_primary_owner_id(db)
+        if owner_id is None:
+            return RedirectResponse(
+                url="/crm/leads/new?error=invalid",
+                status_code=303,
+            )
+
         try:
             result = create_lead_record(
                 db,
@@ -256,6 +293,8 @@ def create_lead(
                 next_action_due_date=next_action_due_date or None,
                 notes=notes,
                 request_key=request_key or None,
+                created_by_user_id=request.state.current_user["id"],
+                assigned_to_user_id=owner_id,
             )
         except ValueError:
             return RedirectResponse(
@@ -272,7 +311,7 @@ def create_lead(
 @router.get("/leads/{lead_id}", response_class=HTMLResponse)
 def lead_detail(request: Request, lead_id: int):
     with get_db() as db:
-        lead = _lead_or_404(db, lead_id)
+        lead = _lead_or_404(db, lead_id, request)
         context = {
             "lead": lead,
             "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),

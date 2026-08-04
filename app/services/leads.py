@@ -69,6 +69,23 @@ def _positive_id(value: int, field_name: str) -> int:
     return value
 
 
+def _active_user_id(
+    db: sqlite3.Connection,
+    value: int | None,
+    field_name: str,
+) -> int | None:
+    if value is None:
+        return None
+    safe_user_id = _positive_id(value, field_name)
+    user = db.execute(
+        "SELECT id FROM users WHERE id = ? AND active = 1",
+        (safe_user_id,),
+    ).fetchone()
+    if user is None:
+        raise ValueError(f"{field_name} must reference an active user")
+    return safe_user_id
+
+
 def _required_text(value: str, field_name: str, maximum: int) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{field_name} must be text")
@@ -284,10 +301,20 @@ def get_lead(
     include_deleted: bool = False,
 ) -> sqlite3.Row | None:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
-    if include_deleted:
-        return db.execute("SELECT * FROM leads WHERE id = ?", (safe_lead_id,)).fetchone()
+    deleted_condition = "" if include_deleted else "AND l.deleted_at IS NULL"
     return db.execute(
-        "SELECT * FROM leads WHERE id = ? AND deleted_at IS NULL",
+        f"""
+        SELECT
+            l.*,
+            creator.display_name AS created_by_name,
+            creator.username AS created_by_username,
+            assignee.display_name AS assigned_to_name,
+            assignee.username AS assigned_to_username
+        FROM leads AS l
+        LEFT JOIN users AS creator ON creator.id = l.created_by_user_id
+        LEFT JOIN users AS assignee ON assignee.id = l.assigned_to_user_id
+        WHERE l.id = ? {deleted_condition}
+        """,
         (safe_lead_id,),
     ).fetchone()
 
@@ -458,8 +485,20 @@ def create_lead(
     next_action_due_date: str | None = None,
     notes: str = "",
     request_key: str | None = None,
+    created_by_user_id: int | None = None,
+    assigned_to_user_id: int | None = None,
 ) -> LeadCreateResult:
     clean_request_key = _normalize_request_key(request_key)
+    safe_creator_id = _active_user_id(
+        db,
+        created_by_user_id,
+        "Created-by user ID",
+    )
+    safe_assignee_id = _active_user_id(
+        db,
+        assigned_to_user_id,
+        "Assigned-to user ID",
+    )
     values = _normalize_lead_fields(
         company=company,
         contact_person=contact_person,
@@ -488,16 +527,19 @@ def create_lead(
             cursor = db.execute(
                 """
                 INSERT INTO leads
-                    (quest_id, request_key, request_fingerprint, dedupe_key,
+                    (quest_id, created_by_user_id, assigned_to_user_id,
+                     request_key, request_fingerprint, dedupe_key,
                      company, contact_person, job_title, source, source_url,
                      problem_opportunity,
                      why_mark_fits, pipeline_status, priority, next_action,
                      next_action_due_date, notes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """,
                 (
                     quest["id"],
+                    safe_creator_id,
+                    safe_assignee_id,
                     clean_request_key,
                     lead_creation_fingerprint(values),
                     values["dedupe_key"],
@@ -548,30 +590,44 @@ def list_leads(
     *,
     pipeline_status: str | None = None,
     priority: str | None = None,
+    created_by_user_id: int | None = None,
     include_deleted: bool = False,
 ) -> list[sqlite3.Row]:
-    conditions = [] if include_deleted else ["deleted_at IS NULL"]
+    conditions = [] if include_deleted else ["l.deleted_at IS NULL"]
     parameters: list[object] = []
     if pipeline_status is not None:
-        conditions.append("pipeline_status = ?")
+        conditions.append("l.pipeline_status = ?")
         parameters.append(_normalize_pipeline_status(pipeline_status))
     if priority is not None:
-        conditions.append("priority = ?")
+        conditions.append("l.priority = ?")
         parameters.append(_normalize_priority(priority))
+    if created_by_user_id is not None:
+        conditions.append("l.created_by_user_id = ?")
+        parameters.append(_positive_id(created_by_user_id, "Created-by user ID"))
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     return db.execute(
         f"""
-        SELECT * FROM leads
+        SELECT
+            l.*,
+            creator.display_name AS created_by_name,
+            creator.username AS created_by_username,
+            assignee.display_name AS assigned_to_name,
+            assignee.username AS assigned_to_username
+        FROM leads AS l
+        LEFT JOIN users AS creator ON creator.id = l.created_by_user_id
+        LEFT JOIN users AS assignee ON assignee.id = l.assigned_to_user_id
         {where}
         ORDER BY
-            CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
-            CASE pipeline_status
+            CASE l.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+            CASE l.pipeline_status
                 WHEN 'proposal' THEN 0 WHEN 'meeting' THEN 1
                 WHEN 'replied' THEN 2 WHEN 'contacted' THEN 3
                 WHEN 'reviewed' THEN 4 WHEN 'new' THEN 5
                 WHEN 'won' THEN 6 ELSE 7
             END,
-            COALESCE(next_action_due_date, '9999-12-31'), updated_at DESC, id DESC
+            COALESCE(l.next_action_due_date, '9999-12-31'),
+            l.updated_at DESC,
+            l.id DESC
         """,
         parameters,
     ).fetchall()
@@ -899,21 +955,44 @@ def delete_lead(
     return deleted
 
 
-def get_crm_dashboard_metrics(db: sqlite3.Connection) -> dict[str, int]:
+def get_crm_dashboard_metrics(
+    db: sqlite3.Connection,
+    *,
+    created_by_user_id: int | None = None,
+) -> dict[str, int]:
+    conditions = ["deleted_at IS NULL"]
+    parameters: list[object] = []
+
+    if created_by_user_id is not None:
+        conditions.append("created_by_user_id = ?")
+        parameters.append(
+            _positive_id(created_by_user_id, "Created-by user ID")
+        )
+
+    where = " AND ".join(conditions)
+
     row = db.execute(
-        """
+        f"""
         SELECT
             COUNT(*) AS total_leads,
-            SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END) AS high_priority_leads,
-            SUM(CASE WHEN pipeline_status = 'contacted' THEN 1 ELSE 0 END) AS contacted,
-            SUM(CASE WHEN pipeline_status = 'replied' THEN 1 ELSE 0 END) AS replies,
-            SUM(CASE WHEN pipeline_status = 'meeting' THEN 1 ELSE 0 END) AS meetings,
-            SUM(CASE WHEN pipeline_status = 'proposal' THEN 1 ELSE 0 END) AS proposals,
-            SUM(CASE WHEN pipeline_status = 'won' THEN 1 ELSE 0 END) AS won_clients
+            SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END)
+                AS high_priority_leads,
+            SUM(CASE WHEN pipeline_status = 'contacted' THEN 1 ELSE 0 END)
+                AS contacted,
+            SUM(CASE WHEN pipeline_status = 'replied' THEN 1 ELSE 0 END)
+                AS replies,
+            SUM(CASE WHEN pipeline_status = 'meeting' THEN 1 ELSE 0 END)
+                AS meetings,
+            SUM(CASE WHEN pipeline_status = 'proposal' THEN 1 ELSE 0 END)
+                AS proposals,
+            SUM(CASE WHEN pipeline_status = 'won' THEN 1 ELSE 0 END)
+                AS won_clients
         FROM leads
-        WHERE deleted_at IS NULL
-        """
+        WHERE {where}
+        """,
+        parameters,
     ).fetchone()
+
     metric_names = (
         "total_leads",
         "high_priority_leads",
