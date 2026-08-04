@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Workspace Ready · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Family MARK OS // Workspace Ready</p>
+    <h1 class="title is-1 mb-3">
+        Welcome, {{ current_user.display_name }}.
+    </h1>
+    <p class="subtitle is-5 mark-muted">
+        Your private MARK OS is ready. Your records are isolated from every
+        other family member.
+    </p>
+</section>
+
+<div class="columns is-multiline">
+    <div class="column is-7">
+        <div class="mark-card p-6">
+            <div class="notification is-mark">
+                <p class="has-text-weight-bold">Your workspace starts clean.</p>
+                <p>
+                    Only your blank profile and level state were created.
+                    Goals, projects, quests, check-ins, memories, history, and
+                    chat remain empty until you add them.
+                </p>
+            </div>
+
+            <div class="buttons mt-5">
+                <a class="button is-mark" href="/">Open My Dashboard</a>
+                <a class="button is-ghost-forest" href="/goals">Add My First Goal</a>
+                <a class="button is-ghost-forest" href="/quests">Open My Quests</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="column is-5">
+        <div class="mark-card mark-card-2 p-6">
+            <p class="mark-panel-title mb-3">Private by design</p>
+            <div class="content mark-muted">
+                <ul>
+                    <li>Your dashboard uses only your user ID.</li>
+                    <li>Direct links to another user’s records return 404.</li>
+                    <li>Project names and memory keys may be reused by other users.</li>
+                    <li>Lead sourcers remain confined to Client Hunting.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -27,6 +27,7 @@ AGENT_RUN_COLUMNS = [
     "completed_at",
     "created_at",
     "updated_at",
+    "user_id",
 ]
 
 AGENT_STEP_COLUMNS = [
@@ -49,6 +50,7 @@ AGENT_STEP_COLUMNS = [
     "completed_at",
     "created_at",
     "updated_at",
+    "user_id",
 ]
 
 EXPECTED_AGENT_INDEXES = {
@@ -195,12 +197,40 @@ def _create_static_step_5_1_chat_database(database_path) -> None:
     db.close()
 
 
-def _chat_snapshot(db: sqlite3.Connection) -> dict[str, list[tuple]]:
+def _chat_snapshot(
+    db: sqlite3.Connection,
+) -> dict[str, list[tuple]]:
     return {
-        table_name: db.execute(
-            f"SELECT * FROM {table_name} ORDER BY id"
-        ).fetchall()
-        for table_name in ("chat_sessions", "chat_messages")
+        "chat_sessions": db.execute(
+            """
+            SELECT
+                id,
+                title,
+                status,
+                created_at,
+                updated_at,
+                last_message_at,
+                archived_at
+            FROM chat_sessions
+            ORDER BY id
+            """
+        ).fetchall(),
+        "chat_messages": db.execute(
+            """
+            SELECT
+                id,
+                session_id,
+                role,
+                content,
+                request_key,
+                edited_at,
+                deleted_at,
+                created_at,
+                updated_at
+            FROM chat_messages
+            ORDER BY id
+            """
+        ).fetchall(),
     }
 
 

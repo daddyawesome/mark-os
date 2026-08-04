@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Team Access · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">Settings // Team Access</p>
+            <h1 class="title is-1 mb-2">Manage CRM users.</h1>
+            <p class="subtitle is-5 mark-muted">
+                Create Lead Sourcers, review activity, reset passwords, and revoke access.
+            </p>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-mark" href="/settings/users/new">
+                Add Lead Sourcer
+            </a>
+        </div>
+    </div>
+</section>
+
+{% if message %}
+<div class="notification is-success is-light">{{ message }}</div>
+{% endif %}
+{% if error %}
+<div class="notification is-danger is-light">{{ error }}</div>
+{% endif %}
+
+<div class="mark-card p-5">
+    <div class="table-container">
+        <table class="table is-fullwidth is-hoverable">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Active leads</th>
+                    <th>Total leads</th>
+                    <th>Last login</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>
+                        <p class="has-text-weight-bold">{{ user.display_name }}</p>
+                        <p class="is-size-7 mark-muted">@{{ user.username }}</p>
+                    </td>
+                    <td>
+                        <span class="mark-chip">
+                            {{ user.role|replace('_', ' ')|upper }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if user.active %}
+                        <span class="tag is-success is-light">Active</span>
+                        {% else %}
+                        <span class="tag is-danger is-light">Disabled</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ user.active_lead_count }}</td>
+                    <td>{{ user.lead_count }}</td>
+                    <td>
+                        {{ user.last_login_at or "Never" }}
+                    </td>
+                    <td class="has-text-right">
+                        <a class="button is-small is-ghost-forest"
+                           href="/settings/users/{{ user.id }}">
+                            Manage
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="has-text-centered mark-muted p-6">
+                        No users found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

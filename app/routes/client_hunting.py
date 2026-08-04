@@ -213,7 +213,11 @@ async def import_leads_csv(
         await csv_file.close()
 
     with get_db() as db:
-        owner_id = get_primary_owner_id(db)
+        owner_id = (
+            request.state.current_user["id"]
+            if is_owner(request.state.current_user)
+            else get_primary_owner_id(db)
+        )
         if owner_id is None:
             import_error = "No owner account is available for lead assignment."
 
@@ -266,7 +270,11 @@ def create_lead(
     request_key: str = Form(default=""),
 ):
     with get_db() as db:
-        owner_id = get_primary_owner_id(db)
+        owner_id = (
+            request.state.current_user["id"]
+            if is_owner(request.state.current_user)
+            else get_primary_owner_id(db)
+        )
         if owner_id is None:
             return RedirectResponse(
                 url="/crm/leads/new?error=invalid",

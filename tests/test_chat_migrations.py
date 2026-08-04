@@ -402,6 +402,7 @@ def test_fresh_database_has_chat_schema_indexes_and_foreign_key(tmp_path, monkey
         "updated_at",
         "last_message_at",
         "archived_at",
+        "user_id",
     } == session_columns
     assert {
         "id",
@@ -413,6 +414,7 @@ def test_fresh_database_has_chat_schema_indexes_and_foreign_key(tmp_path, monkey
         "deleted_at",
         "created_at",
         "updated_at",
+        "user_id",
     } == message_columns
 
     foreign_keys = db.execute("PRAGMA foreign_key_list(chat_messages)").fetchall()

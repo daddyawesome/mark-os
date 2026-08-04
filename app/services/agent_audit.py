@@ -4,6 +4,8 @@ import re
 import sqlite3
 from dataclasses import dataclass
 
+from app.services.personal_scope import resolve_user_id
+
 DEFAULT_RUN_LIMIT = 50
 MAX_RUN_LIMIT = 100
 
@@ -208,12 +210,15 @@ def _get_agent_run_by_request_key(
     session_id: int,
     request_key: str,
 ) -> sqlite3.Row | None:
+    user_id = resolve_user_id(db)
     return db.execute(
         """
         SELECT * FROM agent_runs
-        WHERE session_id = ? AND request_key = ?
+        WHERE user_id = ?
+          AND session_id = ?
+          AND request_key = ?
         """,
-        (session_id, request_key),
+        (user_id, session_id, request_key),
     ).fetchone()
 
 
@@ -223,12 +228,15 @@ def _get_agent_step_by_key(
     run_id: int,
     step_key: str,
 ) -> sqlite3.Row | None:
+    user_id = resolve_user_id(db)
     return db.execute(
         """
         SELECT * FROM agent_steps
-        WHERE run_id = ? AND step_key = ?
+        WHERE user_id = ?
+          AND run_id = ?
+          AND step_key = ?
         """,
-        (run_id, step_key),
+        (user_id, run_id, step_key),
     ).fetchone()
 
 
@@ -237,9 +245,13 @@ def get_agent_run(
     run_id: int,
 ) -> sqlite3.Row | None:
     safe_run_id = _positive_id(run_id, "Agent run ID")
+    user_id = resolve_user_id(db)
     return db.execute(
-        "SELECT * FROM agent_runs WHERE id = ?",
-        (safe_run_id,),
+        """
+        SELECT * FROM agent_runs
+        WHERE id = ? AND user_id = ?
+        """,
+        (safe_run_id, user_id),
     ).fetchone()
 
 
@@ -269,9 +281,13 @@ def _require_active_user_message(
     session_id: int,
     user_message_id: int,
 ) -> None:
+    user_id = resolve_user_id(db)
     session = db.execute(
-        "SELECT * FROM chat_sessions WHERE id = ?",
-        (session_id,),
+        """
+        SELECT * FROM chat_sessions
+        WHERE id = ? AND user_id = ?
+        """,
+        (session_id, user_id),
     ).fetchone()
     if not session:
         raise ValueError("Chat session not found")
@@ -279,8 +295,11 @@ def _require_active_user_message(
         raise ValueError("Agent runs require an active chat session")
 
     message = db.execute(
-        "SELECT * FROM chat_messages WHERE id = ?",
-        (user_message_id,),
+        """
+        SELECT * FROM chat_messages
+        WHERE id = ? AND user_id = ?
+        """,
+        (user_message_id, user_id),
     ).fetchone()
     if not message:
         raise ValueError("Chat message not found")
@@ -337,6 +356,7 @@ def create_agent_run(
 ) -> AgentRunCreateResult:
     safe_session_id = _positive_id(session_id, "Chat session ID")
     safe_user_message_id = _positive_id(user_message_id, "User message ID")
+    safe_owner_id = resolve_user_id(db)
     clean_request_key = _normalize_request_key(request_key)
     clean_intent = _bounded_text(intent, "Intent", MAX_INTENT_LENGTH)
     clean_loop = (
@@ -368,9 +388,10 @@ def create_agent_run(
         cursor = db.execute(
             """
             INSERT INTO agent_runs
-                (session_id, user_message_id, request_key, intent, status,
+                (user_id, session_id, user_message_id, request_key, intent, status,
                  loop_selected, provider, model, started_at, created_at, updated_at)
-            SELECT session.id,
+            SELECT session.user_id,
+                   session.id,
                    message.id,
                    ?, ?, 'running', ?, ?, ?,
                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
@@ -378,6 +399,8 @@ def create_agent_run(
             JOIN chat_messages AS message
               ON message.id = ? AND message.session_id = session.id
             WHERE session.id = ?
+              AND session.user_id = ?
+              AND message.user_id = session.user_id
               AND session.status = 'active'
               AND message.role = 'user'
               AND message.deleted_at IS NULL
@@ -390,6 +413,7 @@ def create_agent_run(
                 clean_model,
                 safe_user_message_id,
                 safe_session_id,
+                safe_owner_id,
             ),
         )
     except sqlite3.IntegrityError:
@@ -428,8 +452,9 @@ def list_agent_runs(
     status: str | None = None,
     limit: int = DEFAULT_RUN_LIMIT,
 ) -> list[sqlite3.Row]:
-    conditions: list[str] = []
-    parameters: list[object] = []
+    safe_owner_id = resolve_user_id(db)
+    conditions: list[str] = ["user_id = ?"]
+    parameters: list[object] = [safe_owner_id]
 
     if session_id is not None:
         conditions.append("session_id = ?")
@@ -709,11 +734,12 @@ def append_agent_step(
             cursor = db.execute(
                 """
                 INSERT INTO agent_steps
-                    (run_id, step_number, step_key, step_type, name, status,
+                    (user_id, run_id, step_number, step_key, step_type, name, status,
                      tool_name, provider, model, input_tokens, output_tokens,
                      estimated_cost_microusd, error_code, error_message,
                      started_at, completed_at, created_at, updated_at)
-                SELECT r.id,
+                SELECT r.user_id,
+                       r.id,
                        COALESCE(MAX(s.step_number), 0) + 1,
                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,

@@ -23,6 +23,7 @@ MEMORY_COLUMNS = [
     "content_hash",
     "created_at",
     "updated_at",
+    "user_id",
 ]
 
 EXPECTED_MEMORY_INDEXES = {

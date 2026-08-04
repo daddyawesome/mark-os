@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Manage {{ managed_user.display_name }} · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">Settings // User Management</p>
+            <h1 class="title is-1 mb-2">{{ managed_user.display_name }}</h1>
+            <p class="subtitle is-5 mark-muted">
+                @{{ managed_user.username }} ·
+                {{ managed_user.role|replace('_', ' ')|title }}
+            </p>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-light" href="/settings/users">
+                ← Team Access
+            </a>
+        </div>
+    </div>
+</section>
+
+{% if message %}
+<div class="notification is-success is-light">{{ message }}</div>
+{% endif %}
+{% if error %}
+<div class="notification is-danger is-light">{{ error }}</div>
+{% endif %}
+
+<div class="columns">
+    <div class="column is-5">
+        <div class="mark-card p-5 mb-5">
+            <p class="mark-kicker">Account</p>
+            <h2 class="title is-4 mt-2">Access status</h2>
+
+            <div class="content mark-muted">
+                <p><strong>Role:</strong> {{ managed_user.role|replace('_', ' ')|title }}</p>
+                <p><strong>Status:</strong> {{ "Active" if managed_user.active else "Disabled" }}</p>
+                <p><strong>Last login:</strong> {{ managed_user.last_login_at or "Never" }}</p>
+                <p><strong>Created:</strong> {{ managed_user.created_at }}</p>
+                <p><strong>Active leads:</strong> {{ managed_user.active_lead_count }}</p>
+                <p><strong>Total leads:</strong> {{ managed_user.lead_count }}</p>
+            </div>
+
+            {% if managed_user.role == "owner" %}
+            <div class="notification is-mark">
+                Owner accounts cannot be deactivated from this page.
+            </div>
+            {% elif managed_user.active %}
+            <form method="post"
+                  action="/settings/users/{{ managed_user.id }}/status">
+                <input type="hidden" name="action" value="deactivate">
+                <button class="button is-danger is-outlined is-fullwidth"
+                        type="submit">
+                    Deactivate account
+                </button>
+            </form>
+            <p class="help mt-2">
+                Sessions will be revoked. Assigned leads will return to the owner.
+            </p>
+            {% else %}
+            <form method="post"
+                  action="/settings/users/{{ managed_user.id }}/status">
+                <input type="hidden" name="action" value="activate">
+                <button class="button is-success is-outlined is-fullwidth"
+                        type="submit">
+                    Reactivate account
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="column is-7">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Security</p>
+            <h2 class="title is-4 mt-2">Reset password</h2>
+            <p class="mark-muted mb-5">
+                The new password is never displayed again. All existing sessions
+                for this user are revoked after reset.
+            </p>
+
+            <form method="post"
+                  action="/settings/users/{{ managed_user.id }}/password"
+                  autocomplete="off">
+                <div class="field">
+                    <label class="label" for="password">New password</label>
+                    <div class="control">
+                        <input class="input"
+                               id="password"
+                               name="password"
+                               type="password"
+                               minlength="10"
+                               maxlength="200"
+                               autocomplete="new-password"
+                               required>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label"
+                           for="password_confirmation">Confirm password</label>
+                    <div class="control">
+                        <input class="input"
+                               id="password_confirmation"
+                               name="password_confirmation"
+                               type="password"
+                               minlength="10"
+                               maxlength="200"
+                               autocomplete="new-password"
+                               required>
+                    </div>
+                </div>
+
+                <button class="button is-mark is-fullwidth" type="submit">
+                    Reset password and revoke sessions
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

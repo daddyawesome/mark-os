@@ -15,10 +15,22 @@ from app.auth import (
     current_user,
     validate_auth_configuration,
 )
-from app.database import init_db
+from app.database import get_db, init_db
+from app.db.family_workspace import ensure_personal_workspace
 from app.routes import auth as auth_routes
-from app.routes import checkins, client_hunting, goals, pages, quests, users
-from app.services.access_control import can_access_request
+from app.routes import family, checkins, client_hunting, goals, pages, quests, users
+from app.services.access_control import (
+    can_access_request,
+    landing_path_for_user,
+)
+from app.services.security import (
+    apply_security_headers,
+    is_cross_site_unsafe_request,
+)
+from app.services.personal_scope import (
+    bind_request_user,
+    reset_request_user,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -38,7 +50,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="MARK OS",
-    version="0.3.0-client-hunting-mvp",
+    version="0.4.0-family-workspaces",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
@@ -75,7 +87,7 @@ async def login_and_permission_guard(request: Request, call_next):
     if not can_access_request(user, method, path):
         if method in {"GET", "HEAD"}:
             return RedirectResponse(
-                url="/crm?error=forbidden",
+                url=f"{landing_path_for_user(user)}?error=forbidden",
                 status_code=303,
             )
         return PlainTextResponse(
@@ -83,7 +95,28 @@ async def login_and_permission_guard(request: Request, call_next):
             status_code=403,
         )
 
-    return await call_next(request)
+    if user["role"] in {"owner", "member"}:
+        with get_db() as db:
+            ensure_personal_workspace(db, int(user["id"]))
+
+    token = bind_request_user(user["id"])
+    try:
+        return await call_next(request)
+    finally:
+        reset_request_user(token)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    if is_cross_site_unsafe_request(request):
+        response = PlainTextResponse("Forbidden", status_code=403)
+    else:
+        response = await call_next(request)
+    return apply_security_headers(
+        response,
+        secure_transport=IS_RAILWAY,
+        cache_private_content=request.url.path.startswith("/static/"),
+    )
 
 
 # SessionMiddleware is added after the guard so it wraps the guard and makes
@@ -92,12 +125,13 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
     session_cookie="mark_os_session",
-    max_age=60 * 60 * 24 * 30,
+    max_age=60 * 60 * 24 * 7,
     same_site="lax",
     https_only=IS_RAILWAY,
 )
 
 app.include_router(auth_routes.router)
+app.include_router(family.router)
 app.include_router(checkins.router)
 app.include_router(quests.router)
 app.include_router(goals.router)

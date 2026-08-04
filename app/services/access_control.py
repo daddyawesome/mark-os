@@ -6,9 +6,24 @@ from typing import Any
 
 
 OWNER_ROLE = "owner"
+MEMBER_ROLE = "member"
 LEAD_SOURCER_ROLE = "lead_sourcer"
 
 _LEAD_DETAIL_PATTERN = re.compile(r"^/crm/leads/[1-9][0-9]*$")
+_QUEST_DETAIL_PATTERN = re.compile(r"^/quests/[1-9][0-9]*$")
+_HISTORY_EDIT_PATTERN = re.compile(
+    r"^/history/[1-9][0-9]*/edit$"
+)
+_HISTORY_DELETE_PATTERN = re.compile(
+    r"^/history/[1-9][0-9]*/delete$"
+)
+_PROJECT_LINK_PATTERN = re.compile(
+    r"^/projects/[1-9][0-9]*/link-goal$"
+)
+_QUEST_ACTION_PATTERN = re.compile(
+    r"^/quests/[1-9][0-9]*/"
+    r"(?:start|block|unblock|abandon|update|complete)$"
+)
 
 _LEAD_SOURCER_GET_PATHS = frozenset(
     {
@@ -26,6 +41,26 @@ _LEAD_SOURCER_POST_PATHS = frozenset(
     }
 )
 
+_MEMBER_GET_PATHS = frozenset(
+    {
+        "/",
+        "/quests",
+        "/goals",
+        "/life-os",
+        "/history",
+        "/family/setup",
+    }
+)
+
+_MEMBER_POST_PATHS = frozenset(
+    {
+        "/check-in",
+        "/goals",
+        "/quests",
+        "/logout",
+    }
+)
+
 
 def role_of(user: Mapping[str, Any] | None) -> str:
     if user is None:
@@ -37,12 +72,40 @@ def is_owner(user: Mapping[str, Any] | None) -> bool:
     return role_of(user) == OWNER_ROLE
 
 
+def is_member(user: Mapping[str, Any] | None) -> bool:
+    return role_of(user) == MEMBER_ROLE
+
+
 def is_lead_sourcer(user: Mapping[str, Any] | None) -> bool:
     return role_of(user) == LEAD_SOURCER_ROLE
 
 
+def is_personal_user(user: Mapping[str, Any] | None) -> bool:
+    return role_of(user) in {OWNER_ROLE, MEMBER_ROLE}
+
+
 def landing_path_for_user(user: Mapping[str, Any]) -> str:
-    return "/" if is_owner(user) else "/crm"
+    if is_personal_user(user):
+        return "/"
+    return "/crm"
+
+
+def _member_can_get(path: str) -> bool:
+    return (
+        path in _MEMBER_GET_PATHS
+        or _QUEST_DETAIL_PATTERN.fullmatch(path) is not None
+        or _HISTORY_EDIT_PATTERN.fullmatch(path) is not None
+    )
+
+
+def _member_can_post(path: str) -> bool:
+    return (
+        path in _MEMBER_POST_PATHS
+        or _HISTORY_EDIT_PATTERN.fullmatch(path) is not None
+        or _HISTORY_DELETE_PATTERN.fullmatch(path) is not None
+        or _PROJECT_LINK_PATTERN.fullmatch(path) is not None
+        or _QUEST_ACTION_PATTERN.fullmatch(path) is not None
+    )
 
 
 def can_access_request(
@@ -50,20 +113,26 @@ def can_access_request(
     method: str,
     path: str,
 ) -> bool:
-    """Return whether an authenticated user may access one request.
+    """Authorize the final M10 role surfaces.
 
-    Owners retain full MARK-OS access. Lead sourcers receive the smallest
-    useful CRM surface: dashboard, add/import, template download, and read-only
-    lead detail pages.
+    Owners retain the complete application. Members receive only their private
+    personal OS. Lead sourcers keep the narrow CRM-only capability from M3-M7.
     """
     if is_owner(user):
         return True
 
-    if not is_lead_sourcer(user):
-        return False
-
     normalized_method = (method or "").upper()
     normalized_path = path or "/"
+
+    if is_member(user):
+        if normalized_method in {"GET", "HEAD"}:
+            return _member_can_get(normalized_path)
+        if normalized_method == "POST":
+            return _member_can_post(normalized_path)
+        return False
+
+    if not is_lead_sourcer(user):
+        return False
 
     if normalized_method in {"GET", "HEAD"}:
         return (
@@ -81,7 +150,6 @@ def permitted_destination(
     user: Mapping[str, Any],
     destination: str,
 ) -> str:
-    """Keep login redirects inside the user's authorized area."""
     if can_access_request(user, "GET", destination):
         return destination
     return landing_path_for_user(user)
