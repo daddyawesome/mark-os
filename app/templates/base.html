@@ -163,7 +163,7 @@
 <div class="mark-shell">
     <nav class="navbar mark-nav is-fixed-top" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
-            <a class="navbar-item has-text-weight-bold" href="/">
+            <a class="navbar-item has-text-weight-bold" href="{{ '/' if request.state.current_user and request.state.current_user.role == 'owner' else '/crm' }}">
                 <span class="mark-brand-orb">M</span>
                 <span>MARK OS <span class="mark-muted">v0.3.0-client-hunting-mvp</span></span>
             </a>
@@ -173,15 +173,27 @@
         </div>
         <div id="markNavbar" class="navbar-menu">
             <div class="navbar-start">
+                {% if request.state.current_user and request.state.current_user.role == 'owner' %}
                 <a class="navbar-item {% if request.url.path == '/' %}is-active{% endif %}" href="/">Today</a>
                 <a class="navbar-item {% if request.url.path.startswith('/quests') %}is-active{% endif %}" href="/quests">Quests</a>
                 <a class="navbar-item {% if request.url.path.startswith('/goals') %}is-active{% endif %}" href="/goals">Goals</a>
                 <a class="navbar-item {% if request.url.path.startswith('/crm') %}is-active{% endif %}" href="/crm">Client Hunting</a>
                 <a class="navbar-item {% if request.url.path == '/life-os' %}is-active{% endif %}" href="/life-os">Life OS</a>
                 <a class="navbar-item {% if request.url.path == '/history' %}is-active{% endif %}" href="/history">History</a>
+                {% elif request.state.current_user %}
+                <a class="navbar-item is-active" href="/crm">Client Hunting</a>
+                {% endif %}
             </div>
             <div class="navbar-end">
-                {% if system_state %}
+                {% if request.state.current_user %}
+                <div class="navbar-item">
+                    <span class="mark-chip">
+                        {{ request.state.current_user.display_name }}
+                        · {{ request.state.current_user.role|replace('_', ' ')|upper }}
+                    </span>
+                </div>
+                {% endif %}
+                {% if system_state and request.state.current_user and request.state.current_user.role == 'owner' %}
                 <div class="navbar-item">
                     <span class="mark-chip">LEVEL {{ system_state.level }} · {{ system_state.xp_total or 0 }} XP</span>
                 </div>

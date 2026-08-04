@@ -6,12 +6,16 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.auth import (
     authenticate_credentials,
     credentials_configured,
-    is_authenticated,
+    current_user,
     safe_next_path,
     sign_in,
     sign_out,
 )
 from app.routes.shared import templates
+from app.services.access_control import (
+    landing_path_for_user,
+    permitted_destination,
+)
 
 
 router = APIRouter()
@@ -19,8 +23,12 @@ router = APIRouter()
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: str = "/"):
-    if is_authenticated(request):
-        return RedirectResponse(url="/", status_code=303)
+    user = current_user(request)
+    if user is not None:
+        return RedirectResponse(
+            url=landing_path_for_user(user),
+            status_code=303,
+        )
 
     return templates.TemplateResponse(
         request=request,
@@ -40,19 +48,22 @@ def login_submit(
     password: str = Form(...),
     next: str = Form(default="/"),
 ):
-    destination = safe_next_path(next)
+    requested_destination = safe_next_path(next)
     user = authenticate_credentials(username.strip(), password)
 
     if user is not None:
         sign_in(request, user)
-        return RedirectResponse(url=destination, status_code=303)
+        return RedirectResponse(
+            url=permitted_destination(user, requested_destination),
+            status_code=303,
+        )
 
     configured = credentials_configured()
     return templates.TemplateResponse(
         request=request,
         name="login.html",
         context={
-            "next": destination,
+            "next": requested_destination,
             "error": (
                 "Login is not configured yet. Restart MARK OS with "
                 "MARK_OS_PASSWORD set so the owner account can be created."

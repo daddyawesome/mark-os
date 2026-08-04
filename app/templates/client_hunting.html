@@ -22,6 +22,11 @@
 
 {% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
 {% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+{% if current_user and current_user.role == 'lead_sourcer' %}
+<div class="notification is-mark">
+    Lead Sourcer access: you can add, import, and review leads. Mark handles editing, contact actions, pipeline movement, and archiving.
+</div>
+{% endif %}
 
 <div class="columns is-multiline mb-5">
     {% for metric in metric_cards %}
@@ -54,7 +59,7 @@
                     <th>Status</th>
                     <th>Priority</th>
                     <th>Next action</th>
-                    <th>Quest</th>
+                    {% if can_manage_crm %}<th>Quest</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -70,11 +75,13 @@
                         {{ lead.next_action }}
                         {% if lead.next_action_due_date %}<br><span class="mark-muted is-size-7">Due {{ lead.next_action_due_date }}</span>{% endif %}
                     </td>
+                    {% if can_manage_crm %}
                     <td><a href="/quests/{{ lead.quest_id }}">Quest #{{ lead.quest_id }}</a></td>
+                    {% endif %}
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" class="has-text-centered mark-muted p-6">
+                    <td colspan="{{ 5 if can_manage_crm else 4 }}" class="has-text-centered mark-muted p-6">
                         No leads yet. Use Add Leads to create one manually or import a CSV.
                     </td>
                 </tr>

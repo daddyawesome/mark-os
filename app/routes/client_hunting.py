@@ -16,6 +16,7 @@ from app.services.lead_csv_import import (
     import_leads_from_csv,
     lead_csv_template_bytes,
 )
+from app.services.access_control import is_lead_sourcer, is_owner
 from app.services.leads import (
     PIPELINE_STATUSES,
     PRIORITIES,
@@ -58,6 +59,7 @@ NOTICE_MESSAGES = {
 ERROR_MESSAGES = {
     "invalid": "The lead could not be saved. Check the required fields and allowed values.",
     "confirmation": 'Type DELETE exactly to archive this lead.',
+    "forbidden": "Your account can add and review leads, but only the owner can edit pipeline actions or private MARK-OS data.",
 }
 METRIC_DEFINITIONS = (
     ("Total leads", "total_leads"),
@@ -82,11 +84,15 @@ def _lead_or_404(db, lead_id: int):
     return lead
 
 
-def _shared_context(db) -> dict:
+def _shared_context(db, request: Request) -> dict:
+    user = request.state.current_user
+    owner = is_owner(user)
     return {
         "pipeline_options": PIPELINE_OPTIONS,
         "priority_options": PRIORITY_OPTIONS,
-        "system_state": load_system_state(db),
+        "system_state": load_system_state(db) if owner else None,
+        "current_user": user,
+        "can_manage_crm": owner,
     }
 
 
@@ -106,7 +112,7 @@ def _add_leads_context(
         "csv_headers": CSV_HEADERS,
         "max_csv_rows": MAX_CSV_ROWS,
         "max_csv_size_mb": MAX_CSV_BYTES // 1_000_000,
-        **_shared_context(db),
+        **_shared_context(db, request),
     }
 
 
@@ -122,7 +128,7 @@ def crm_dashboard(request: Request):
             ],
             "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
-            **_shared_context(db),
+            **_shared_context(db, request),
         }
     return templates.TemplateResponse(
         request=request,
@@ -185,7 +191,15 @@ async def import_leads_csv(
     with get_db() as db:
         if import_error is None:
             try:
-                import_result = import_leads_from_csv(db, content)
+                import_result = import_leads_from_csv(
+                    db,
+                    content,
+                    pipeline_status_override=(
+                        "new"
+                        if is_lead_sourcer(request.state.current_user)
+                        else None
+                    ),
+                )
             except LeadCsvImportError as exc:
                 import_error = str(exc)
 
@@ -206,6 +220,7 @@ async def import_leads_csv(
 
 @router.post("/leads")
 def create_lead(
+    request: Request,
     company: str = Form(...),
     contact_person: str = Form(...),
     source: str = Form(...),
@@ -231,7 +246,11 @@ def create_lead(
                 source_url=source_url,
                 problem_opportunity=problem_opportunity,
                 why_mark_fits=why_mark_fits,
-                pipeline_status=pipeline_status,
+                pipeline_status=(
+                    "new"
+                    if is_lead_sourcer(request.state.current_user)
+                    else pipeline_status
+                ),
                 priority=priority,
                 next_action=next_action,
                 next_action_due_date=next_action_due_date or None,
@@ -258,7 +277,7 @@ def lead_detail(request: Request, lead_id: int):
             "lead": lead,
             "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
-            **_shared_context(db),
+            **_shared_context(db, request),
         }
     return templates.TemplateResponse(
         request=request,
@@ -274,7 +293,7 @@ def edit_lead_page(request: Request, lead_id: int):
         context = {
             "lead": lead,
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
-            **_shared_context(db),
+            **_shared_context(db, request),
         }
     return templates.TemplateResponse(
         request=request,
@@ -383,7 +402,7 @@ def update_next_action(
 def delete_lead_page(request: Request, lead_id: int):
     with get_db() as db:
         lead = _lead_or_404(db, lead_id)
-        context = {"lead": lead, "error": None, **_shared_context(db)}
+        context = {"lead": lead, "error": None, **_shared_context(db, request)}
 
     return templates.TemplateResponse(
         request=request,
@@ -407,7 +426,7 @@ def delete_lead(
                 context={
                     "lead": lead,
                     "error": ERROR_MESSAGES["confirmation"],
-                    **_shared_context(db),
+                    **_shared_context(db, request),
                 },
                 status_code=400,
             )

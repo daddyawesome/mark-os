@@ -48,6 +48,7 @@
     <div class="column is-half">
         <div class="field">
             <label class="label" for="pipeline_status">Pipeline status</label>
+            {% if can_manage_crm is not defined or can_manage_crm %}
             <div class="select is-fullwidth">
                 <select id="pipeline_status" name="pipeline_status">
                     {% for value, label in pipeline_options %}
@@ -55,6 +56,10 @@
                     {% endfor %}
                 </select>
             </div>
+            {% else %}
+            <input type="hidden" name="pipeline_status" value="new">
+            <input class="input" type="text" value="New — pending owner review" disabled>
+            {% endif %}
         </div>
     </div>
     <div class="column is-half">
