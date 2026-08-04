@@ -12,6 +12,7 @@ from starlette.routing import Mount
 import app.auth as auth
 from app import database
 from app.main import app
+from app.services.passwords import hash_password
 
 
 EXPECTED_ROUTES = [
@@ -124,8 +125,28 @@ def _header_values(headers, name: bytes) -> list[bytes]:
 
 
 def _login_cookie(monkeypatch) -> tuple[bytes, bytes]:
-    monkeypatch.setattr(auth, "USERNAME", "test-user")
-    monkeypatch.setattr(auth, "PASSWORD", "test-password")
+    database.init_db()
+    with database.get_db() as db:
+        db.execute("DELETE FROM users WHERE username = ?", ("test-user",))
+        db.execute(
+            """
+            INSERT INTO users (
+                username,
+                display_name,
+                password_hash,
+                role,
+                active,
+                must_change_password
+            )
+            VALUES (?, ?, ?, 'owner', 1, 0)
+            """,
+            (
+                "test-user",
+                "Test User",
+                hash_password("test-password"),
+            ),
+        )
+
     body = urlencode(
         {
             "username": "test-user",
@@ -281,7 +302,8 @@ def test_public_health_static_and_protected_home_behavior():
     assert static_status == 200
 
 
-def test_login_cookie_round_trip(monkeypatch):
+def test_login_cookie_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "login-cookie.db")
     cookie, set_cookie = _login_cookie(monkeypatch)
     authenticated_status, authenticated_headers, _ = asyncio.run(
         _request("/login", headers=[(b"cookie", cookie)])
