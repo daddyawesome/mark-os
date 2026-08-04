@@ -53,6 +53,12 @@ EXPECTED_ROUTES = [
     ("GET", "/settings/users/new", "new_user_page"),
     ("POST", "/settings/users/new", "create_user"),
     ("GET", "/health", "health"),
+    ("GET", "/family/setup", "family_setup"),
+    ("GET", "/settings/users", "users_page"),
+    ("GET", "/settings/users/", "users_page"),
+    ("GET", "/settings/users/{user_id}", "manage_user_page"),
+    ("POST", "/settings/users/{user_id}/status", "update_user_status"),
+    ("POST", "/settings/users/{user_id}/password", "update_user_password"),
 ]
 
 
@@ -282,7 +288,7 @@ def test_all_routes_and_static_mount_are_preserved():
         isinstance(route, Mount) and route.path == "/static" and route.name == "static"
         for route in app.routes
     )
-    assert app.version == "0.3.0-client-hunting-mvp"
+    assert app.version == "0.4.0-family-workspaces"
 
 
 def test_windows_helper_loads_local_env_when_present():
@@ -317,7 +323,7 @@ def test_login_cookie_round_trip(tmp_path, monkeypatch):
     assert normalized_cookie.startswith(b"mark_os_session=")
     assert b"httponly" in normalized_cookie
     assert b"samesite=lax" in normalized_cookie
-    assert b"max-age=2592000" in normalized_cookie
+    assert b"max-age=604800" in normalized_cookie
 
 
 def test_authenticated_pages_render_with_temporary_database(
@@ -328,10 +334,44 @@ def test_authenticated_pages_render_with_temporary_database(
     database.init_db()
     cookie, _ = _login_cookie(monkeypatch)
 
+    # M9 quest details are private to their owning user. Create one
+    # quest for the authenticated owner instead of using global ID 1.
+    with database.get_db() as db:
+        owner_id = db.execute(
+            """
+            SELECT id
+            FROM users
+            WHERE role = 'owner' AND active = 1
+            ORDER BY id
+            LIMIT 1
+            """
+        ).fetchone()[0]
+        quest_id = db.execute(
+            """
+            INSERT INTO tasks (
+                user_id,
+                title,
+                description,
+                status,
+                quest_source,
+                why
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                owner_id,
+                "Application route fixture",
+                "Owned quest used to verify the detail page.",
+                "backlog",
+                "manual",
+                "M9 route isolation test.",
+            ),
+        ).lastrowid
+
     for target in (
         "/",
         "/quests",
-        "/quests/1",
+        f"/quests/{quest_id}",
         "/goals",
         "/crm",
         "/crm/leads/new",

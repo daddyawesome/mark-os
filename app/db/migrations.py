@@ -2,7 +2,19 @@ from __future__ import annotations
 
 import sqlite3
 
-from app.db import agent_audit, chat, checkins, goals, leads, memory, quests, users
+from app.db import (
+    agent_audit,
+    chat,
+    checkins,
+    family_ownership,
+    family_workspace,
+    goals,
+    leads,
+    memory,
+    quests,
+    users,
+)
+from app.db import family_integrity
 
 
 # Keep table creation and ordinary-index creation in the same two executescript
@@ -37,6 +49,7 @@ INDEX_SQL = "\n".join(
 
 def initialize_database(db: sqlite3.Connection) -> None:
     """Create, migrate, validate, and seed every persistent domain."""
+    family_integrity.drop_triggers(db)
     db.executescript(SCHEMA_SQL)
 
     chat.validate_schema(db)
@@ -44,7 +57,10 @@ def initialize_database(db: sqlite3.Connection) -> None:
     leads.migrate_request_fingerprint(db)
     leads.migrate_ownership(db)
     leads.validate_schema(db)
+    users.migrate(db)
+    users.migrate_family_roles(db)
     users.validate_schema(db)
+    users.bootstrap_owner_from_environment(db)
 
     # Safe additive migrations for already-live SQLite databases.
     quests.migrate_game_state(db)
@@ -52,6 +68,8 @@ def initialize_database(db: sqlite3.Connection) -> None:
     quests.migrate_quest_tables(db)
     checkins.migrate(db)
     memory.migrate(db)
+    family_ownership.migrate(db)
+    family_ownership.create_indexes(db)
 
     # Ordinary indexes must be created only after legacy columns exist.
     db.executescript(INDEX_SQL)
@@ -70,4 +88,10 @@ def initialize_database(db: sqlite3.Connection) -> None:
     goals.seed(db)
     quests.seed(db)
     memory.seed(db)
-    users.bootstrap_owner_from_environment(db)
+    family_ownership.backfill_owner(db)
+    family_workspace.migrate(db)
+    family_workspace.ensure_all_workspaces(db)
+    family_ownership.validate(db)
+    family_workspace.validate(db)
+    family_integrity.create_triggers(db)
+    family_integrity.validate_triggers(db)

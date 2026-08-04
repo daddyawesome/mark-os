@@ -114,6 +114,32 @@ def make_db():
         VALUES ('Test quest', 'backlog', 60, 'hard', 50, 0)
         """
     )
+    # M9_TEST_OWNERSHIP_TABLES
+    for table_name in (
+        "tasks",
+        "quest_updates",
+        "xp_ledger",
+        "game_state",
+        "timeline_events",
+        "game_history",
+    ):
+        columns = {
+            row["name"]
+            for row in db.execute(
+                f"PRAGMA table_info({table_name})"
+            ).fetchall()
+        }
+        if "user_id" not in columns:
+            db.execute(
+                f"ALTER TABLE {table_name} "
+                "ADD COLUMN user_id INTEGER"
+            )
+        db.execute(
+            f"UPDATE {table_name} "
+            "SET user_id = 0 "
+            "WHERE user_id IS NULL"
+        )
+
     return db, cur.lastrowid
 
 

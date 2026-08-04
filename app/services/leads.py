@@ -411,6 +411,40 @@ def _existing_create_result(
     return None
 
 
+def _crm_quest_owner_id(
+    db: sqlite3.Connection,
+    preferred_user_id: int | None,
+) -> int | None:
+    if preferred_user_id is not None:
+        preferred = db.execute(
+            """
+            SELECT id
+            FROM users
+            WHERE id = ?
+              AND role = 'owner'
+              AND active = 1
+            """,
+            (preferred_user_id,),
+        ).fetchone()
+        if preferred is not None:
+            return int(preferred["id"])
+
+    owner = db.execute(
+        """
+        SELECT id
+        FROM users
+        WHERE role = 'owner' AND active = 1
+        ORDER BY id
+        LIMIT 1
+        """
+    ).fetchone()
+    if owner is None:
+        # Ownerless legacy/test databases use the temporary ownership
+        # marker 0. M8 backfills this to the real owner later.
+        return 0
+    return int(owner["id"])
+
+
 def _quest_title(values: dict[str, str | None]) -> str:
     return f"Client: {values['company']} — {values['next_action']}"
 
@@ -424,21 +458,27 @@ def _quest_description(values: dict[str, str | None]) -> str:
     )
 
 
-def _insert_quest(db: sqlite3.Connection, values: dict[str, str | None]) -> sqlite3.Row:
+def _insert_quest(
+    db: sqlite3.Connection,
+    values: dict[str, str | None],
+    *,
+    user_id: int | None,
+) -> sqlite3.Row:
     task_status, progress = PIPELINE_QUEST_STATE[str(values["pipeline_status"])]
     cursor = db.execute(
         """
         INSERT INTO tasks
-            (title, description, status, priority, energy_required, due_date,
+            (user_id, title, description, status, priority, energy_required, due_date,
              difficulty, xp_reward, progress, quest_source, why,
              started_at, completed_at, updated_at)
         VALUES
-            (?, ?, ?, ?, 3, ?, 'normal', 0, ?, 'client_hunting', ?,
+            (?, ?, ?, ?, ?, 3, ?, 'normal', 0, ?, 'client_hunting', ?,
              CASE WHEN ? IN ('active', 'closed') THEN CURRENT_TIMESTAMP END,
              NULL,
              CURRENT_TIMESTAMP)
         """,
         (
+            user_id,
             _quest_title(values),
             _quest_description(values),
             task_status,
@@ -462,10 +502,18 @@ def _record_quest_update(
 ) -> None:
     db.execute(
         """
-        INSERT INTO quest_updates (task_id, note, progress, event_type)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO quest_updates (
+            user_id,
+            task_id,
+            note,
+            progress,
+            event_type
+        )
+        SELECT user_id, id, ?, ?, ?
+        FROM tasks
+        WHERE id = ?
         """,
-        (quest_id, note.strip(), progress, event_type),
+        (note.strip(), progress, event_type, quest_id),
     )
 
 
@@ -523,7 +571,15 @@ def create_lead(
             )
             if duplicate:
                 return duplicate
-            quest = _insert_quest(db, values)
+            quest_owner_id = _crm_quest_owner_id(
+                db,
+                safe_assignee_id,
+            )
+            quest = _insert_quest(
+                db,
+                values,
+                user_id=quest_owner_id,
+            )
             cursor = db.execute(
                 """
                 INSERT INTO leads

@@ -62,7 +62,6 @@ def seed(db: sqlite3.Connection) -> None:
             "Finding qualified clients and turning skills into consistent revenue",
         ),
     )
-
     seed_goals = [
         ("Reach USD 10,000/month in business income", "wealth", 10),
         ("Build a business with a team", "business", 9),
@@ -79,18 +78,51 @@ def seed(db: sqlite3.Connection) -> None:
             (title, category, priority, title),
         )
 
-    db.execute(
+    owner = db.execute(
         """
-        INSERT OR IGNORE INTO projects
-        (name, purpose, status, priority, progress, next_action)
-        VALUES (?, ?, 'active', ?, ?, ?)
-        """,
-        (
-            "MARK OS v0.1",
-            "Build a personal operating system that observes current reality and gives "
-            "the highest-leverage next action.",
-            10,
-            10,
-            "Finish the revised Quest Engine, then add budget-safe AI chat.",
-        ),
+        SELECT id
+        FROM users
+        WHERE role = 'owner'
+        ORDER BY active DESC, id
+        LIMIT 1
+        """
+    ).fetchone()
+    project_columns = {
+        row["name"]
+        for row in db.execute("PRAGMA table_info(projects)").fetchall()
+    }
+    project_values = (
+        "MARK OS v0.1",
+        "Build a personal operating system that observes current reality and gives "
+        "the highest-leverage next action.",
+        10,
+        10,
+        "Finish the revised Quest Engine, then add budget-safe AI chat.",
     )
+    if owner is not None and "user_id" in project_columns:
+        owner_id = int(owner["id"])
+        db.execute(
+            """
+            INSERT INTO projects
+                (user_id, name, purpose, status, priority, progress, next_action)
+            SELECT ?, ?, ?, 'active', ?, ?, ?
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM projects
+                WHERE user_id = ? AND name = ?
+            )
+            """,
+            (owner_id, *project_values, owner_id, project_values[0]),
+        )
+    else:
+        db.execute(
+            """
+            INSERT INTO projects
+                (name, purpose, status, priority, progress, next_action)
+            SELECT ?, ?, 'active', ?, ?, ?
+            WHERE NOT EXISTS (
+                SELECT 1 FROM projects WHERE name = ?
+            )
+            """,
+            (*project_values, project_values[0]),
+        )

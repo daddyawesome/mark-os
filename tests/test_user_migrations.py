@@ -18,6 +18,7 @@ USER_COLUMNS = {
     "role",
     "active",
     "must_change_password",
+    "session_version",
     "last_login_at",
     "created_at",
     "updated_at",
@@ -72,6 +73,7 @@ def test_fresh_database_bootstraps_one_owner_without_plaintext_password(
     assert owner["role"] == "owner"
     assert owner["active"] == 1
     assert owner["must_change_password"] == 0
+    assert owner["session_version"] == 1
     assert owner["password_hash"] != "temporary-owner-password"
     assert "temporary-owner-password" not in owner["password_hash"]
     assert verify_password(
@@ -232,6 +234,11 @@ def test_user_bootstrap_does_not_change_existing_crm_or_quest_rows(
             "SELECT COUNT(*) FROM users WHERE role = 'owner'"
         ).fetchone()[0]
 
-    assert after_quest == before_quest
+    # M8 adds user_id during the first ownerless startup. The original
+    # quest fields must remain unchanged, while ownership changes from
+    # NULL to the newly bootstrapped owner.
+    assert after_quest[:-1] == before_quest[:-1]
+    assert before_quest[-1] is None
+    assert after_quest[-1] is not None
     assert after_lead == before_lead
     assert owner_count == 1

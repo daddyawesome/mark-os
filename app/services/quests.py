@@ -5,8 +5,16 @@ import sqlite3
 from dataclasses import dataclass
 
 from app.services.gamification import apply_xp
+from app.services.personal_scope import resolve_user_id
 
-VALID_QUEST_STATUSES = {"backlog", "active", "blocked", "completed", "abandoned"}
+
+VALID_QUEST_STATUSES = {
+    "backlog",
+    "active",
+    "blocked",
+    "completed",
+    "abandoned",
+}
 
 
 @dataclass(frozen=True)
@@ -20,7 +28,11 @@ class QuestCompletionResult:
     duplicate_award: bool = False
 
 
-def clamp_progress(value: int | None, *, complete_allowed: bool = False) -> int:
+def clamp_progress(
+    value: int | None,
+    *,
+    complete_allowed: bool = False,
+) -> int:
     upper = 100 if complete_allowed else 99
     try:
         number = int(value if value is not None else 0)
@@ -41,23 +53,43 @@ def normalize_minutes(value: int | None) -> int | None:
 
 def normalize_status(value: str) -> str:
     status = (value or "backlog").strip().lower()
-    return status if status in VALID_QUEST_STATUSES else "backlog"
+    return (
+        status
+        if status in VALID_QUEST_STATUSES
+        else "backlog"
+    )
 
 
-def _require_core_quest_mutation(quest: sqlite3.Row) -> None:
-    """Keep CRM-linked quests canonical to the lead service, even for API callers."""
+def _require_core_quest_mutation(
+    quest: sqlite3.Row,
+) -> None:
     if quest["quest_source"] == "client_hunting":
-        raise ValueError("Client Hunting quests must be managed through the CRM")
+        raise ValueError(
+            "Client Hunting quests must be managed through the CRM"
+        )
 
 
-def _total_minutes(db: sqlite3.Connection, quest_id: int) -> int:
+def _total_minutes(
+    db: sqlite3.Connection,
+    quest_id: int,
+    user_id: int,
+) -> int:
     row = db.execute(
         """
-        SELECT COALESCE(SUM(COALESCE(session_minutes, actual_minutes, 0)), 0) AS total
+        SELECT COALESCE(
+            SUM(
+                COALESCE(
+                    session_minutes,
+                    actual_minutes,
+                    0
+                )
+            ),
+            0
+        ) AS total
         FROM quest_updates
-        WHERE task_id = ?
+        WHERE task_id = ? AND user_id = ?
         """,
-        (quest_id,),
+        (quest_id, user_id),
     ).fetchone()
     return int(row["total"] if row else 0)
 
@@ -71,15 +103,37 @@ def record_quest_update(
     progress: int | None = None,
     session_minutes: int | None = None,
     blocker_reason: str = "",
+    user_id: int | None = None,
 ) -> None:
+    safe_user_id = resolve_user_id(db, user_id)
+    task = db.execute(
+        """
+        SELECT id
+        FROM tasks
+        WHERE id = ? AND user_id = ?
+        """,
+        (quest_id, safe_user_id),
+    ).fetchone()
+    if task is None:
+        raise ValueError("Quest not found")
+
     safe_minutes = normalize_minutes(session_minutes)
     db.execute(
         """
-        INSERT INTO quest_updates
-        (task_id, note, progress, actual_minutes, session_minutes, blocker_reason, event_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO quest_updates (
+            user_id,
+            task_id,
+            note,
+            progress,
+            actual_minutes,
+            session_minutes,
+            blocker_reason,
+            event_type
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            safe_user_id,
             quest_id,
             note.strip(),
             progress,
@@ -98,12 +152,24 @@ def set_quest_status(
     status: str,
     note: str = "",
     blocker_reason: str = "",
+    user_id: int | None = None,
 ) -> None:
+    safe_user_id = resolve_user_id(db, user_id)
     safe_status = normalize_status(status)
-    quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
+
+    quest = db.execute(
+        """
+        SELECT *
+        FROM tasks
+        WHERE id = ? AND user_id = ?
+        """,
+        (quest_id, safe_user_id),
+    ).fetchone()
     if not quest:
         raise ValueError("Quest not found")
+
     _require_core_quest_mutation(quest)
+
     if quest["status"] == "completed":
         return
 
@@ -113,30 +179,42 @@ def set_quest_status(
             UPDATE tasks
             SET status = 'active',
                 blocked_reason = '',
-                started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+                started_at = COALESCE(
+                    started_at,
+                    CURRENT_TIMESTAMP
+                ),
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = ? AND user_id = ?
             """,
-            (quest_id,),
+            (quest_id, safe_user_id),
         )
         record_quest_update(
             db,
             quest_id=quest_id,
-            event_type="started" if not quest["started_at"] else "unblocked",
+            event_type=(
+                "started"
+                if not quest["started_at"]
+                else "unblocked"
+            ),
             note=note or "Quest started.",
             progress=quest["progress"],
+            user_id=safe_user_id,
         )
     elif safe_status == "blocked":
-        reason = blocker_reason.strip() or note.strip() or "Blocked."
+        reason = (
+            blocker_reason.strip()
+            or note.strip()
+            or "Blocked."
+        )
         db.execute(
             """
             UPDATE tasks
             SET status = 'blocked',
                 blocked_reason = ?,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = ? AND user_id = ?
             """,
-            (reason, quest_id),
+            (reason, quest_id, safe_user_id),
         )
         record_quest_update(
             db,
@@ -145,15 +223,17 @@ def set_quest_status(
             note=note or reason,
             progress=quest["progress"],
             blocker_reason=reason,
+            user_id=safe_user_id,
         )
     elif safe_status == "abandoned":
         db.execute(
             """
             UPDATE tasks
-            SET status = 'abandoned', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            SET status = 'abandoned',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND user_id = ?
             """,
-            (quest_id,),
+            (quest_id, safe_user_id),
         )
         record_quest_update(
             db,
@@ -161,6 +241,7 @@ def set_quest_status(
             event_type="abandoned",
             note=note or "Quest abandoned.",
             progress=quest["progress"],
+            user_id=safe_user_id,
         )
 
 
@@ -171,27 +252,57 @@ def update_quest_progress(
     note: str,
     progress: int,
     session_minutes: int | None = None,
+    user_id: int | None = None,
 ) -> int:
-    safe_progress = clamp_progress(progress, complete_allowed=False)
+    safe_user_id = resolve_user_id(db, user_id)
+    safe_progress = clamp_progress(
+        progress,
+        complete_allowed=False,
+    )
     safe_minutes = normalize_minutes(session_minutes)
-    quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
+
+    quest = db.execute(
+        """
+        SELECT *
+        FROM tasks
+        WHERE id = ? AND user_id = ?
+        """,
+        (quest_id, safe_user_id),
+    ).fetchone()
     if not quest:
         raise ValueError("Quest not found")
+
     _require_core_quest_mutation(quest)
+
     if quest["status"] == "completed":
         return int(quest["progress"] or 100)
 
     db.execute(
         """
         UPDATE tasks
-        SET status = CASE WHEN status = 'blocked' THEN status ELSE 'active' END,
+        SET status = CASE
+                WHEN status = 'blocked'
+                    THEN status
+                ELSE 'active'
+            END,
             progress = ?,
-            actual_minutes = COALESCE(actual_minutes, 0) + COALESCE(?, 0),
-            started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+            actual_minutes = (
+                COALESCE(actual_minutes, 0)
+                + COALESCE(?, 0)
+            ),
+            started_at = COALESCE(
+                started_at,
+                CURRENT_TIMESTAMP
+            ),
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = ? AND user_id = ?
         """,
-        (safe_progress, safe_minutes, quest_id),
+        (
+            safe_progress,
+            safe_minutes,
+            quest_id,
+            safe_user_id,
+        ),
     )
     record_quest_update(
         db,
@@ -200,6 +311,7 @@ def update_quest_progress(
         note=note,
         progress=safe_progress,
         session_minutes=safe_minutes,
+        user_id=safe_user_id,
     )
     return safe_progress
 
@@ -211,32 +323,71 @@ def complete_quest(
     result_notes: str,
     evidence: str = "",
     session_minutes: int | None = None,
+    user_id: int | None = None,
 ) -> QuestCompletionResult:
-    """Complete a quest, award immutable XP exactly once, and record memory events.
-
-    Caller should execute this inside one database transaction. The get_db() context
-    manager already commits or rolls back the whole operation.
-    """
+    safe_user_id = resolve_user_id(db, user_id)
     result = result_notes.strip()
     if not result:
         raise ValueError("Completion result is required")
 
     safe_minutes = normalize_minutes(session_minutes)
-    quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
+    quest = db.execute(
+        """
+        SELECT *
+        FROM tasks
+        WHERE id = ? AND user_id = ?
+        """,
+        (quest_id, safe_user_id),
+    ).fetchone()
     if not quest:
         raise ValueError("Quest not found")
+
     _require_core_quest_mutation(quest)
 
-    state = db.execute("SELECT * FROM game_state WHERE id = 1").fetchone()
-    level_before = int(state["level"] if state else 1)
-    xp_total_before = state["xp_total"] if state else None
-    xp_into_level_before = int(state["xp_into_level"] if state else 0)
-    xp_reward = max(0, int(quest["xp_reward"] or 0))
+    state = db.execute(
+        """
+        SELECT *
+        FROM game_state
+        WHERE user_id = ?
+        """,
+        (safe_user_id,),
+    ).fetchone()
+    level_before = int(
+        state["level"]
+        if state
+        else 1
+    )
+    xp_total_before = (
+        state["xp_total"]
+        if state
+        else None
+    )
+    xp_into_level_before = int(
+        state["xp_into_level"]
+        if state
+        else 0
+    )
+    xp_reward = max(
+        0,
+        int(quest["xp_reward"] or 0),
+    )
     event_key = f"quest_completed:{quest_id}"
 
     existing_award = db.execute(
-        "SELECT * FROM xp_ledger WHERE event_key = ? OR task_id = ?",
-        (event_key, quest_id),
+        """
+        SELECT *
+        FROM xp_ledger
+        WHERE user_id = ?
+          AND (
+              event_key = ?
+              OR task_id = ?
+          )
+        """,
+        (
+            safe_user_id,
+            event_key,
+            quest_id,
+        ),
     ).fetchone()
 
     if quest["status"] != "completed":
@@ -245,14 +396,26 @@ def complete_quest(
             UPDATE tasks
             SET status = 'completed',
                 progress = 100,
-                completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+                completed_at = COALESCE(
+                    completed_at,
+                    CURRENT_TIMESTAMP
+                ),
                 result_notes = ?,
                 evidence = ?,
-                actual_minutes = COALESCE(actual_minutes, 0) + COALESCE(?, 0),
+                actual_minutes = (
+                    COALESCE(actual_minutes, 0)
+                    + COALESCE(?, 0)
+                ),
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = ? AND user_id = ?
             """,
-            (result, evidence.strip(), safe_minutes, quest_id),
+            (
+                result,
+                evidence.strip(),
+                safe_minutes,
+                quest_id,
+                safe_user_id,
+            ),
         )
         record_quest_update(
             db,
@@ -261,6 +424,7 @@ def complete_quest(
             note=result,
             progress=100,
             session_minutes=safe_minutes,
+            user_id=safe_user_id,
         )
 
     if existing_award:
@@ -268,7 +432,9 @@ def complete_quest(
             quest_id=quest_id,
             xp_awarded=0,
             level_before=level_before,
-            level_after=int(existing_award["level_after"]),
+            level_after=int(
+                existing_award["level_after"]
+            ),
             levels_gained=0,
             levels_crossed=(),
             duplicate_award=True,
@@ -283,12 +449,35 @@ def complete_quest(
 
     db.execute(
         """
-        INSERT INTO xp_ledger
-        (task_id, event_key, event_type, source_type, source_id, source_title,
-         xp_delta, level_before, level_after, reason)
-        VALUES (?, ?, 'quest_completed', 'quest', ?, ?, ?, ?, ?, ?)
+        INSERT INTO xp_ledger (
+            user_id,
+            task_id,
+            event_key,
+            event_type,
+            source_type,
+            source_id,
+            source_title,
+            xp_delta,
+            level_before,
+            level_after,
+            reason
+        )
+        VALUES (
+            ?,
+            ?,
+            ?,
+            'quest_completed',
+            'quest',
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
+        )
         """,
         (
+            safe_user_id,
             quest_id,
             event_key,
             quest_id,
@@ -300,27 +489,95 @@ def complete_quest(
         ),
     )
 
-    db.execute(
-        """
-        UPDATE game_state
-        SET level = ?,
-            xp_total = ?,
-            xp_into_level = ?,
-            updated_at = CURRENT_TIMESTAMP,
-            last_level_up_at = CASE WHEN ? > 0 THEN CURRENT_TIMESTAMP ELSE last_level_up_at END,
-            source = 'quest_engine'
-        WHERE id = 1
-        """,
-        (award.level, award.xp_total, award.xp_into_level, award.levels_gained),
-    )
+    if state is None:
+        db.execute(
+            """
+            INSERT INTO game_state (
+                user_id,
+                level,
+                xp_total,
+                xp_into_level,
+                character_class,
+                threshold_mode,
+                source,
+                notes,
+                last_level_up_at
+            )
+            VALUES (
+                ?,
+                ?,
+                ?,
+                ?,
+                'MARK OS Member',
+                'hidden',
+                'quest_engine',
+                '',
+                CASE
+                    WHEN ? > 0
+                        THEN CURRENT_TIMESTAMP
+                END
+            )
+            """,
+            (
+                safe_user_id,
+                award.level,
+                award.xp_total,
+                award.xp_into_level,
+                award.levels_gained,
+            ),
+        )
+    else:
+        db.execute(
+            """
+            UPDATE game_state
+            SET level = ?,
+                xp_total = ?,
+                xp_into_level = ?,
+                updated_at = CURRENT_TIMESTAMP,
+                last_level_up_at = CASE
+                    WHEN ? > 0
+                        THEN CURRENT_TIMESTAMP
+                    ELSE last_level_up_at
+                END,
+                source = 'quest_engine'
+            WHERE user_id = ?
+            """,
+            (
+                award.level,
+                award.xp_total,
+                award.xp_into_level,
+                award.levels_gained,
+                safe_user_id,
+            ),
+        )
 
     db.execute(
         """
-        INSERT INTO timeline_events
-        (event_date, event_type, title, summary, details_json, status, importance, source)
-        VALUES (date('now', 'localtime'), 'quest_completed', ?, ?, ?, 'completed', 8, 'quest_engine')
+        INSERT INTO timeline_events (
+            user_id,
+            event_date,
+            event_type,
+            title,
+            summary,
+            details_json,
+            status,
+            importance,
+            source
+        )
+        VALUES (
+            ?,
+            date('now', 'localtime'),
+            'quest_completed',
+            ?,
+            ?,
+            ?,
+            'completed',
+            8,
+            'quest_engine'
+        )
         """,
         (
+            safe_user_id,
             quest["title"],
             result,
             json.dumps(
@@ -330,8 +587,14 @@ def complete_quest(
                     "level_before": level_before,
                     "level_after": award.level,
                     "evidence": evidence.strip(),
-                    "estimated_minutes": quest["estimated_minutes"],
-                    "actual_minutes": _total_minutes(db, quest_id),
+                    "estimated_minutes": (
+                        quest["estimated_minutes"]
+                    ),
+                    "actual_minutes": _total_minutes(
+                        db,
+                        quest_id,
+                        safe_user_id,
+                    ),
                 }
             ),
         ),
@@ -340,25 +603,65 @@ def complete_quest(
     for crossed_level in award.levels_crossed:
         db.execute(
             """
-            INSERT INTO game_history
-            (event_date, level, xp_total, event, source)
-            VALUES (date('now', 'localtime'), ?, ?, ?, 'quest_engine')
+            INSERT INTO game_history (
+                user_id,
+                event_date,
+                level,
+                xp_total,
+                event,
+                source
+            )
+            VALUES (
+                ?,
+                date('now', 'localtime'),
+                ?,
+                ?,
+                ?,
+                'quest_engine'
+            )
             """,
             (
+                safe_user_id,
                 crossed_level,
                 award.xp_total,
-                f"Reached Level {crossed_level} after completing: {quest['title']}",
+                (
+                    f"Reached Level {crossed_level} "
+                    f"after completing: {quest['title']}"
+                ),
             ),
         )
         db.execute(
             """
-            INSERT INTO timeline_events
-            (event_date, event_type, title, summary, details_json, status, importance, source)
-            VALUES (date('now', 'localtime'), 'level_up', ?, ?, ?, 'completed', 10, 'quest_engine')
+            INSERT INTO timeline_events (
+                user_id,
+                event_date,
+                event_type,
+                title,
+                summary,
+                details_json,
+                status,
+                importance,
+                source
+            )
+            VALUES (
+                ?,
+                date('now', 'localtime'),
+                'level_up',
+                ?,
+                ?,
+                ?,
+                'completed',
+                10,
+                'quest_engine'
+            )
             """,
             (
+                safe_user_id,
                 f"Reached Level {crossed_level}",
-                "Quest progress crossed a hidden level threshold.",
+                (
+                    "Quest progress crossed a hidden "
+                    "level threshold."
+                ),
                 json.dumps(
                     {
                         "quest_id": quest_id,

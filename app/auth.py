@@ -17,6 +17,7 @@ from app.services.users import (
 
 
 SESSION_USER_ID_KEY = "mark_os_user_id"
+SESSION_VERSION_KEY = "mark_os_session_version"
 SESSION_USER_KEY = SESSION_USER_ID_KEY
 
 DEFAULT_SESSION_SECRET = "dev-only-change-this-secret-before-production"
@@ -30,13 +31,13 @@ SESSION_SECRET = os.getenv("SESSION_SECRET") or DEFAULT_SESSION_SECRET
 
 
 def validate_session_secret(*, is_railway: bool, session_secret: str) -> None:
-    """Reject the development cookie-signing secret in Railway environments."""
     clean_secret = (session_secret or "").strip()
     if is_railway and (
         not clean_secret or clean_secret == DEFAULT_SESSION_SECRET
     ):
         raise RuntimeError(
-            "SESSION_SECRET must be set to a non-default value when running on Railway"
+            "SESSION_SECRET must be set to a non-default value "
+            "when running on Railway"
         )
 
 
@@ -48,7 +49,6 @@ def validate_auth_configuration() -> None:
 
 
 def credentials_configured() -> bool:
-    """Return True when at least one active database user exists."""
     try:
         with get_db() as db:
             return has_active_users(db)
@@ -60,7 +60,6 @@ def authenticate_credentials(
     username: str,
     password: str,
 ) -> dict[str, Any] | None:
-    """Authenticate against the hashed users table."""
     try:
         with get_db() as db:
             return authenticate_user(db, username, password)
@@ -69,7 +68,6 @@ def authenticate_credentials(
 
 
 def verify_credentials(username: str, password: str) -> bool:
-    """Compatibility wrapper returning only the authentication result."""
     return authenticate_credentials(username, password) is not None
 
 
@@ -77,29 +75,34 @@ def sign_in(
     request: Request,
     user: Mapping[str, Any],
 ) -> None:
-    """Start a clean session containing only the database user ID."""
     user_id = int(user["id"])
-    if user_id <= 0:
-        raise ValueError("Authenticated user ID must be positive.")
+    session_version = int(user["session_version"])
+    if user_id <= 0 or session_version <= 0:
+        raise ValueError(
+            "Authenticated user ID and session version must be positive."
+        )
 
     request.session.clear()
     request.session[SESSION_USER_ID_KEY] = user_id
+    request.session[SESSION_VERSION_KEY] = session_version
 
 
 def sign_out(request: Request) -> None:
-    """Remove all session data."""
     request.session.clear()
 
 
 def current_user(request: Request) -> dict[str, Any] | None:
-    """Return the current active user, rechecking SQLite every request."""
     raw_user_id = request.session.get(SESSION_USER_ID_KEY)
+    raw_session_version = request.session.get(SESSION_VERSION_KEY)
+
     try:
         user_id = int(raw_user_id)
+        session_version = int(raw_session_version)
     except (TypeError, ValueError):
+        request.session.clear()
         return None
 
-    if user_id <= 0:
+    if user_id <= 0 or session_version <= 0:
         request.session.clear()
         return None
 
@@ -109,7 +112,10 @@ def current_user(request: Request) -> dict[str, Any] | None:
     except sqlite3.Error:
         return None
 
-    if user is None:
+    if (
+        user is None
+        or int(user["session_version"]) != session_version
+    ):
         request.session.clear()
         return None
 
@@ -117,12 +123,10 @@ def current_user(request: Request) -> dict[str, Any] | None:
 
 
 def is_authenticated(request: Request) -> bool:
-    """Return True only for a currently active database user."""
     return current_user(request) is not None
 
 
 def safe_next_path(next_path: str | None) -> str:
-    """Allow only local paths for post-login redirects."""
     if not next_path:
         return "/"
 

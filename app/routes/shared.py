@@ -4,6 +4,9 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from app.services.personal_scope import resolve_user_id
+
+
 APP_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 
@@ -31,11 +34,9 @@ def bounded_int(
 
 
 def _compute_effective_priority(quest: dict) -> float:
-    """Blend task priority with project and goal priority for future Director use."""
     task_priority = quest.get("priority") or 5
     project_priority = quest.get("project_priority")
     goal_priority = quest.get("goal_priority")
-
     weighted = task_priority * 0.5
     weight_total = 0.5
     if project_priority is not None:
@@ -47,7 +48,11 @@ def _compute_effective_priority(quest: dict) -> float:
     return round(weighted / weight_total, 2)
 
 
-def load_open_quests(db) -> list[dict]:
+def load_open_quests(
+    db,
+    user_id: int | None = None,
+) -> list[dict]:
+    safe_user_id = resolve_user_id(db, user_id)
     rows = db.execute(
         """
         SELECT
@@ -57,13 +62,21 @@ def load_open_quests(db) -> list[dict]:
             p.goal_id AS project_goal_id,
             COALESCE(gt.priority, gp.priority) AS goal_priority,
             COALESCE(gt.title, gp.title) AS goal_title
-        FROM tasks t
-        LEFT JOIN projects p ON p.id = t.project_id
-        LEFT JOIN goals gt ON gt.id = t.goal_id
-        LEFT JOIN goals gp ON gp.id = p.goal_id
-        WHERE t.status NOT IN ('completed', 'abandoned', 'closed')
+        FROM tasks AS t
+        LEFT JOIN projects AS p
+          ON p.id = t.project_id
+         AND p.user_id = t.user_id
+        LEFT JOIN goals AS gt
+          ON gt.id = t.goal_id
+         AND gt.user_id = t.user_id
+        LEFT JOIN goals AS gp
+          ON gp.id = p.goal_id
+         AND gp.user_id = t.user_id
+        WHERE t.user_id = ?
+          AND t.status NOT IN ('completed', 'abandoned', 'closed')
         ORDER BY t.priority DESC, t.id
-        """
+        """,
+        (safe_user_id,),
     ).fetchall()
     quests = [dict(row) for row in rows]
     for quest in quests:
@@ -71,8 +84,20 @@ def load_open_quests(db) -> list[dict]:
     return quests
 
 
-def load_system_state(db) -> dict:
-    game_state = db.execute("SELECT * FROM game_state WHERE id = 1").fetchone()
+def load_system_state(
+    db,
+    user_id: int | None = None,
+) -> dict:
+    safe_user_id = resolve_user_id(db, user_id)
+    game_state = db.execute(
+        """
+        SELECT *
+        FROM game_state
+        WHERE user_id = ?
+        """,
+        (safe_user_id,),
+    ).fetchone()
+
     return {
         "level": game_state["level"] if game_state else 1,
         "xp_total": game_state["xp_total"] if game_state else None,
@@ -82,20 +107,42 @@ def load_system_state(db) -> dict:
             if game_state
             else "Data Builder / Future Business Owner"
         ),
-        "threshold_mode": game_state["threshold_mode"] if game_state else "hidden",
+        "threshold_mode": (
+            game_state["threshold_mode"]
+            if game_state
+            else "hidden"
+        ),
         "memory_count": db.execute(
-            "SELECT COUNT(*) AS count FROM memories WHERE active = 1"
+            """
+            SELECT COUNT(*) AS count
+            FROM memories
+            WHERE user_id = ? AND active = 1
+            """,
+            (safe_user_id,),
         ).fetchone()["count"],
         "timeline_count": db.execute(
-            "SELECT COUNT(*) AS count FROM timeline_events"
+            """
+            SELECT COUNT(*) AS count
+            FROM timeline_events
+            WHERE user_id = ?
+            """,
+            (safe_user_id,),
         ).fetchone()["count"],
         "task_count": db.execute(
             """
-            SELECT COUNT(*) AS count FROM tasks
-            WHERE status NOT IN ('completed', 'abandoned', 'closed')
-            """
+            SELECT COUNT(*) AS count
+            FROM tasks
+            WHERE user_id = ?
+              AND status NOT IN ('completed', 'abandoned', 'closed')
+            """,
+            (safe_user_id,),
         ).fetchone()["count"],
         "blocked_count": db.execute(
-            "SELECT COUNT(*) AS count FROM tasks WHERE status = 'blocked'"
+            """
+            SELECT COUNT(*) AS count
+            FROM tasks
+            WHERE user_id = ? AND status = 'blocked'
+            """,
+            (safe_user_id,),
         ).fetchone()["count"],
     }

@@ -181,3 +181,19 @@ integrations remain outside the CRM MVP.
 ## Product principle
 
 > Maximum awareness. Strong recommendations. Controlled autonomy.
+
+
+## Family workspaces — M10
+
+MARK OS now supports three isolated roles:
+
+- **Owner** — full personal OS, Client Hunting CRM, and family account management.
+- **Member** — a private dashboard, goals, projects, quests, check-ins, XP,
+  history, memories, and chat; no CRM or account-administration access.
+- **Lead sourcer** — the narrow Client Hunting CRM surface only.
+
+Each owner/member receives one private profile and game state. New member
+workspaces otherwise begin blank. All personal reads and writes are scoped by
+`user_id`, cross-user resource IDs return `404`, and database triggers enforce
+parent/child ownership. Project names and memory keys are unique per user, so
+family members may independently reuse the same labels without collisions.

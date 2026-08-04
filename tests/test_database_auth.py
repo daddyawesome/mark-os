@@ -82,7 +82,10 @@ def test_session_contains_only_user_id_and_rechecks_active_status(
     request = _request_with_session()
     auth.sign_in(request, user)
 
-    assert request.session == {auth.SESSION_USER_ID_KEY: user["id"]}
+    assert request.session == {
+        auth.SESSION_USER_ID_KEY: user["id"],
+        auth.SESSION_VERSION_KEY: user["session_version"],
+    }
     assert auth.is_authenticated(request)
     assert auth.current_user(request)["username"] == "mark"
 

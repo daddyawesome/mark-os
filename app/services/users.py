@@ -6,7 +6,10 @@ from typing import Any
 from app.services.passwords import verify_password
 
 
-_DUMMY_PASSWORD_HASH = "pbkdf2_sha256$600000$bWFyay1vcy1tMi1kdW1teQ$nZ1u_kGXiqMoM09R-UqhaPWhd2oDettqRnbUtI84ZUg"
+_DUMMY_PASSWORD_HASH = (
+    "pbkdf2_sha256$600000$bWFyay1vcy1tMi1kdW1teQ$"
+    "nZ1u_kGXiqMoM09R-UqhaPWhd2oDettqRnbUtI84ZUg"
+)
 
 
 def _clean_username(username: str) -> str:
@@ -35,6 +38,7 @@ def get_active_user_by_id(
             role,
             active,
             must_change_password,
+            session_version,
             last_login_at,
             created_at,
             updated_at
@@ -70,6 +74,7 @@ def authenticate_user(
             role,
             active,
             must_change_password,
+            session_version,
             last_login_at,
             created_at,
             updated_at
@@ -110,6 +115,7 @@ def authenticate_user(
             role,
             active,
             must_change_password,
+            session_version,
             last_login_at,
             created_at,
             updated_at

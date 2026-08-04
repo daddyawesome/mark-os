@@ -100,17 +100,53 @@ def migrate(db: sqlite3.Connection) -> None:
 
 
 def seed(db: sqlite3.Connection) -> None:
-    db.execute(
+    owner = db.execute(
         """
-        INSERT OR IGNORE INTO memories
-        (memory_type, memory_key, memory_value, importance, source)
-        VALUES ('product_principle', 'phase_4_revised_dod', ?, 9, 'phase_4_revised')
-        """,
-        (
-            "A quest can be created, opened, started, blocked, updated, and completed. "
-            "Updates preserve progress, notes, minutes, and timestamp history. "
-            "Completion requires a result, records evidence and actual time, creates a "
-            "timeline event, and awards immutable XP exactly once in a transaction. "
-            "Hidden threshold crossing records level-up history.",
-        ),
+        SELECT id
+        FROM users
+        WHERE role = 'owner'
+        ORDER BY active DESC, id
+        LIMIT 1
+        """
+    ).fetchone()
+    columns = {
+        row["name"]
+        for row in db.execute("PRAGMA table_info(memories)").fetchall()
+    }
+    memory_value = (
+        "A quest can be created, opened, started, blocked, updated, and completed. "
+        "Updates preserve progress, notes, minutes, and timestamp history. "
+        "Completion requires a result, records evidence and actual time, creates a "
+        "timeline event, and awards immutable XP exactly once in a transaction. "
+        "Hidden threshold crossing records level-up history."
     )
+    memory_key = "phase_4_revised_dod"
+
+    if owner is not None and "user_id" in columns:
+        owner_id = int(owner["id"])
+        db.execute(
+            """
+            INSERT INTO memories
+                (user_id, memory_type, memory_key, memory_value,
+                 importance, source)
+            SELECT ?, 'product_principle', ?, ?, 9, 'phase_4_revised'
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM memories
+                WHERE user_id = ? AND memory_key = ?
+            )
+            """,
+            (owner_id, memory_key, memory_value, owner_id, memory_key),
+        )
+    else:
+        db.execute(
+            """
+            INSERT INTO memories
+                (memory_type, memory_key, memory_value, importance, source)
+            SELECT 'product_principle', ?, ?, 9, 'phase_4_revised'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM memories WHERE memory_key = ?
+            )
+            """,
+            (memory_key, memory_value, memory_key),
+        )
