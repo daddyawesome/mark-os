@@ -9,6 +9,7 @@ from app.db import (
     family_ownership,
     family_workspace,
     goals,
+    lead_research,
     leads,
     memory,
     quests,
@@ -31,6 +32,7 @@ SCHEMA_SQL = "\n".join(
         chat.SCHEMA_SQL,
         agent_audit.SCHEMA_SQL,
         leads.SCHEMA_SQL,
+        lead_research.SCHEMA_SQL,
     )
 )
 
@@ -43,6 +45,7 @@ INDEX_SQL = "\n".join(
         chat.INDEX_SQL,
         agent_audit.INDEX_SQL,
         leads.INDEX_SQL,
+        lead_research.INDEX_SQL,
     )
 )
 
@@ -61,6 +64,8 @@ def initialize_database(db: sqlite3.Connection) -> None:
     users.migrate_family_roles(db)
     users.validate_schema(db)
     users.bootstrap_owner_from_environment(db)
+    lead_research.migrate(db)
+    lead_research.validate_schema(db)
 
     # Safe additive migrations for already-live SQLite databases.
     quests.migrate_game_state(db)
@@ -82,6 +87,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     chat.validate_indexes(db)
     agent_audit.validate_indexes(db)
     leads.validate_indexes(db)
+    lead_research.validate_indexes(db)
     users.validate_indexes(db)
 
     quests.backfill(db)

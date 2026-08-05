@@ -29,6 +29,14 @@ LEAD_COLUMNS = [
     "created_at",
     "updated_at",
     "deleted_at",
+    "researched_by_user_id",
+    "research_status",
+    "submitted_for_review_at",
+    "reviewed_by_user_id",
+    "reviewed_at",
+    "review_notes",
+    "outreach_approved_by_user_id",
+    "outreach_approved_at",
 ]
 
 EXPECTED_LEAD_INDEXES = {
@@ -66,6 +74,27 @@ EXPECTED_LEAD_INDEXES = {
         False,
         False,
         ["assigned_to_user_id", "deleted_at", "pipeline_status", "id"],
+    ),
+    "idx_leads_research_queue": (
+        False,
+        False,
+        [
+            "deleted_at",
+            "research_status",
+            "assigned_to_user_id",
+            "submitted_for_review_at",
+            "id",
+        ],
+    ),
+    "idx_leads_researcher_activity": (
+        False,
+        False,
+        [
+            "researched_by_user_id",
+            "deleted_at",
+            "updated_at",
+            "id",
+        ],
     ),
 }
 
