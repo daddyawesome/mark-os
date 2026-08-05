@@ -176,7 +176,7 @@ def test_role_aware_templates_hide_owner_controls():
 
     assert "request.state.current_user.role == 'owner'" in base
     assert "LEAD SOURCER" not in base
-    assert "Lead Sourcer access" in dashboard
+    assert "Lead Researcher access" in dashboard
     assert "{% if can_manage_crm %}<th>Quest</th>{% endif %}" in dashboard
     assert "saved as <strong>New</strong>" in intake
     assert "{% if can_manage_crm %}" in detail

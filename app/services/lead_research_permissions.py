@@ -321,10 +321,18 @@ def can_submit_for_review(
     user: Record | None,
     lead: Record | None,
 ) -> bool:
-    return can_transition_research_status(
-        user,
-        lead,
-        "ready_for_review",
+    return (
+        _normalized_research_status(lead)
+        in {
+            "draft",
+            "researching",
+            "changes_requested",
+        }
+        and can_transition_research_status(
+            user,
+            lead,
+            "ready_for_review",
+        )
     )
 
 

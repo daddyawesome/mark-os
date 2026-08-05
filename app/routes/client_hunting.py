@@ -54,6 +54,7 @@ NOTICE_MESSAGES = {
     "created": "Lead and linked quest created.",
     "duplicate": "That request was already saved. The existing lead is shown below.",
     "updated": "Lead details updated.",
+    "research_submitted": "Research submitted for Owner review.",
     "pipeline": "Pipeline status updated.",
     "next_action": "Next action updated.",
     "deleted": "Lead archived. Its quest history was preserved.",

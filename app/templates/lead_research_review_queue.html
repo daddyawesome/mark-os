@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}
+Research Review · Client Hunting · MARK OS
+{% endblock %}
+
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div
+        class="is-flex
+               is-justify-content-space-between
+               is-align-items-flex-start
+               is-flex-wrap-wrap"
+    >
+        <div>
+            <p class="mark-kicker">
+                Client Hunting // Owner Review Queue
+            </p>
+            <h1 class="title is-1 mb-2">
+                Research waiting for Mark
+            </h1>
+            <p class="subtitle is-5 mark-muted">
+                Review research submitted by the Lead
+                Researcher. Approval decisions arrive
+                in Phase 6.1E.
+            </p>
+        </div>
+        <a
+            class="button is-ghost-forest"
+            href="/crm"
+        >
+            Back to CRM
+        </a>
+    </div>
+</section>
+
+<div class="mark-card p-5">
+    <div
+        class="is-flex
+               is-justify-content-space-between
+               is-align-items-center
+               is-flex-wrap-wrap
+               mb-4"
+    >
+        <div>
+            <p class="mark-kicker">
+                Pending Research
+            </p>
+            <h2 class="title is-3 mb-0">
+                {{ leads|length }} waiting
+            </h2>
+        </div>
+        <span class="mark-chip">
+            READY FOR REVIEW
+        </span>
+    </div>
+
+    {% if leads %}
+    <div class="table-container">
+        <table
+            class="table is-fullwidth is-hoverable"
+        >
+            <thead>
+                <tr>
+                    <th>Lead</th>
+                    <th>Researcher</th>
+                    <th>Priority</th>
+                    <th>Submitted</th>
+                    <th>Next action</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in leads %}
+                <tr>
+                    <td>
+                        <strong>{{ lead.company }}</strong>
+                        <br>
+                        <span class="mark-muted is-size-7">
+                            {{ lead.contact_person }}
+                            {% if lead.job_title %}
+                            · {{ lead.job_title }}
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {{
+                            lead.researched_by_name
+                            or lead.created_by_name
+                            or 'Historical researcher'
+                        }}
+                    </td>
+                    <td>{{ lead.priority|title }}</td>
+                    <td>
+                        {{
+                            lead.submitted_for_review_at
+                            or '—'
+                        }}
+                    </td>
+                    <td>
+                        {{ lead.next_action }}
+                        {% if lead.next_action_due_date %}
+                        <br>
+                        <span class="mark-muted is-size-7">
+                            Due
+                            {{ lead.next_action_due_date }}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="has-text-right">
+                        <a
+                            class="button is-small is-mark"
+                            href="/crm/leads/{{ lead.id }}"
+                        >
+                            Open
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="notification is-success is-light">
+        No lead research is waiting for review.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

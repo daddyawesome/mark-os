@@ -12,6 +12,9 @@
             <div class="buttons is-justify-content-flex-end">
                 <a class="button is-mark" href="/crm/leads/new">Add Leads</a>
                 <a class="button is-light" href="/crm/leads/new#csv-import">Import CSV</a>
+                {% if can_manage_crm %}
+                <a class="button is-light" href="/crm/research-review">Research Review</a>
+                {% endif %}
             </div>
             <div class="has-text-right mt-3">
                 <span class="mark-chip">{{ metric_cards[0].value }} TOTAL LEADS</span>
@@ -24,7 +27,7 @@
 {% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
 {% if current_user and current_user.role == 'lead_sourcer' %}
 <div class="notification is-mark">
-    Lead Sourcer access: you can add, import, and review leads. Mark handles editing, contact actions, pipeline movement, and archiving.
+    Lead Researcher access: you can add, import, edit related research, and submit it for Mark's review. Mark controls approval, outreach, pipeline movement, and archiving.
 </div>
 {% endif %}
 

@@ -147,3 +147,87 @@ def edit_lead_research(
         ),
         status_code=303,
     )
+
+
+@router.post(
+    "/leads/{lead_id}/research/submit"
+)
+def submit_lead_research_for_review(
+    request: Request,
+    lead_id: int,
+):
+    from app.services.lead_research_permissions import (
+        can_submit_for_review,
+    )
+    from app.services.lead_research_workflow import (
+        submit_research_for_review,
+    )
+
+    with get_db() as db:
+        lead = get_lead(db, lead_id)
+        if (
+            lead is None
+            or not can_submit_for_review(
+                request.state.current_user,
+                lead,
+            )
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail="Lead not found",
+            )
+
+        try:
+            submit_research_for_review(
+                db,
+                lead_id,
+                actor=request.state.current_user,
+            )
+        except LeadPermissionError:
+            raise HTTPException(
+                status_code=404,
+                detail="Lead not found",
+            )
+
+    return RedirectResponse(
+        url=(
+            f"/crm/leads/{lead_id}"
+            "?notice=research_submitted"
+        ),
+        status_code=303,
+    )
+
+
+@router.get(
+    "/research-review",
+    response_class=HTMLResponse,
+)
+def research_review_queue(
+    request: Request,
+):
+    from app.services.access_control import is_owner
+    from app.services.lead_research_workflow import (
+        list_research_review_queue,
+    )
+
+    if not is_owner(
+        request.state.current_user
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Review queue not found",
+        )
+
+    with get_db() as db:
+        leads = list_research_review_queue(db)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="lead_research_review_queue.html",
+        context={
+            "leads": leads,
+            "current_user": (
+                request.state.current_user
+            ),
+        },
+    )

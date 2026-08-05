@@ -10,6 +10,7 @@
             <div class="tags">
                 <span class="mark-chip">{{ lead.pipeline_status|upper }}</span>
                 <span class="mark-chip">{{ lead.priority|upper }} PRIORITY</span>
+                <span class="mark-chip">RESEARCH: {{ lead.research_status|replace('_', ' ')|upper }}</span>
                 {% if can_manage_crm %}
                 <a class="mark-chip" href="/quests/{{ lead.quest_id }}">QUEST #{{ lead.quest_id }}</a>
                 {% endif %}
@@ -20,6 +21,20 @@
             {% if can_edit_research %}
             <a class="button is-ghost-forest" href="/crm/leads/{{ lead.id }}/research/edit">Edit research</a>
             {% endif %}
+{% if current_user and current_user.role == 'lead_sourcer' and can_edit_research %}
+<form
+    method="post"
+    action="/crm/leads/{{ lead.id }}/research/submit"
+    style="display: inline;"
+>
+    <button
+        class="button is-mark"
+        type="submit"
+    >
+        Submit for review
+    </button>
+</form>
+{% endif %}
             {% if can_manage_crm %}
             <a class="button is-mark" href="/crm/leads/{{ lead.id }}/edit">Edit lead</a>
             {% endif %}
@@ -29,6 +44,11 @@
 
 {% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
 {% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+{% if lead.research_status == 'ready_for_review' %}
+<div class="notification is-info is-light">
+    <strong>READY FOR REVIEW</strong> — awaiting Mark's decision.
+</div>
+{% endif %}
 
 <div class="mark-card p-4 mb-5">
     <div class="columns is-mobile is-multiline">
@@ -59,6 +79,7 @@
                 <hr class="mark-divider">
                 <p><strong>Problem or opportunity</strong><br>{{ lead.problem_opportunity }}</p>
                 <p><strong>Why Mark fits</strong><br>{{ lead.why_mark_fits }}</p>
+                <p><strong>Research status</strong><br>{{ lead.research_status|replace('_', ' ')|title }}</p>
                 <p><strong>Pipeline status</strong><br>{{ lead.pipeline_status|title }}</p>
                 <p><strong>Priority</strong><br>{{ lead.priority|title }}</p>
                 <p><strong>Next action</strong><br>{{ lead.next_action }}</p>
