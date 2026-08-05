@@ -3,11 +3,11 @@
 **Canonical project document**  
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-05  
-**Current active phase:** Phase 6 — Agency CRM Operations  
-**Immediate next milestone:** Phase 6.1J — Relationship Manager and Sales Playbook  
+**Current active phase:** Phase 6 — Agency Operations and Production Safety  
+**Immediate next milestone:** Phase 6.2 — Backup and Disaster Recovery  
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last locally reported test result:** 267 passed
+**Last verified full-suite baseline:** 368 passed after Phase 6.1J
 
 ---
 
@@ -73,6 +73,7 @@ Its purpose is to help Mark:
 - manage goals, projects, check-ins, history, and personal direction;
 - find and qualify client opportunities;
 - coordinate lead research with his brother;
+- coordinate relationship development with Junmar;
 - build repeatable outreach and follow-up discipline;
 - preserve important decisions and lessons;
 - eventually operate the full agency lifecycle;
@@ -91,8 +92,8 @@ USD 10,000 per month
 ```
 
 The shortest-term business focus is not advanced AI. It is a usable agency
-workflow that helps Mark and his brother consistently find, review, contact,
-and convert leads.
+workflow that helps Mark, his Lead Researcher, and his Relationship Manager
+consistently find, review, contact, and convert leads while protecting production data.
 
 ---
 
@@ -206,7 +207,9 @@ app/db/
 ├── leads.py
 ├── memory.py
 ├── migrations.py
+├── playbooks.py
 ├── quests.py
+├── relationship_manager.py
 ├── schema.py
 └── users.py
 ```
@@ -222,6 +225,7 @@ app/routes/
 ├── goals.py
 ├── pages.py
 ├── quests.py
+├── relationship_manager.py
 ├── shared.py
 └── users.py
 ```
@@ -237,10 +241,16 @@ app/services/
 ├── gamification.py
 ├── lead_csv_import.py
 ├── lead_identity.py
+├── lead_pipeline_workflow.py
+├── lead_research_permissions.py
+├── lead_research_workflow.py
+├── lead_work_queues.py
 ├── leads.py
 ├── passwords.py
 ├── personal_scope.py
+├── playbooks.py
 ├── quests.py
+├── relationship_manager.py
 ├── security.py
 ├── team_users.py
 └── users.py
@@ -272,7 +282,11 @@ The repository contains tests for:
 - gamification;
 - memory migrations;
 - Director behavior;
-- sidebar and user navigation.
+- sidebar and user navigation;
+- Lead Researcher workflow and permissions;
+- Relationship Manager workflow, private playbooks, and CRM isolation;
+- role-aware CRM queues;
+- staging-copy release verification.
 
 ---
 
@@ -284,69 +298,103 @@ The backend role values are:
 owner
 member
 lead_sourcer
+relationship_manager
 ```
 
-For the agency interface, `lead_sourcer` may be displayed as
-**Lead Researcher**, but the stored backend value should remain stable until a
-tested migration is intentionally created.
+Displayed agency titles:
+
+```text
+lead_sourcer          → Lead Researcher
+relationship_manager → Business Development Collaborator / Relationship Manager
+```
 
 ### 6.1 Owner
 
 Mark is the Owner and Founder/Admin.
 
-Current intended access:
+Current access:
 
 - full personal MARK-OS workspace;
 - goals, projects, quests, check-ins, XP, history, memory, and chat;
-- Client Hunting CRM;
-- user management;
-- family-member management;
-- lead-sourcer management;
-- all owner-only settings and administrative actions.
+- complete Client Hunting CRM access;
+- research review and outreach approval;
+- pipeline, proposal, Won/Lost, assignment, and archive decisions;
+- Relationship Manager assignment;
+- user and playbook administration;
+- family-member and staff-account administration;
+- all owner-only settings and maintenance actions.
 
 ### 6.2 Member
 
 A family member receives a private personal workspace.
 
-Current intended access:
+Current access:
 
-- private dashboard;
-- private profile;
-- own goals;
-- own projects;
-- own quests;
-- own check-ins;
-- own XP and level state;
-- own history;
-- own memory;
-- own chat.
+- private dashboard and profile;
+- own goals, projects, quests, and check-ins;
+- own XP, history, memory, and chat.
 
 A Member must not access:
 
 - Client Hunting CRM;
+- playbook or staff operations;
 - user administration;
 - another user's personal records.
 
 ### 6.3 Lead Sourcer / Lead Researcher
 
-The current role is intentionally narrow and CRM-only.
+This role is narrow and CRM-only.
 
-Current request access allows:
+Current access:
 
-- open the CRM dashboard;
-- open the new-lead form;
-- create leads;
-- import leads;
-- download the import template;
-- view lead detail pages;
-- log out.
+- CRM dashboard and role-aware research queues;
+- create and import leads;
+- view created, assigned, or researched leads;
+- edit permitted research fields;
+- submit work for review;
+- respond to requested changes;
+- read Owner review decisions.
 
-Current important limitation:
+This role cannot:
 
-The existing route permission list does not yet provide the complete research
-editing and approval workflow required for Mark's brother.
+- approve research or outreach;
+- change major pipeline stages;
+- mark Won or Lost;
+- delete leads;
+- access private personal or family workspaces;
+- manage users or system settings.
 
-That gap is the reason Phase 6.1 is now the active priority.
+### 6.4 Relationship Manager / Business Development Collaborator
+
+This role is also CRM-only and has a dedicated landing page:
+
+```text
+/relationship-manager
+```
+
+Current access:
+
+- assigned private sales playbook;
+- relationship-work queues and scorecard;
+- create and import qualified leads;
+- view leads created by or assigned to the user as Business Development Owner;
+- read research and outreach-approval status;
+- update permitted next actions and due dates;
+- prepare relationship work and hand interested prospects to Mark.
+
+This role cannot:
+
+- access Mark's or family members' private workspace;
+- edit or approve Lead Researcher work;
+- approve outreach;
+- change pipeline stages;
+- set pricing, scope, discounts, or delivery promises;
+- create proposals or mark Won/Lost;
+- archive leads;
+- manage users or system settings.
+
+The `Contacted` transition remains controlled until Phase 6.3 adds the required
+activity audit trail and Phase 6.13 grants explicit delegated outreach.
 
 ---
 
@@ -382,21 +430,30 @@ Current rules:
 - Owner sees the Owner's own private data, not every family member's private
   workspace by default;
 - Members see only their own private data;
-- Lead Sourcers do not receive personal workspace access;
+- Lead Researchers and Relationship Managers do not receive personal workspace access;
 - ownership triggers protect parent/child relationships;
 - project names are unique per user;
 - memory keys are unique per user;
 - each Owner or Member receives one private profile and one game state.
 
-CRM leads use separate collaboration ownership fields:
+CRM leads use separate collaboration and workflow fields:
 
 ```text
 created_by_user_id
 assigned_to_user_id
+researched_by_user_id
+business_development_owner_user_id
+research_status
+submitted_for_review_at
+reviewed_by_user_id
+reviewed_at
+review_notes
+outreach_approved_by_user_id
+outreach_approved_at
 ```
 
-These are not sufficient for the complete research/review process. Phase 6.1
-adds the missing staff-workflow fields.
+These fields represent different responsibilities and must not be overloaded.
+Personal workspace ownership remains separate from CRM collaboration.
 
 ---
 
@@ -616,6 +673,23 @@ Current capabilities include:
 - idempotency and audit foundations;
 - user ownership.
 
+#### Playbooks and relationship management
+
+Current tables:
+
+```text
+playbooks
+user_playbook_assignments
+```
+
+Current rules:
+
+- internal Markdown is imported into SQLite rather than committed publicly;
+- playbooks are assigned to specific active users;
+- rendered Markdown is escaped safely;
+- Relationship Manager queues are scoped by Business Development ownership;
+- playbook and CRM access do not grant private personal-workspace access.
+
 #### CRM leads
 
 The current lead schema includes:
@@ -625,6 +699,15 @@ id
 quest_id
 created_by_user_id
 assigned_to_user_id
+researched_by_user_id
+business_development_owner_user_id
+research_status
+submitted_for_review_at
+reviewed_by_user_id
+reviewed_at
+review_notes
+outreach_approved_by_user_id
+outreach_approved_at
 request_key
 request_fingerprint
 dedupe_key
@@ -697,7 +780,10 @@ The current CRM records:
 - next-action due date;
 - notes;
 - creator;
-- assignee.
+- assignee;
+- researcher and research-review state;
+- outreach approval;
+- Business Development Owner.
 
 ### Every lead is linked to a quest
 
@@ -734,50 +820,42 @@ timeline history.
 
 ---
 
-## 10. Current Gap Analysis for Brother Usability
+## 10. Current Agency Operations Status
 
-### Already covered
+### Completed operational foundation
 
-| Requirement | Current status |
+| Capability | Status |
 |---|---|
-| Separate Mark and brother accounts | Implemented foundation |
-| Mark as Founder/Admin | Implemented as `owner` |
-| Brother staff role | Implemented foundation as `lead_sourcer` |
-| Role-based request permissions | Implemented |
-| Brother blocked from personal finance | Implemented through CRM-only access |
-| Lead creator tracking | Implemented |
-| Lead assignment | Implemented |
-| Soft deletion foundation | Implemented |
-| CSV import | Implemented |
-| Duplicate detection | Implemented |
-| Next actions and due dates | Implemented |
-| CRM pipeline | Implemented |
-| Lead-to-quest linkage | Implemented |
+| Owner, Member, Lead Researcher, and Relationship Manager accounts | Complete |
+| Private family data isolation | Complete |
+| CRM creator, assignee, researcher, and Business Development ownership | Complete |
+| Lead research edit and review workflow | Complete |
+| Changes-requested resubmission | Complete |
+| Owner research and outreach approval | Complete |
+| Owner-only pipeline gates | Complete |
+| Role-aware CRM queues | Complete |
+| Private playbook storage and assignment | Complete |
+| Relationship Manager landing page | Complete |
+| Direct-URL and forged-request protection | Complete |
+| Staging-copy release verification and rollback runbook | Complete foundation |
 
-### Missing or incomplete
+### Immediate operational gaps
 
-| Requirement | Gap |
+| Requirement | Next phase |
 |---|---|
-| Brother edits existing research | Current narrow route permissions are incomplete |
-| Field-level staff restrictions | Not fully implemented |
-| Research status | Missing |
-| Researched by | Missing dedicated field |
-| Reviewed by | Missing |
-| Date reviewed | Missing |
-| Review notes | Missing |
-| Outreach approval | Missing |
-| Major status-change approval | Missing |
-| Owner-only pricing changes | Pricing model not yet implemented |
-| Owner-only Won/Lost transition | Not yet enforced as a dedicated approval rule |
-| Permanent-delete restriction | Soft deletion exists; explicit owner-only purge policy still needed |
-| Communication timeline | Missing |
-| Operational follow-up queues | Incomplete |
-| CSV preview | Missing or incomplete |
-| CSV export | Missing |
-| Approved-leads export | Missing |
-| Bulk assignment | Missing |
-| Bulk review submission | Missing |
-| In-app CRM backup/download | Missing |
+| Tested production backup and restore process | Phase 6.2 |
+| Complete lead contact and interaction history | Phase 6.3 |
+| Due, overdue, waiting, and stale-lead command center | Phase 6.4 |
+| Production health and error alerts | Phase 6.5 |
+| Safe bulk preview, assignment, import, and export | Phase 6.6 |
+| Deterministic approved outreach templates | Phase 6.7 |
+| Research effort and webhook intake | Phase 6.8 |
+| Discovery, proposal, onboarding, and billing workflows | Trigger-based Phases 6.9–6.12 |
+| Delegated Relationship Manager outreach | Trigger-based Phase 6.13 |
+
+The next priority is production safety. MARK-OS now contains real accounts,
+leads, approvals, assignments, and an internal playbook on Railway. Backup and
+restore capability must be completed before more operational history is added.
 
 ---
 
@@ -898,305 +976,162 @@ Main outcomes:
 - per-user uniqueness;
 - sidebar and Users navigation.
 
+
+## Phase 6.1A–6.1I — Staff Research, Review, Approval, and Release Safety
+
+**Status:** Complete
+
+Main outcomes:
+
+- research ownership and workflow states;
+- Lead Researcher edit and resubmission flow;
+- Owner review, outreach approval, and pipeline gates;
+- role-aware CRM queues;
+- service-side permissions and forged-request tests;
+- staging-copy verification and rollback runbook.
+
+## Phase 6.1J — Relationship Manager and Sales Playbook
+
+**Status:** Complete and deployed
+
+Main outcomes:
+
+- `relationship_manager` role;
+- Business Development ownership on leads;
+- private database-backed playbooks;
+- dedicated Relationship Manager landing page;
+- narrow CRM and next-action permissions;
+- no pricing, approval, pipeline, deletion, or private-OS authority.
+
 ---
 
 # 12. Current Official Roadmap
 
 ## Numbering decision
 
-The previously proposed Product Hardening phase is parked, not cancelled.
-
-The project numbering is now:
+The roadmap is now numbered by execution priority, not by the date an idea was
+first proposed.
 
 ```text
-Phase 6 — Agency CRM Operations
-Phase 7 — Product Hardening & Growth
+Phase 6 — Agency Operations and Production Safety
+Phase 7 — Product Hardening and Growth
 Phase 8 — Budget-Safe AI Continuation
 Phase 9 — Affordable Ambient Assistant
 ```
 
-The old Phase 5.3+ AI work is moved to Phase 8.
+Phase 6.1A–6.1J is complete. Production safety is now the first unfinished
+agency requirement, so Backup and Disaster Recovery becomes Phase 6.2.
 
-The previous Phase 6 Product Hardening work is moved to Phase 7.
+### Renumbering map
 
-The Ambient Assistant work is Phase 9. It begins only after the Phase 8
-intent router, budget controls, and confirmed-action protections are stable.
+| Previous number | New number | Milestone |
+|---|---:|---|
+| Phase 7.1 | Phase 6.2 | Backup and Disaster Recovery |
+| Phase 6.2 | Phase 6.3 | Lead Activity Timeline |
+| Phase 6.3 | Phase 6.4 | Follow-up Command Center |
+| Phase 7.9 | Phase 6.5 | Observability and Error Monitoring |
+| Phase 6.4 | Phase 6.6 | Bulk Lead Management |
+| Phase 7.4 | Phase 6.7 | Outreach Templates and Approval Controls |
+| Phase 6.9 | Phase 6.8 | Lead-Sourcing Effort Tracking and Webhook Intake |
+| Phase 6.5 | Phase 6.9 | Discovery and Qualification |
+| Phase 6.6 | Phase 6.10 | Proposal Management |
+| Phase 6.7 | Phase 6.11 | Client Onboarding and Delivery |
+| Phase 6.8 | Phase 6.12 | Retainers, Invoicing, and Profitability |
+| Phase 6.10 | Phase 6.13 | Delegated Outreach Permission |
+| Phase 7.2 | Phase 7.1 | Security and Audit Foundation |
+| Phase 7.3 | Phase 7.2 | Notifications and Nudges |
+| Phase 7.5 | Phase 7.3 | Insights and Trend Dashboard |
+| Phase 7.6 | Phase 7.4 | Mobile-Friendly PWA |
+| Phase 7.7 | Phase 7.5 | Data Export and Portability |
+| Phase 7.8 | Phase 7.6 | Formal Staging Environment and Rollback |
 
-This keeps the numbering chronological and removes overlapping active phase
-numbers.
+The Phase 8 and Phase 9 numbering remains unchanged.
 
 ---
 
-# Phase 6 — Agency CRM Operations
+# Phase 6 — Agency Operations and Production Safety
 
 **Status:** Active  
-**Primary objective:** Make MARK-OS operationally usable by Mark and his
-brother before adding more advanced systems.
+**Primary objective:** Protect the production system, capture every sales
+interaction, and make the agency workflow reliable before adding optional AI.
 
-## Phase 6.1 — Staff Workflow, Research Ownership, and Approval
+## Phase 6.1 — Staff Collaboration, Approval, Relationship Management, and Playbooks
 
 **Status:** Complete  
-**Priority:** Critical
+**Completed submilestones:** 6.1A–6.1J
+
+Delivered:
+
+- Lead Researcher ownership, editing, submission, and changes-requested flow;
+- Owner research decisions, outreach approval, and pipeline gates;
+- role-aware CRM queues;
+- forged-request and direct-route protection;
+- staging-copy verification and rollback documentation;
+- Relationship Manager role and dedicated landing page;
+- Business Development ownership;
+- private database-backed sales playbooks;
+- narrow next-action and CRM permissions;
+- no XP changes from CRM staff workflows.
+
+The attached Junmar operating rule remains authoritative:
+
+> Junmar opens relationships. Mark diagnoses, prices, closes, and delivers.
+
+## Phase 6.2 — Backup and Disaster Recovery
+
+**Status:** Active — immediate next milestone  
+**MoSCoW:** Must have now
 
 ### Goal
 
-Create a clear workflow so Mark and his brother do not overwrite, duplicate,
-misinterpret, or prematurely act on each other's lead work.
+Protect the Railway SQLite database and prove that MARK-OS can be restored
+without guessing during an incident.
 
-### Account model
+### Required deliverables
 
-```text
-Mark
-Role: Owner
-Business title: Founder / Admin
+- safe SQLite online-backup command;
+- timestamped backup files;
+- `PRAGMA quick_check` and foreign-key verification;
+- SHA-256 checksum and backup manifest;
+- configurable retention and cleanup;
+- restore-to-new-file command;
+- automated restore verification;
+- Railway persistent-volume backup procedure;
+- scheduled backup execution;
+- encrypted offsite copy outside the Railway volume;
+- backup success and failure log;
+- documented production recovery runbook.
 
-Brother
-Backend role: lead_sourcer
-Displayed business title: Lead Researcher
-```
-
-Keep the backend role value `lead_sourcer` during the first implementation to
-avoid unnecessary migration risk.
-
-### Required lead ownership fields
-
-Add or formalize:
+### Protection layers
 
 ```text
-assigned_to_user_id
-researched_by_user_id
-research_status
-submitted_for_review_at
-reviewed_by_user_id
-reviewed_at
-review_notes
-outreach_approved_by_user_id
-outreach_approved_at
-```
-
-`created_by_user_id` and `assigned_to_user_id` already exist.
-
-### Research workflow
-
-```text
-Draft
-→ Researching
-→ Ready for Review
-→ Changes Requested
-→ Approved
-→ Rejected
-```
-
-Suggested stored values:
-
-```text
-draft
-researching
-ready_for_review
-changes_requested
-approved
-rejected
-```
-
-### Brother permissions
-
-Brother can:
-
-- create a lead;
-- import leads;
-- view assigned or permitted CRM leads;
-- edit research fields;
-- update research notes;
-- submit a lead for review;
-- respond to requested changes;
-- add research-completed activities.
-
-Brother cannot:
-
-- access private personal finance;
-- access family personal workspaces;
-- change pricing;
-- approve outreach;
-- mark a lead Won;
-- make major proposal decisions;
-- permanently delete a lead;
-- change another user's role;
-- access Owner administration.
-
-### Mark permissions
-
-Mark can:
-
-- review research;
-- request changes;
-- approve or reject research;
-- approve outreach;
-- change major pipeline stages;
-- approve proposal-stage decisions;
-- mark Won or Lost;
-- reassign leads;
-- soft-delete duplicate or mistaken leads;
-- access all CRM management views.
-
-### Major transition approval
-
-The first version should require Owner permission for:
-
-```text
-approved → contacted
-meeting → proposal
-proposal → won
-any state → lost
-```
-
-This can be refined after real workflow usage.
-
-### Deletion rule
-
-Use soft deletion for ordinary CRM removal.
-
-Permanent purge should not be available in the normal UI.
-
-### Definition of done
-
-- Brother can log in separately.
-- Brother can create and edit permitted research.
-- Brother can submit a lead for review.
-- Mark can approve, reject, or request changes.
-- Review author and timestamps are recorded.
-- Brother cannot approve outreach or mark Won/Lost.
-- Brother cannot access personal finance.
-- Owner-only restrictions are enforced in services, not only hidden in HTML.
-- Permission tests cover direct URL and forged POST attempts.
-- Existing leads are safely backfilled.
-- Existing CSV import still works.
-- Full test suite passes.
-
----
-
-## Phase 6.1J — Relationship Manager and Sales Playbook
-
-**Status:** Active  
-**Priority:** High  
-**Start condition:** Phase 6.1 staff research and approval workflow is merged
-and stable.
-
-### Goal
-
-Add a separate Business Development Collaborator account for Junmar without
-weakening the Owner controls completed in Phase 6.1.
-
-### Account model
-
-```text
-Backend role: relationship_manager
-Displayed business title: Business Development Collaborator
-Dedicated landing page: /relationship-manager
-```
-
-This role is separate from `lead_sourcer`. The Lead Researcher verifies and
-submits research. The Relationship Manager develops qualified conversations
-and hands technical, pricing, proposal, closing, and delivery decisions to
-Mark.
-
-### Required CRM field
-
-```text
-business_development_owner_user_id
-```
-
-Do not replace or overload:
-
-```text
-created_by_user_id
-assigned_to_user_id
-researched_by_user_id
-```
-
-These fields represent different responsibilities.
-
-### Playbook storage
-
-Store internal Markdown playbooks in:
-
-```text
-playbooks
-user_playbook_assignments
-```
-
-The internal source Markdown must remain outside the public repository. Import
-it through a local maintenance command and assign it to an active Relationship
-Manager account. Render it with raw HTML escaped.
-
-### Relationship Manager permissions
-
-The Relationship Manager can:
-
-- open the dedicated playbook front page;
-- open the CRM;
-- create qualified leads;
-- import qualified leads;
-- view leads created by or assigned to them as Business Development Owner;
-- read research and outreach-approval status;
-- update the next action and due date for permitted relationship leads;
-- prepare approved relationship work;
-- escalate interested prospects to Mark.
-
-The Relationship Manager cannot:
-
-- access Mark's or family members' private OS;
-- edit or submit research as the Lead Researcher;
-- approve research;
-- approve outreach;
-- change pipeline stages;
-- mark Contacted, Proposal, Won, or Lost;
-- set pricing, scope, discounts, or delivery promises;
-- archive leads;
-- assign relationship ownership;
-- manage users or system settings.
-
-### Phase 6.2 dependency
-
-`Contacted` remains Owner-only during Phase 6.1J. Delegated outreach must wait
-until Phase 6.2 can record:
-
-```text
-date contacted
-message channel
-message summary
-next follow-up date
-responsible staff member
-current response status
+Live Railway volume
++ verified local/staging copy
++ scheduled backup outside the live database file
++ encrypted offsite backup
++ periodic restore test
 ```
 
 ### Definition of done
 
-- Existing users and user IDs survive the role-constraint migration.
-- Existing leads, quests, playbooks, and foreign keys remain valid.
-- Owners can create and deactivate Relationship Manager accounts.
-- Deactivation clears active business-development ownership.
-- Owners can assign or unassign a Relationship Manager from a lead.
-- Junmar's landing page displays his assigned playbook and work queues.
-- Junmar-created leads start as New and identify him as Business Development
-  Owner.
-- Unrelated relationship leads remain hidden.
-- Next-action updates are enforced in the service layer.
-- Forged review, outreach, pipeline, delete, settings, and private-OS requests
-  remain blocked.
-- The internal Markdown source is ignored by Git.
-- No Relationship Manager action changes XP.
-- Full test suite passes.
+- no backup command writes to or locks the live database incorrectly;
+- every produced backup passes integrity and foreign-key checks;
+- a backup can be restored into a new database file;
+- a temporary MARK-OS instance starts successfully from the restored file;
+- retention cannot delete the live database;
+- scheduled backup failure is visible to Mark;
+- the recovery runbook contains exact Railway and local commands;
+- full test suite passes.
 
----
+## Phase 6.3 — Lead Activity Timeline
 
-## Phase 6.2 — Lead Activity Timeline
-
-**Priority:** High
+**Status:** Next after 6.2  
+**MoSCoW:** Must have now
 
 ### Goal
 
-Store every meaningful interaction instead of only the latest status and next
-action.
+Store every meaningful lead interaction instead of only the latest status and
+next action.
 
 ### New table
 
@@ -1206,24 +1141,30 @@ Recommended table:
 lead_activities
 ```
 
-Suggested fields:
+Required fields:
 
 ```text
 id
 lead_id
 activity_type
 activity_at
-created_by_user_id
+channel
+message_summary
 notes
+created_by_user_id
+performed_by_user_id
+responsible_user_id
+response_status
 next_follow_up_date
 created_at
 updated_at
 deleted_at
+corrected_by_user_id
+correction_reason
 ```
 
-Activities should normally be append-only.
-
-Corrections should be audited rather than silently replacing history.
+Activities are append-first. Corrections must retain the original author and
+an auditable correction reason.
 
 ### Initial activity types
 
@@ -1243,34 +1184,33 @@ proposal_sent
 client_decision
 ```
 
-Display labels may be more readable than stored values.
+### Contact audit rule
 
-### Timeline display
+Every contacted lead must record, atomically:
 
-Each lead detail page should show:
-
-- activity date and time;
-- activity type;
-- staff member;
-- notes;
-- next follow-up date;
-- chronological ordering.
+```text
+date contacted
+message channel
+message summary
+next follow-up date
+responsible staff member
+current response status
+```
 
 ### Definition of done
 
-- activity migration is additive;
-- timeline is visible on lead detail;
-- activity author is preserved;
-- next follow-up may be recorded;
-- staff permissions are enforced;
-- timeline tests pass;
-- existing leads remain readable.
+- migration is additive and existing leads remain readable;
+- timeline is displayed on lead detail in chronological order;
+- activity author, performer, and responsible staff are preserved;
+- corrections and soft deletions are auditable;
+- an outreach-related Contacted transition cannot occur without its activity;
+- Owner, Lead Researcher, and Relationship Manager permissions are tested;
+- full test suite passes.
 
----
+## Phase 6.4 — Follow-up Command Center
 
-## Phase 6.3 — Follow-up Command Center
-
-**Priority:** High
+**Status:** Planned immediately after 6.3  
+**MoSCoW:** Must have now
 
 ### Goal
 
@@ -1282,51 +1222,61 @@ Provide an in-app operational queue so outreach does not depend on memory.
 Due Today
 Overdue
 Due This Week
-No Contact for Five Days
 Waiting for Reply
-Proposal Follow-up Required
-Research Awaiting Review
+No Contact for Five Days
 Approved but Not Contacted
+Research Awaiting Review
+Changes Requested
+Interested — Handoff to Mark
+Proposal Follow-up Required
 ```
 
 ### Requirements
 
-- counts for every queue;
-- sorting by urgency;
-- filters by assignee;
-- filters by researcher;
-- owner view across CRM;
-- brother view limited to permitted work;
+- deterministic counts and urgency sorting;
+- filters by assignee, researcher, and Business Development Owner;
+- Owner view across the CRM;
+- Lead Researcher and Relationship Manager views limited to permitted leads;
 - activity-based last-contact calculation;
-- safe empty-state behavior;
-- no email or external notification required.
+- safe empty states;
+- date-boundary and timezone tests;
+- no external notification dependency.
 
-### Important scope rule
+## Phase 6.5 — Observability and Error Monitoring
 
-Email, Telegram, Discord, Gmail, and Calendar integrations must not block this
-phase.
-
-The first working version is an in-app dashboard.
-
-### Definition of done
-
-- due and overdue logic is deterministic;
-- five-day inactivity is calculated from activity history;
-- waiting-for-reply and proposal follow-up states are visible;
-- owner and brother queues differ correctly by permissions;
-- calculations have date-boundary tests.
-
----
-
-## Phase 6.4 — Bulk Lead Management
-
-**Priority:** High
+**Status:** Planned immediately after 6.4  
+**MoSCoW:** Must have now
 
 ### Goal
 
-Allow the brother to research and import many leads without slow manual entry.
+Make production failures visible before a staff member or prospect reports
+them.
 
-### Import workflow
+### Required deliverables
+
+- structured application-error logging distinct from access logs;
+- request or correlation IDs;
+- migration and startup failure logging;
+- authentication and authorization failure summaries without sensitive data;
+- backup failure visibility;
+- uptime check against `/health`;
+- Owner alert through one low-cost channel;
+- minimal error count for the previous 24 hours;
+- documented Railway log-review procedure.
+
+This phase is intentionally lightweight. The goal is reliable awareness, not a
+large monitoring platform.
+
+## Phase 6.6 — Bulk Lead Management
+
+**Status:** Planned  
+**MoSCoW:** Should have soon
+
+### Goal
+
+Allow staff to research and import many leads without unsafe blind writes.
+
+### Workflow
 
 ```text
 Upload CSV
@@ -1335,50 +1285,98 @@ Upload CSV
 → show valid rows
 → show duplicate warnings
 → show invalid rows
-→ select approved rows
-→ assign researcher
+→ select rows
+→ assign researcher and/or Business Development Owner
 → import
 ```
 
 ### Required features
 
-- CSV template;
-- CSV import;
-- import preview;
+- import preview that does not write;
 - row-level validation;
 - duplicate warnings before write;
-- row selection;
-- bulk assignment;
+- selective import;
+- bulk researcher assignment;
+- bulk Business Development Owner assignment;
 - bulk submission for review;
-- CSV export;
-- export approved leads;
-- CRM JSON export;
+- permission-scoped CSV and JSON export;
+- approved-leads export;
 - downloadable CRM backup.
 
-### Scope distinction
+## Phase 6.7 — Outreach Templates and Approval Controls
 
-This phase covers CRM operational export.
+**Status:** Planned  
+**MoSCoW:** Should have soon
 
-Full personal/family data portability belongs to Phase 7.7.
+### Goal
 
-### Definition of done
+Turn approved playbook wording into deterministic, reusable CRM templates.
 
-- preview does not write to the database;
-- duplicate and invalid rows are clearly separated;
-- selected valid rows import atomically or with a clear row result;
-- exports respect permissions;
-- Brother cannot export private finance or family data;
-- import/export tests pass.
+### Initial templates
 
----
+```text
+Warm introduction
+LinkedIn message
+Email introduction
+3–5 business-day follow-up
+Meeting handoff
+Common-objection response
+```
 
-## Phase 6.5 — Discovery and Qualification
+### Rules
 
-**Start condition:** Prospects begin replying or meetings are being booked.
+- templates use explicit variables and safe previews;
+- Mark controls approval and availability;
+- Relationship Manager may prepare or copy only approved text;
+- no automatic external sending;
+- template usage is logged through Phase 6.3 activities;
+- pricing, scope, deadline, and technical promises remain Owner-only.
 
-Do not build this before it is operationally needed.
+## Phase 6.8 — Lead-Sourcing Effort Tracking and Webhook Intake
 
-### Required fields
+**Status:** Planned after Phase 6.6 is stable  
+**MoSCoW:** Should have soon
+
+### Effort tracking
+
+Track:
+
+```text
+research_minutes
+leads_researched
+leads_submitted
+changes_requested_count
+approval_rate
+relationship_actions
+period_start
+period_end
+```
+
+This is operational measurement, not payroll authority.
+
+### Webhook intake
+
+Add a narrow authenticated endpoint for external lead sources:
+
+```text
+POST /api/leads/intake
+```
+
+Requirements:
+
+- per-source revocable token;
+- payload validation;
+- duplicate protection;
+- same ownership, review, and approval rules as manual leads;
+- no AI dependency;
+- invalid and expired token tests.
+
+## Phase 6.9 — Discovery and Qualification
+
+**Status:** Trigger-based  
+**Start condition:** Prospects reply or discovery meetings begin.
+
+Required data:
 
 ```text
 business_problem
@@ -1395,31 +1393,20 @@ recommended_service
 qualification_status
 ```
 
-### Qualification framework
+Framework:
 
 ```text
-Problem
-→ Business Impact
-→ Authority
-→ Budget
-→ Timing
-→ Fit
+Problem → Business Impact → Authority → Budget → Timing → Fit
 ```
 
-### Definition of done
+Mark controls the final technical-fit and qualification decision.
 
-- qualification data belongs to a lead/opportunity;
-- meeting notes are auditable;
-- Mark controls final fit and qualification decisions;
-- empty fields do not block early-stage leads.
+## Phase 6.10 — Proposal Management
 
----
+**Status:** Trigger-based  
+**Start condition:** A qualified opportunity needs a proposal.
 
-## Phase 6.6 — Proposal Management
-
-**Start condition:** Qualified opportunities reach proposal stage.
-
-### Required fields
+Required data:
 
 ```text
 service_offered
@@ -1435,29 +1422,15 @@ decision_status
 decision_reason
 ```
 
-### First-version rule
+First version uses a proposal link rather than a full document generator.
+Mark retains pricing and proposal authority.
 
-Do not build a full document generator.
+## Phase 6.11 — Client Onboarding and Delivery
 
-A Google Drive link to the proposal is sufficient.
-
-### Required controls
-
-- Mark approves pricing;
-- Mark controls proposal status;
-- Brother may add research or notes but cannot change price;
-- proposal follow-up appears in the command center;
-- accepted and rejected reasons are retained.
-
----
-
-## Phase 6.7 — Client Onboarding and Delivery
-
+**Status:** Trigger-based  
 **Start condition:** Client #1 is won.
 
-The agency workflow must continue after Won.
-
-### Full agency loop
+Agency loop:
 
 ```text
 Lead
@@ -1473,327 +1446,112 @@ Lead
 → Referral
 ```
 
-### Client onboarding
+Add client profiles, contacts, contract links, success criteria, deliverables,
+tasks, approvals, change requests, and completion evidence.
 
-Add:
+## Phase 6.12 — Retainers, Invoicing, and Profitability
 
-- client profile;
-- primary contacts;
-- contract link;
-- start date;
-- access requirements;
-- success criteria;
-- communication schedule.
-
-### Projects and delivery
-
-Add:
-
-- deliverables;
-- tasks;
-- due dates;
-- assigned staff;
-- client approvals;
-- change requests;
-- completion evidence.
-
----
-
-## Phase 6.8 — Retainers, Invoicing, and Profitability
-
+**Status:** Trigger-based  
 **Start condition:** Active delivery and billing begin.
 
-### Retainer management
-
 Add:
 
-- monthly plan;
-- included hours or requests;
-- monthly fee;
-- renewal date;
-- payment status;
-- services used;
-- out-of-scope requests.
+- recurring service periods;
+- renewal and cancellation dates;
+- invoice and payment status;
+- collected revenue;
+- pass-through expenses;
+- contractor/staff delivery cost;
+- gross profit and margin;
+- commission calculation based on collected revenue.
 
-### Agency money tracking
+Financial data remains Owner-only.
 
-Add:
+## Phase 6.13 — Delegated Outreach Permission
 
-- revenue;
-- invoice amount;
-- outstanding invoice;
-- payment date;
-- contractor/staff cost;
-- software cost;
-- hours spent;
-- estimated profit.
+**Status:** Trigger-based  
+**Start condition:** Phase 6.3 is complete and Mark approves a trusted
+Relationship Manager after successful real-world use.
 
-### Security rule
+### Permission
 
-Agency financial data must remain Owner-only unless a future role is explicitly
-designed for finance access.
+```text
+users.can_contact_leads
+```
 
-## Phase 6.9 — Lead-Sourcing Effort Tracking and Webhook Intake
+Default:
 
-**Start condition:** After Phase 6.4 (Bulk Lead Management) is stable.
+```text
+false
+```
 
-### Problem
+### Rules
 
-Phase 6.8 tracks contractor/staff cost and hours only from active client
-delivery onward. Nothing currently tracks the Lead Sourcer's research effort
-before a client is won, even though that research is the brother's actual
-work. Separately, leads only enter the system through manual add or CSV
-import — there is no way for an external form or automation to create a lead
-directly.
-
-### Effort tracking
-
-Add:
-
-- research time logged per lead (manual entry or simple start/stop timer);
-- leads researched per period;
-- leads approved per period;
-- lead-to-win rate per sourcer;
-- optional per-lead or per-period compensation note, Owner-only to configure.
-
-This does not require a payroll system — a simple additive record is enough
-to inform whether and how the Lead Sourcer role should be compensated.
-
-### Webhook lead intake
-
-Add:
-
-- one authenticated inbound endpoint that creates a lead using the existing
-  CRM validation and duplicate-protection path (`services/leads.py`,
-  `services/lead_identity.py`) — no new lead-creation logic;
-- a per-source API token, revocable, Owner-managed;
-- inbound leads land in the same `New` pipeline stage and require the same
-  review workflow as manually entered leads — no auto-approval;
-- rate limiting on the endpoint.
-
-Suitable sources: a public contact form, or a no-code automation tool
-(Zapier/Make) forwarding form submissions. This is deterministic intake, not
-an AI feature, and does not depend on Phase 8.
-
-### Definition of done
-
-- research effort is visible per Lead Sourcer and per period;
-- at least one external source can create a lead through the webhook without
-  manual CSV work;
-- webhook-created leads follow the identical pipeline and approval rules as
-  manually entered leads;
-- full-suite tests cover the webhook path, including duplicate protection and
-  an invalid/expired token.
+- granted and revoked per user by Owner only;
+- intended primarily for `relationship_manager`;
+- research must already be approved;
+- outreach must already be approved;
+- contact and activity creation occur atomically;
+- action records channel, message summary, follow-up, responsible user, and
+  response state;
+- revocation takes effect immediately;
+- no pricing, proposal, Won/Lost, reassignment, deletion, finance, or private-OS
+  authority;
+- direct and forged requests are tested.
 
 ---
 
-## Phase 6.10 — Delegated Outreach Permission (Future Staff Contact Access)
+# Phase 7 — Product Hardening and Growth
 
-**Start condition:** Phase 6.1's research/review/approval workflow has been
-used in real operation and Mark trusts a specific staff member with direct
-outreach on specific leads.
+**Status:** Planned after the must-have Phase 6 safety and operations work
 
-### Problem
-
-Phase 6.1 intentionally makes `approved → contacted`, and every later stage
-transition, Owner-only. That is the correct default for the first version,
-not a permanent limit — but nothing in the current plan describes how
-contacting leads stops being solely Mark's job as the team grows.
-
-### Design principle
-
-Do not create a broad "staff can do everything Owner can" role. Grant contact
-capability as a specific, revocable, auditable permission layered on top of
-the existing `lead_sourcer` role — never as a role-wide default.
-
-### Required additions
-
-```text
-users.can_contact_leads              boolean, default false, Owner-only to set
-lead_activity.performed_by_user_id   (already implied by Phase 6.2 timeline)
-lead_activity.outreach_channel       email / call / message / other
-lead_activity.outreach_sent_at
-```
-
-### Permission model
-
-- Owner grants or revokes `can_contact_leads` per staff account individually;
-  never automatic on role assignment.
-- A staff member with `can_contact_leads = true` may move an **already
-  Owner-approved** lead from `approved` to `contacted`, and may log further
-  outreach activity (follow-up sent, reply received) on leads assigned to
-  them.
-- Even with this permission, staff still cannot: approve outreach on a lead
-  still in `ready_for_review` or `changes_requested`; change pricing; mark a
-  lead Won or Lost; reassign leads; access financial data. Those remain
-  Owner-only per Phase 6.1 and Phase 6.8's security rule.
-- Every contact action is attributed to the acting user in the lead activity
-  timeline (Phase 6.2), so delegated outreach is always traceable back to who
-  actually sent it.
-
-### Definition of done
-
-- `can_contact_leads` defaults to `false` for all existing and new staff
-  accounts; enabling it is an explicit, logged Owner action.
-- A staff account with the permission can move an approved lead to
-  `contacted` and log outreach activity; one without it cannot, even via a
-  direct/forged POST request.
-- Revoking the permission takes effect immediately and is covered by a
-  permission test, matching the pattern already used for role checks in
-  `tests/test_role_permissions.py`.
-- Full test suite passes.
-
----
-
-# Phase 7 — Product Hardening & Growth
-
-**Status:** Parked  
-**Reason:** Agency staff workflow has higher immediate operational value.
-
-Resume this phase after the first four Agency CRM milestones are stable, or
-earlier only when a critical production risk requires it.
-
-## Phase 7.1 — Backup and Disaster Recovery
-
-Work already started locally under the previous numbering may be reused.
-
-**Risk note (2026-08-05):** the locally completed backup code referenced in
-the decision log is not currently present in this repository. Until it is
-committed to a branch, it is a single point of failure — it exists on one
-machine, protecting the only real copy of the CRM data. Commit it
-(unmerged is fine) before further parking this phase.
-
-Planned deliverables:
-
-- safe SQLite online backup;
-- timestamped backup files;
-- integrity verification;
-- checksum and manifest;
-- retention;
-- restore command;
-- restore test;
-- Railway persistent-volume backup;
-- offsite encrypted backup;
-- documented disaster-recovery procedure.
-
-Recommended protection layers:
-
-```text
-Live Railway volume
-+ Railway scheduled volume backups
-+ encrypted offsite backup
-+ periodic personal copy
-```
-
-Google Drive is acceptable as an offsite location after encryption and secure
-credential handling are designed.
-
-## Phase 7.2 — Security and Audit Foundation
-
-Planned deliverables:
-
-- login rate limiting;
-- session tracking;
-- logout everywhere;
-- session revocation;
-- admin action audit;
-- role-change audit;
-- account activation/deactivation audit;
-- failed-login events;
-- CSRF review;
-- secure-cookie review;
-- sensitive-log review;
-- IDOR regression tests.
-
-Some session-version and security foundations already exist.
-
-## Phase 7.3 — Notifications and Nudges
-
-External delivery may include:
-
-- email;
-- Telegram;
-- Discord webhook.
-
-Notification types may include:
-
-- check-in reminder;
-- overdue quest;
-- quest due today;
-- stale lead;
-- lead next action due;
-- weekly review reminder.
-
-This phase is external notification delivery.
-
-The in-app follow-up command center remains Phase 6.3.
-
-## Phase 7.4 — Outreach Templates and Follow-up Automation
-
-Planned deterministic features:
-
-- reusable templates;
-- first contact;
-- follow-up;
-- proposal follow-up;
-- no-response follow-up;
-- template variables;
-- copy-to-clipboard;
-- outreach-sent timestamp;
-- automatic next-follow-up date;
-- follow-up history.
-
-The first version must not automatically send messages.
-
-## Phase 7.5 — Insights and Trend Dashboard
-
-Use Chart.js first.
-
-Personal insights:
-
-- energy trend;
-- energy versus output;
-- free hours versus completed quests;
-- check-in completion;
-- cash-in versus expenses;
-- cash trajectory.
-
-CRM insights:
-
-- leads found per week;
-- contacted leads;
-- follow-ups completed;
-- stale leads;
-- conversion rate;
-- lead source;
-- pipeline distribution;
-- average time in stage.
-
-Director diagnostics:
-
-- signal frequency;
-- recommendation acceptance;
-- recommendation outcomes;
-- priority-score distribution.
-
-## Phase 7.6 — Mobile-Friendly PWA
+## Phase 7.1 — Security and Audit Foundation
 
 Planned:
 
-- manifest;
-- icons;
-- standalone installation;
-- service worker;
-- offline shell;
-- offline check-in draft;
-- retry on restored connectivity;
-- mobile interaction improvements.
+- login rate limiting;
+- session inventory and logout everywhere;
+- session revocation;
+- admin-action and role-change audit;
+- account activation/deactivation audit;
+- failed-login events;
+- CSRF and secure-cookie review;
+- sensitive-log review;
+- IDOR regression tests.
+
+## Phase 7.2 — Notifications and Nudges
+
+External delivery may include email, Telegram, or Discord.
+
+Initial notifications:
+
+- backup failure;
+- app health failure;
+- check-in reminder;
+- overdue quest;
+- lead next action due;
+- weekly review reminder.
+
+The in-app follow-up command center remains Phase 6.4.
+
+## Phase 7.3 — Insights and Trend Dashboard
+
+Use Chart.js first.
+
+Include personal, CRM, Relationship Manager, conversion, source, pipeline,
+activity, and recommendation-outcome trends.
+
+## Phase 7.4 — Mobile-Friendly PWA
+
+Add a manifest, icons, standalone installation, safe service worker, offline
+shell, offline check-in draft, retry behavior, and mobile interaction
+improvements.
 
 Do not broadly cache authenticated personal HTML.
 
-## Phase 7.7 — Data Export and Portability
+## Phase 7.5 — Data Export and Portability
 
-Planned formats:
+Formats:
 
 ```text
 JSON
@@ -1801,61 +1559,28 @@ CSV per table
 ZIP package
 ```
 
-Every export must be user-scoped.
+Every export is user- and permission-scoped. Never export password hashes,
+session secrets, API keys, or environment secrets.
 
-Member exports contain only that Member's data.
+## Phase 7.6 — Formal Staging Environment and Rollback
 
-Lead Researcher exports contain only authorized CRM data.
+The staging-copy verifier and rollback runbook created during Phase 6.1 are the
+foundation, not the final deployed staging environment.
 
-Passwords, password hashes, session secrets, and environment secrets must never
-be exported.
+Planned:
 
-## Phase 7.8 — Staging Environment and Rollback Procedure
-
-**Reason:** Phase 6.1 ships schema and permission changes directly to the
-Railway production volume that holds real business data. The current
-"Release safety" checklist (§17) is manual and has no staging step and no
-documented rollback.
-
-Planned deliverables:
-
-- a low-cost staging deployment (a second Railway service, or a local run
-  against a copied snapshot of the production SQLite file), used before any
-  migration or permission change reaches production;
-- a documented, tested rollback procedure for a bad migration or bad
-  deploy — not just "back up first," but the exact revert steps;
-- a pre-deploy checklist addition: verify against staging, not only against
-  local tests.
-
-**Sequencing note:** consider pulling the staging-environment piece of this
-phase forward, ahead of Phase 6.1, since 6.1 is the first change to touch
-permission logic on live data. The rollback procedure and offsite backup
-should land no later than Phase 7.1.
-
-## Phase 7.9 — Observability and Error Monitoring
-
-**Reason:** nothing in the current plan answers "how do we find out the app
-is down or silently erroring in production" other than manual notice.
-
-Planned deliverables:
-
-- structured application logging for unhandled errors, distinct from access
-  logs;
-- an uptime check against `/health` (a free external monitor is sufficient
-  at this scale);
-- alert delivery to the Owner (email, Telegram, or Discord webhook — reuse
-  the same delivery mechanism built in Phase 7.3 if that lands first);
-- a minimal error-rate view, even if just a count over the last 24 hours.
-
-This phase is intentionally lightweight — the goal is knowing about a
-production problem before a client or the brother reports it, not building a
-full monitoring platform.
+- low-cost staging service or repeatable copied-snapshot environment;
+- pre-deploy migration rehearsal;
+- exact application rollback steps;
+- exact database restore steps;
+- release evidence retained per deployment;
+- scheduled restore drills.
 
 ---
 
 # Phase 8 — Budget-Safe AI Continuation
 
-**Status:** Planned  
+**Status:** Planned after Phase 7 or when a business-critical AI use case justifies it  
 **Previous numbering:** Phase 5.3 onward
 
 The old Phase 5.3+ documents are preserved here under the new chronological
@@ -2787,7 +2512,7 @@ or use the existing `run.ps1` helper.
 Begin:
 
 ```text
-Phase 6.1J — Relationship Manager and Sales Playbook
+Phase 6.2 — Backup and Disaster Recovery
 ```
 
 Recommended branch:
@@ -2799,41 +2524,39 @@ git switch main
 git pull --ff-only origin main
 git status
 
-git switch -c feature/relationship-manager-playbook
+git switch -c feature/phase-6-2-backup-recovery
 ```
 
 Before coding, inspect:
 
 ```text
-app/db/leads.py
-app/services/leads.py
-app/services/access_control.py
-app/routes/client_hunting.py
-app/templates/client_hunting.html
-app/templates/lead_detail.html
-app/templates/edit_lead.html
-app/services/team_users.py
-tests/test_leads.py
-tests/test_lead_ownership.py
-tests/test_role_permissions.py
+app/database.py
+app/db/migrations.py
+app/main.py
+railway.json
+requirements.txt
+tools/verify_phase_6_1_release.py
+tools/verify_phase_6_1j_release.py
+PHASE_6_1_HI_RELEASE_RUNBOOK.md
 tests/test_application.py
+tests/test_crm_migrations.py
+tests/test_relationship_manager.py
 ```
 
-### Phase 6.1 completion and Phase 6.1J order
+### Phase 6.2 implementation order
 
 ```text
-6.1A–6.1I  Complete: staff research, review, outreach approval, queues,
-            acceptance, and release verification
-6.1J-A      Relationship Manager role and additive CRM ownership schema
-6.1J-B      Private playbook storage and import command
-6.1J-C      Dedicated landing page and relationship work queues
-6.1J-D      Narrow CRM permissions and next-action workflow
-6.1J-E      Migration, authorization, UI, and release tests
+6.2A  Online SQLite backup service and explicit CLI
+6.2B  Integrity checks, checksum, and manifest
+6.2C  Retention rules with live-database protection
+6.2D  Restore-to-new-file command and restore verifier
+6.2E  Railway volume procedure and scheduled execution
+6.2F  Encrypted offsite copy and failure visibility
+6.2G  Tests, browser/CLI smoke test, and recovery runbook
 ```
 
-Do not implement contact activity logging in Phase 6.1J.
-
-The activity timeline and delegated contact audit trail are Phase 6.2.
+Do not begin Phase 6.3 until one complete restore test succeeds from a produced
+backup.
 
 ---
 
@@ -2841,52 +2564,79 @@ The activity timeline and delegated contact audit trail are Phase 6.2.
 
 ## Must have now
 
-- separate Owner and brother accounts;
-- brother CRM-only access;
-- research editing;
-- lead assignment;
-- research author;
-- review author;
-- review date;
-- approval status;
-- Owner-only major transitions;
-- no private finance access for brother;
-- service-level permission tests;
-- lead activity timeline;
-- follow-up command center;
-- CSV preview and export.
+### Phase 6.2 — Backup and Disaster Recovery
 
-## Should have after the core staff flow
+- safe online SQLite backup;
+- scheduled production backup;
+- integrity and foreign-key checks;
+- checksum and manifest;
+- retention without live-file risk;
+- offsite encrypted copy;
+- tested restore;
+- exact recovery runbook;
+- backup failure visibility.
 
-- bulk assignment;
-- approved-leads export;
-- deterministic outreach templates;
-- CRM backup download;
-- discovery qualification after replies;
-- proposal tracking after proposals begin.
+### Phase 6.3 — Lead Activity Timeline
 
-## Could have later
+- append-first activity history;
+- date, channel, message summary, next follow-up, responsible staff, and
+  response status for every contact;
+- activity author and performer;
+- correction audit;
+- atomic Contacted transition and activity creation.
 
-- delegated outreach permission for a trusted staff member (Phase 6.10);
-- affordable ambient assistant after Phase 8;
-- external notifications;
-- PWA;
-- advanced dashboards;
-- full data portability;
-- embeddings;
-- Neo4j;
-- LangGraph;
-- Gmail and Calendar observation.
+### Phase 6.4 — Follow-up Command Center
+
+- Due Today, Overdue, Due This Week, Waiting for Reply, and stale-lead queues;
+- Owner, Lead Researcher, and Relationship Manager scoped views;
+- activity-based last-contact calculation;
+- deterministic date tests.
+
+### Phase 6.5 — Observability and Error Monitoring
+
+- `/health` uptime monitoring;
+- structured application errors;
+- migration, authentication, and backup failure visibility;
+- low-cost Owner alert;
+- Railway log-review instructions.
+
+## Should have soon
+
+- Phase 6.6 bulk preview, validation, assignment, import, and export;
+- Phase 6.7 deterministic approved outreach templates;
+- Phase 6.8 effort tracking and authenticated webhook intake;
+- Phase 7.1 security and audit hardening after the immediate operational risks;
+- Phase 7.2 external notification delivery using the observability channel.
+
+## Could have later or when triggered
+
+- Phase 6.9 discovery and qualification after replies or meetings;
+- Phase 6.10 proposal management when a proposal is needed;
+- Phase 6.11 onboarding and delivery after Client #1;
+- Phase 6.12 invoicing, retainers, profitability, and commission after billing;
+- Phase 6.13 delegated outreach after the activity timeline and successful
+  Relationship Manager pilot;
+- Phase 7.3 insights dashboard;
+- Phase 7.4 PWA;
+- Phase 7.5 full data portability;
+- Phase 7.6 formal deployed staging;
+- Phase 8 budget-safe AI;
+- Phase 9 ambient assistant;
+- embeddings, Neo4j, LangGraph, Gmail, and Calendar observation only when a
+  proven use case justifies them.
 
 ## Will not have yet
 
 - unrestricted autonomous agents;
 - automatic external outreach;
-- full proposal document generation;
-- complex invoicing before Client #1;
+- Relationship Manager pricing, proposal, Won/Lost, or payment authority;
+- full proposal document generation before the proposal workflow is needed;
+- complex invoicing before Client #1 and active billing;
 - AI as the database;
 - AI-generated raw SQL;
-- automatic storage of every conversation.
+- embedding every chat message;
+- automatic storage of every conversation as memory;
+- unconfirmed external actions.
 
 ---
 
@@ -2896,16 +2646,16 @@ The activity timeline and delegated contact audit trail are Phase 6.2.
 2. AI never receives unrestricted database access.
 3. Role restrictions are enforced server-side.
 4. Family data is private by default.
-5. Brother cannot access private finance.
-6. Brother cannot approve outreach or mark Won/Lost.
-7. Major status and pricing decisions belong to Mark.
+5. Lead Researchers and Relationship Managers cannot access private finance.
+6. Staff cannot approve outreach, set pricing, create proposals, or mark Won/Lost.
+7. Major status, pricing, scope, and delivery decisions belong to Mark.
 8. Ordinary deletion is soft deletion.
 9. Permanent purge is not a normal UI action.
 10. Quest XP is immutable and awarded once.
 11. Secrets are never stored in memory or exports.
 12. External actions require confirmation.
 13. Migrations preserve existing production data.
-14. Backups are required before deployment and schema changes.
+14. Verified backups and restore evidence are required before risky deployment and schema changes.
 15. The system must fail safely when optional services are unavailable.
 
 ---
@@ -2919,26 +2669,61 @@ The activity timeline and delegated contact audit trail are Phase 6.2.
 | Phase 5.1 | Complete | Persistent chat |
 | Phase 5.2 | Complete | Agent audit |
 | M1–M10 | Complete | Multi-user, family isolation, workspace release |
-| Phase 6.1 | Complete | Staff research, review, outreach approval, and role-aware queues |
-| Phase 6.1J | Active | Relationship Manager, private sales playbook, and relationship-owned CRM access |
-| Phase 6.2 | Planned | Lead activity timeline |
-| Phase 6.3 | Planned | Follow-up command center |
-| Phase 6.4 | Planned | Bulk lead management |
-| Phase 6.5 | Trigger-based | Build after replies |
-| Phase 6.6 | Trigger-based | Build at proposal stage |
-| Phase 6.7 | Trigger-based | Build after Client #1 |
-| Phase 6.8 | Trigger-based | Build during delivery and billing |
-| Phase 6.9 | Planned | Lead-sourcing effort tracking and webhook intake |
-| Phase 6.10 | Trigger-based | Delegated outreach permission for staff |
-| Phase 7 | Parked | Product hardening and growth |
-| Phase 7.8 | Planned | Staging environment and rollback procedure |
-| Phase 7.9 | Planned | Observability and error monitoring |
-| Phase 8 | Planned | Budget-safe AI continuation |
-| Phase 9 | Planned | Affordable ambient assistant |
+| Phase 6.1A–6.1I | Complete | Staff research, review, approval, queues, security, and release verification |
+| Phase 6.1J | Complete and deployed | Relationship Manager, private playbook, and Business Development ownership |
+| Phase 6.2 | Active | Backup and Disaster Recovery |
+| Phase 6.3 | Must next | Lead Activity Timeline |
+| Phase 6.4 | Must next | Follow-up Command Center |
+| Phase 6.5 | Must next | Observability and Error Monitoring |
+| Phase 6.6 | Should soon | Bulk Lead Management |
+| Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
+| Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
+| Phase 6.9 | Trigger-based | Discovery and Qualification |
+| Phase 6.10 | Trigger-based | Proposal Management |
+| Phase 6.11 | Trigger-based | Client Onboarding and Delivery |
+| Phase 6.12 | Trigger-based | Retainers, Invoicing, and Profitability |
+| Phase 6.13 | Trigger-based | Delegated Relationship Manager outreach |
+| Phase 7 | Planned | Product Hardening and Growth |
+| Phase 8 | Planned | Budget-Safe AI Continuation |
+| Phase 9 | Planned | Affordable Ambient Assistant |
 
 ---
 
 # 19. Decision Log
+
+## 2026-08-05 — Complete Phase 6.1J and promote production safety
+
+Decision:
+
+- mark Phase 6.1A–6.1J complete;
+- recognize Owner, Lead Researcher, and Relationship Manager as operational
+  production roles;
+- make Backup and Disaster Recovery the immediate next milestone;
+- renumber remaining agency work by execution priority;
+- move Observability and deterministic outreach templates into Phase 6;
+- keep trigger-based business lifecycle work after the operational foundation.
+
+Reason:
+
+- Railway now stores real accounts, leads, approvals, ownership, and an
+  internal sales playbook;
+- production data loss is now a larger risk than delaying another CRM feature;
+- activity history must exist before delegated outreach;
+- follow-up calculations depend on activity history;
+- monitoring is required before more staff depend on the application;
+- the new numbering should reflect the actual build order.
+
+### New immediate sequence
+
+```text
+Phase 6.2  Backup and Disaster Recovery
+Phase 6.3  Lead Activity Timeline
+Phase 6.4  Follow-up Command Center
+Phase 6.5  Observability and Error Monitoring
+Phase 6.6  Bulk Lead Management
+Phase 6.7  Outreach Templates and Approval Controls
+Phase 6.8  Effort Tracking and Webhook Intake
+```
 
 ## 2026-08-05 — Consolidate project documentation
 
@@ -2976,56 +2761,64 @@ Reason:
 Decision:
 
 ```text
-Phase 6 = Agency CRM Operations
-Phase 7 = Product Hardening & Growth
+Phase 6 = Agency Operations and Production Safety
+Phase 7 = Product Hardening and Growth
 Phase 8 = Budget-Safe AI Continuation
+Phase 9 = Affordable Ambient Assistant
+```
+
+The detailed Phase 6 milestones were later reordered by execution priority;
+the current mapping is maintained in Section 12.
+
+Reason:
+
+- keep completed Phase 5 history intact;
+- separate operational agency work from optional AI work;
+- place production safety beside the agency workflows it protects;
+- keep one chronological roadmap without overlapping active phase numbers.
+
+## 2026-08-05 — Add effort tracking, staging, and observability
+
+Decision at the time:
+
+- introduce effort tracking and webhook intake;
+- introduce staging and rollback work;
+- introduce observability and error monitoring.
+
+Current numbering after reprioritization:
+
+```text
+Phase 6.5  Observability and Error Monitoring
+Phase 6.8  Lead-Sourcing Effort Tracking and Webhook Intake
+Phase 7.6  Formal Staging Environment and Rollback
 ```
 
 Reason:
 
-- keep numbering chronological;
-- avoid returning to an old Phase 5.3 label;
-- preserve completed Phase 5 history;
-- separate operational agency work from optional AI work.
-
-## 2026-08-05 — Add effort-tracking, staging, and observability phases
-
-Decision:
-
-- add Phase 6.9 — Lead-Sourcing Effort Tracking and Webhook Intake;
-- add Phase 7.8 — Staging Environment and Rollback Procedure;
-- add Phase 7.9 — Observability and Error Monitoring;
-- flag that the Phase 7.1 backup code is not yet present in this repository.
-
-Reason:
-
-- Phase 6.8 only tracks staff cost from client delivery onward, not the Lead
-  Sourcer's pre-client research effort;
-- lead intake is currently manual-only; a webhook removes repetitive CSV work
-  without requiring Phase 8's AI infrastructure;
-- Phase 6.1 is about to change permission logic on live production data with
-  no staging step and no documented rollback;
-- there is currently no way to learn about a production outage or error
-  other than manual notice.
+- delivery-cost tracking does not measure pre-client research effort;
+- webhook intake removes repetitive CSV work without requiring AI;
+- permission and schema changes need a repeatable staging and rollback path;
+- production failures must be visible before staff report them.
 
 ## 2026-08-05 — Add delegated outreach permission phase
 
 Decision:
 
-- add Phase 6.10 — Delegated Outreach Permission (Future Staff Contact
-  Access), trigger-based after Phase 6.1 is proven in real use;
-- keep it as a narrow, revocable, per-user permission (`can_contact_leads`)
-  layered on the existing `lead_sourcer` role, not a new broad role or a
-  change to Phase 6.1's Owner-only default.
+- add delegated outreach as the trigger-based Phase 6.13;
+- require Phase 6.3 activity logging first;
+- implement a narrow, revocable, per-user `can_contact_leads` permission;
+- apply it primarily to a trusted `relationship_manager`, not as a role-wide
+  default;
+- preserve Owner control over approval, pricing, proposals, Won/Lost,
+  reassignment, deletion, and finance.
 
 Reason:
 
-- Phase 6.1 correctly keeps every stage transition Owner-only for the first
-  version, but the plan had no path for that to change as trust in a staff
-  member grows;
-- contacting leads should be able to become a delegated staff capability
-  without reopening approval, pricing, Won/Lost, or financial access, which
-  must remain Owner-only regardless.
+- the initial workflow correctly keeps outreach and stage transitions
+  Owner-controlled;
+- Junmar's playbook requires complete contact records;
+- trusted staff outreach must be traceable and immediately revocable without
+  granting broad Owner authority.
 
 ## 2026-08-05 — Add an affordable Ambient Assistant phase
 
@@ -3052,20 +2845,19 @@ Reason:
 
 ---
 
-## 2026-08-05 — Park backup work
+## 2026-08-05 — Park backup work — Superseded
 
 Decision:
 
-- keep completed local Phase 7.1 backup code for reuse;
-- do not discard it;
-- resume it after critical agency workflow work, unless production risk requires
-  earlier completion.
+- this decision is superseded by the completion of Phase 6.1J;
+- backup work is now Phase 6.2 and is the active milestone;
+- any useful prior backup code may still be reused after review.
 
 Reason:
 
-- backup is still high priority;
-- staff workflow is the immediate usability blocker;
-- both bodies of work remain independent.
+- the staff workflow blocker has been resolved;
+- production now contains more valuable operational data;
+- backup and verified restore are therefore the immediate priority.
 
 ---
 
