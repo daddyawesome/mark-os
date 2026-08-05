@@ -58,11 +58,16 @@ NOTICE_MESSAGES = {
     "pipeline": "Pipeline status updated.",
     "next_action": "Next action updated.",
     "deleted": "Lead archived. Its quest history was preserved.",
+    "research_approved": 'Lead research approved.',
+    "research_changes_requested": 'Changes requested. The Lead Researcher can edit and resubmit.',
+    "research_rejected": 'Lead research rejected.',
 }
 ERROR_MESSAGES = {
     "invalid": "The lead could not be saved. Check the required fields and allowed values.",
     "confirmation": 'Type DELETE exactly to archive this lead.',
     "forbidden": "Your account can add and review leads, but only the owner can edit pipeline actions or private MARK-OS data.",
+    "review_notes_required": 'Review notes are required when requesting changes or rejecting.',
+    "invalid_review": 'The research review decision could not be saved.',
 }
 METRIC_DEFINITIONS = (
     ("Total leads", "total_leads"),

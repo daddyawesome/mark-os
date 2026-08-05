@@ -238,6 +238,10 @@ def submit_research_for_review(
                 ),
                 research_status = 'ready_for_review',
                 submitted_for_review_at = CURRENT_TIMESTAMP,
+                reviewed_by_user_id = NULL,
+                reviewed_at = NULL,
+                outreach_approved_by_user_id = NULL,
+                outreach_approved_at = NULL,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
               AND deleted_at IS NULL
@@ -344,3 +348,176 @@ def list_research_review_queue(
             l.id ASC
         """
     ).fetchall()
+
+
+RESEARCH_REVIEW_DECISIONS = frozenset(
+    {
+        "approved",
+        "changes_requested",
+        "rejected",
+    }
+)
+
+RESEARCH_REVIEW_EVENT_TYPES = {
+    "approved": "crm_research_approved",
+    "changes_requested": (
+        "crm_research_changes_requested"
+    ),
+    "rejected": "crm_research_rejected",
+}
+
+
+def review_research(
+    db: sqlite3.Connection,
+    lead_id: int,
+    *,
+    actor: Record,
+    decision: str,
+    review_notes: str = "",
+) -> sqlite3.Row:
+    """Apply an Owner-only decision to submitted lead research."""
+    from app.services.lead_research_permissions import (
+        can_review_research,
+    )
+
+    actor_id = _actor_id(actor)
+    current = _require_active_lead(db, lead_id)
+
+    normalized_decision = str(
+        decision or ""
+    ).strip().casefold()
+    normalized_notes = str(
+        review_notes or ""
+    ).strip()
+
+    if (
+        normalized_decision
+        not in RESEARCH_REVIEW_DECISIONS
+    ):
+        raise ValueError(
+            "Unsupported research review decision."
+        )
+
+    if len(normalized_notes) > 2000:
+        raise ValueError(
+            "Review notes must be 2000 characters "
+            "or fewer."
+        )
+
+    if (
+        normalized_decision
+        in {"changes_requested", "rejected"}
+        and not normalized_notes
+    ):
+        raise ValueError(
+            "Review notes are required for this "
+            "decision."
+        )
+
+    if not can_review_research(actor, current):
+        raise LeadPermissionError(
+            "You are not allowed to review this "
+            "lead research."
+        )
+
+    owns_transaction = not db.in_transaction
+    if owns_transaction:
+        db.execute("BEGIN IMMEDIATE")
+
+    db.execute(
+        "SAVEPOINT lead_research_review"
+    )
+
+    try:
+        cursor = db.execute(
+            """
+            UPDATE leads
+            SET
+                research_status = ?,
+                reviewed_by_user_id = ?,
+                reviewed_at = CURRENT_TIMESTAMP,
+                review_notes = ?,
+                outreach_approved_by_user_id = NULL,
+                outreach_approved_at = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+              AND deleted_at IS NULL
+              AND research_status = (
+                  'ready_for_review'
+              )
+            """,
+            (
+                normalized_decision,
+                actor_id,
+                normalized_notes,
+                lead_id,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise LeadPermissionError(
+                "The lead changed before the review "
+                "decision could be saved."
+            )
+
+        event_type = (
+            RESEARCH_REVIEW_EVENT_TYPES[
+                normalized_decision
+            ]
+        )
+        note = (
+            "Owner research decision: "
+            f"{normalized_decision.replace('_', ' ')} "
+            f"by user #{actor_id}."
+        )
+        if normalized_notes:
+            note += f" Notes: {normalized_notes}"
+
+        db.execute(
+            """
+            INSERT INTO quest_updates (
+                user_id,
+                task_id,
+                note,
+                progress,
+                event_type
+            )
+            SELECT
+                user_id,
+                id,
+                ?,
+                progress,
+                ?
+            FROM tasks
+            WHERE id = ?
+            """,
+            (
+                note,
+                event_type,
+                current["quest_id"],
+            ),
+        )
+
+    except BaseException:
+        db.execute(
+            "ROLLBACK TO SAVEPOINT "
+            "lead_research_review"
+        )
+        db.execute(
+            "RELEASE SAVEPOINT "
+            "lead_research_review"
+        )
+        if owns_transaction:
+            db.rollback()
+        raise
+    else:
+        db.execute(
+            "RELEASE SAVEPOINT "
+            "lead_research_review"
+        )
+
+    result = get_lead(db, lead_id)
+    if result is None:
+        raise RuntimeError(
+            "Reviewed lead could not be reloaded"
+        )
+    return result

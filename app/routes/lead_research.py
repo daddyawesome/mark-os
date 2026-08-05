@@ -231,3 +231,78 @@ def research_review_queue(
             ),
         },
     )
+
+
+@router.post(
+    "/leads/{lead_id}/research/review"
+)
+def review_lead_research(
+    request: Request,
+    lead_id: int,
+    decision: str = Form(...),
+    review_notes: str = Form(default=""),
+):
+    from app.services.lead_research_permissions import (
+        can_review_research,
+    )
+    from app.services.lead_research_workflow import (
+        review_research,
+    )
+
+    with get_db() as db:
+        lead = get_lead(db, lead_id)
+        if (
+            lead is None
+            or not can_review_research(
+                request.state.current_user,
+                lead,
+            )
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail="Lead not found",
+            )
+
+        try:
+            reviewed = review_research(
+                db,
+                lead_id,
+                actor=request.state.current_user,
+                decision=decision,
+                review_notes=review_notes,
+            )
+        except LeadPermissionError:
+            raise HTTPException(
+                status_code=404,
+                detail="Lead not found",
+            )
+        except ValueError as exc:
+            error_key = (
+                "review_notes_required"
+                if "notes are required"
+                in str(exc).casefold()
+                else "invalid_review"
+            )
+            return RedirectResponse(
+                url=(
+                    f"/crm/leads/{lead_id}"
+                    f"?error={error_key}"
+                ),
+                status_code=303,
+            )
+
+    notice_by_status = {
+        "approved": "research_approved",
+        "changes_requested": (
+            "research_changes_requested"
+        ),
+        "rejected": "research_rejected",
+    }
+
+    return RedirectResponse(
+        url=(
+            f"/crm/leads/{lead_id}"
+            f"?notice={notice_by_status[reviewed['research_status']]}"
+        ),
+        status_code=303,
+    )
