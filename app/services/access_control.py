@@ -10,6 +10,12 @@ MEMBER_ROLE = "member"
 LEAD_SOURCER_ROLE = "lead_sourcer"
 
 _LEAD_DETAIL_PATTERN = re.compile(r"^/crm/leads/[1-9][0-9]*$")
+_LEAD_RESEARCH_EDIT_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/research/edit$"
+)
+_LEAD_RESEARCH_SUBMIT_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/research/submit$"
+)
 _QUEST_DETAIL_PATTERN = re.compile(r"^/quests/[1-9][0-9]*$")
 _HISTORY_EDIT_PATTERN = re.compile(
     r"^/history/[1-9][0-9]*/edit$"
@@ -138,10 +144,15 @@ def can_access_request(
         return (
             normalized_path in _LEAD_SOURCER_GET_PATHS
             or _LEAD_DETAIL_PATTERN.fullmatch(normalized_path) is not None
+            or _LEAD_RESEARCH_EDIT_PATTERN.fullmatch(normalized_path) is not None
         )
 
     if normalized_method == "POST":
-        return normalized_path in _LEAD_SOURCER_POST_PATHS
+        return (
+            normalized_path in _LEAD_SOURCER_POST_PATHS
+            or _LEAD_RESEARCH_EDIT_PATTERN.fullmatch(normalized_path) is not None
+            or _LEAD_RESEARCH_SUBMIT_PATTERN.fullmatch(normalized_path) is not None
+        )
 
     return False
 

@@ -17,6 +17,20 @@ from app.services.lead_csv_import import (
     lead_csv_template_bytes,
 )
 from app.services.access_control import is_lead_sourcer, is_owner
+from app.services.lead_research_permissions import (
+    LeadPermissionError,
+    can_approve_outreach,
+    can_edit_research,
+    can_view_lead,
+)
+from app.services.lead_pipeline_workflow import (
+    LeadPipelineRuleError,
+    change_pipeline_stage,
+    update_owner_lead,
+)
+from app.services.lead_work_queues import (
+    build_role_aware_crm_dashboard,
+)
 from app.services.team_users import get_primary_owner_id
 from app.services.leads import (
     PIPELINE_STATUSES,
@@ -25,10 +39,7 @@ from app.services.leads import (
     delete_lead as delete_lead_record,
     get_crm_dashboard_metrics,
     get_lead,
-    list_leads,
-    update_lead as update_lead_record,
     update_lead_next_action as update_next_action_record,
-    update_lead_pipeline as update_pipeline_record,
 )
 
 router = APIRouter(prefix="/crm")
@@ -53,14 +64,22 @@ NOTICE_MESSAGES = {
     "created": "Lead and linked quest created.",
     "duplicate": "That request was already saved. The existing lead is shown below.",
     "updated": "Lead details updated.",
+    "research_submitted": "Research submitted for Owner review.",
     "pipeline": "Pipeline status updated.",
     "next_action": "Next action updated.",
     "deleted": "Lead archived. Its quest history was preserved.",
+    "research_approved": 'Lead research approved.',
+    "research_changes_requested": 'Changes requested. The Lead Researcher can edit and resubmit.',
+    "research_rejected": 'Lead research rejected.',
+    "outreach_approved": "Outreach approved. This lead may now move to Contacted.",
 }
 ERROR_MESSAGES = {
     "invalid": "The lead could not be saved. Check the required fields and allowed values.",
     "confirmation": 'Type DELETE exactly to archive this lead.',
     "forbidden": "Your account can add and review leads, but only the owner can edit pipeline actions or private MARK-OS data.",
+    "review_notes_required": 'Review notes are required when requesting changes or rejecting.',
+    "invalid_review": 'The research review decision could not be saved.',
+    "pipeline_rule": "That pipeline move is not allowed. Contacted requires approved research and outreach approval; Proposal requires Meeting; Won requires Proposal.",
 }
 METRIC_DEFINITIONS = (
     ("Total leads", "total_leads"),
@@ -85,19 +104,26 @@ def _lead_or_404(
 ):
     lead = get_lead(db, lead_id)
     if lead is None:
-        raise HTTPException(status_code=404, detail="Lead not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Lead not found",
+        )
 
-    if request is not None:
-        user = request.state.current_user
-        if (
-            is_lead_sourcer(user)
-            and lead["created_by_user_id"] != user["id"]
-        ):
-            # Do not reveal whether another user's lead exists.
-            raise HTTPException(status_code=404, detail="Lead not found")
+    if (
+        request is not None
+        and not can_view_lead(
+            request.state.current_user,
+            lead,
+        )
+    ):
+        # Do not reveal whether another user's lead
+        # exists.
+        raise HTTPException(
+            status_code=404,
+            detail="Lead not found",
+        )
 
     return lead
-
 
 def _shared_context(db, request: Request) -> dict:
     user = request.state.current_user
@@ -134,34 +160,50 @@ def _add_leads_context(
 @router.get("", response_class=HTMLResponse)
 def crm_dashboard(request: Request):
     user = request.state.current_user
-    creator_filter = user["id"] if is_lead_sourcer(user) else None
 
     with get_db() as db:
-        metrics = get_crm_dashboard_metrics(
+        dashboard = build_role_aware_crm_dashboard(
             db,
-            created_by_user_id=creator_filter,
+            user,
         )
-        context = {
-            "leads": list_leads(
-                db,
-                created_by_user_id=creator_filter,
-            ),
-            "metric_cards": [
-                {"label": label, "value": metrics[key]}
+        metric_cards = dashboard["metric_cards"]
+
+        if is_owner(user):
+            metrics = get_crm_dashboard_metrics(db)
+            metric_cards = [
+                {
+                    "label": label,
+                    "value": metrics[key],
+                }
                 for label, key in METRIC_DEFINITIONS
+            ]
+
+        context = {
+            "leads": dashboard["leads"],
+            "metric_cards": metric_cards,
+            "queue_cards": dashboard[
+                "queue_cards"
             ],
-            "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
-            "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
+            "queue_mode": dashboard[
+                "queue_mode"
+            ],
+            "notice": _message(
+                NOTICE_MESSAGES,
+                request.query_params.get("notice"),
+            ),
+            "error": _message(
+                ERROR_MESSAGES,
+                request.query_params.get("error"),
+            ),
             **_shared_context(db, request),
         }
+
     return templates.TemplateResponse(
         request=request,
         name="client_hunting.html",
         context=context,
     )
 
-
-# These static routes must stay above /leads/{lead_id}.
 @router.get("/leads/new", response_class=HTMLResponse)
 def new_lead_page(request: Request):
     with get_db() as db:
@@ -322,6 +364,14 @@ def lead_detail(request: Request, lead_id: int):
         lead = _lead_or_404(db, lead_id, request)
         context = {
             "lead": lead,
+            "can_edit_research": can_edit_research(
+                request.state.current_user,
+                lead,
+            ),
+            "can_approve_outreach": can_approve_outreach(
+                request.state.current_user,
+                lead,
+            ),
             "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
             **_shared_context(db, request),
@@ -351,6 +401,7 @@ def edit_lead_page(request: Request, lead_id: int):
 
 @router.post("/leads/{lead_id}/edit")
 def edit_lead(
+    request: Request,
     lead_id: int,
     company: str = Form(...),
     contact_person: str = Form(...),
@@ -368,9 +419,10 @@ def edit_lead(
     with get_db() as db:
         _lead_or_404(db, lead_id)
         try:
-            update_lead_record(
+            update_owner_lead(
                 db,
                 lead_id,
+                actor=request.state.current_user,
                 company=company,
                 contact_person=contact_person,
                 job_title=job_title,
@@ -383,6 +435,11 @@ def edit_lead(
                 next_action=next_action,
                 next_action_due_date=next_action_due_date or None,
                 notes=notes,
+            )
+        except LeadPermissionError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}/edit?error=forbidden",
+                status_code=303,
             )
         except ValueError:
             return RedirectResponse(
@@ -397,16 +454,28 @@ def edit_lead(
 
 @router.post("/leads/{lead_id}/pipeline")
 def update_pipeline(
+    request: Request,
     lead_id: int,
     pipeline_status: str = Form(...),
 ):
     with get_db() as db:
         _lead_or_404(db, lead_id)
         try:
-            update_pipeline_record(
+            change_pipeline_stage(
                 db,
                 lead_id,
+                actor=request.state.current_user,
                 pipeline_status=pipeline_status,
+            )
+        except LeadPermissionError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=forbidden",
+                status_code=303,
+            )
+        except LeadPipelineRuleError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=pipeline_rule",
+                status_code=303,
             )
         except ValueError:
             return RedirectResponse(

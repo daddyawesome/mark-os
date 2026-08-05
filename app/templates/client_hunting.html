@@ -4,50 +4,156 @@
 <section class="mark-hero p-6 mb-5">
     <div class="columns is-vcentered">
         <div class="column">
-            <p class="mark-kicker">Client Hunting // Opportunity Pipeline</p>
-            <h1 class="title is-1 mb-2">Turn good fits into clear next moves.</h1>
-            <p class="subtitle is-5 mark-muted">Review your dashboard and pipeline here. Add leads manually or import several from CSV through the dedicated Add Leads page.</p>
+            <p class="mark-kicker">
+                Client Hunting // Opportunity Pipeline
+            </p>
+            {% if
+                current_user
+                and current_user.role == 'lead_sourcer'
+            %}
+            <h1 class="title is-1 mb-2">
+                Research strong leads and send clean
+                work to Mark.
+            </h1>
+            <p class="subtitle is-5 mark-muted">
+                Handle requested changes first, continue
+                active research, and track everything
+                waiting for Owner review.
+            </p>
+            {% else %}
+            <h1 class="title is-1 mb-2">
+                Review research, approve outreach, and
+                move the pipeline.
+            </h1>
+            <p class="subtitle is-5 mark-muted">
+                Use the decision queues to see what
+                needs action before reviewing the full
+                opportunity pipeline.
+            </p>
+            {% endif %}
         </div>
         <div class="column is-narrow">
             <div class="buttons is-justify-content-flex-end">
-                <a class="button is-mark" href="/crm/leads/new">Add Leads</a>
-                <a class="button is-light" href="/crm/leads/new#csv-import">Import CSV</a>
+                <a
+                    class="button is-mark"
+                    href="/crm/leads/new"
+                >
+                    Add Leads
+                </a>
+                <a
+                    class="button is-light"
+                    href="/crm/leads/new#csv-import"
+                >
+                    Import CSV
+                </a>
+                {% if can_manage_crm %}
+                <a
+                    class="button is-light"
+                    href="/crm/research-review"
+                >
+                    Research Review
+                </a>
+                {% endif %}
             </div>
             <div class="has-text-right mt-3">
-                <span class="mark-chip">{{ metric_cards[0].value }} TOTAL LEADS</span>
+                <span class="mark-chip">
+                    {{ leads|length }} VISIBLE LEADS
+                </span>
             </div>
         </div>
     </div>
 </section>
 
-{% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
-{% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
-{% if current_user and current_user.role == 'lead_sourcer' %}
+{% if notice %}
 <div class="notification is-mark">
-    Lead Sourcer access: you can add, import, and review leads. Mark handles editing, contact actions, pipeline movement, and archiving.
+    {{ notice }}
+</div>
+{% endif %}
+{% if error %}
+<div class="notification is-danger is-light">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if
+    current_user
+    and current_user.role == 'lead_sourcer'
+%}
+<div class="notification is-mark">
+    Lead Researcher access: you can add, import, edit
+    permitted research, respond to requested changes,
+    and submit work for Mark's review. Mark controls
+    approval, outreach, pipeline movement, and archiving.
 </div>
 {% endif %}
 
 <div class="columns is-multiline mb-5">
     {% for metric in metric_cards %}
-    <div class="column is-half-mobile is-one-quarter-tablet">
-        <div class="mark-card p-4 has-text-centered" style="height: 100%;">
-            <p class="mark-number">{{ metric.value }}</p>
-            <p class="mark-muted is-size-7 has-text-weight-bold">{{ metric.label }}</p>
+    <div
+        class="column
+               is-half-mobile
+               is-one-quarter-tablet"
+    >
+        <div
+            class="mark-card
+                   p-4
+                   has-text-centered"
+            style="height: 100%;"
+        >
+            <p class="mark-number">
+                {{ metric.value }}
+            </p>
+            <p
+                class="mark-muted
+                       is-size-7
+                       has-text-weight-bold"
+            >
+                {{ metric.label }}
+            </p>
         </div>
     </div>
     {% endfor %}
 </div>
 
+{% include "partials/crm_role_queues.html" %}
+
 <div class="mark-card p-5">
-    <div class="is-flex is-justify-content-space-between is-align-items-center is-flex-wrap-wrap mb-4">
+    <div
+        class="is-flex
+               is-justify-content-space-between
+               is-align-items-center
+               is-flex-wrap-wrap
+               mb-4"
+    >
         <div>
-            <p class="mark-kicker">Pipeline</p>
-            <h2 class="title is-3 mb-0">Current leads</h2>
+            <p class="mark-kicker">
+                {% if queue_mode == 'researcher' %}
+                Permitted Lead Workspace
+                {% else %}
+                Complete Pipeline
+                {% endif %}
+            </p>
+            <h2 class="title is-3 mb-0">
+                {% if queue_mode == 'researcher' %}
+                Leads related to your work
+                {% else %}
+                Current leads
+                {% endif %}
+            </h2>
         </div>
-        <div class="is-flex is-align-items-center" style="gap: .75rem;">
-            <span class="mark-chip">{{ leads|length }} SHOWN</span>
-            <a class="button is-small is-mark" href="/crm/leads/new">+ Add Leads</a>
+        <div
+            class="is-flex is-align-items-center"
+            style="gap: .75rem;"
+        >
+            <span class="mark-chip">
+                {{ leads|length }} SHOWN
+            </span>
+            <a
+                class="button is-small is-mark"
+                href="/crm/leads/new"
+            >
+                + Add Leads
+            </a>
         </div>
     </div>
 
@@ -56,37 +162,125 @@
             <thead>
                 <tr>
                     <th>Lead</th>
+                    <th>Research</th>
                     <th>Status</th>
                     <th>Priority</th>
                     <th>Added by</th>
                     <th>Assigned to</th>
                     <th>Next action</th>
                     {% if can_manage_crm %}<th>Quest</th>{% endif %}
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for lead in leads %}
                 <tr>
                     <td>
-                        <a class="has-text-weight-bold" href="/crm/leads/{{ lead.id }}">{{ lead.company }}</a><br>
-                        <span class="mark-muted is-size-7">{{ lead.contact_person }}{% if lead.job_title %} · {{ lead.job_title }}{% endif %}</span>
+                        <a
+                            class="has-text-weight-bold"
+                            href="/crm/leads/{{ lead.id }}"
+                        >
+                            {{ lead.company }}
+                        </a>
+                        <br>
+                        <span class="mark-muted is-size-7">
+                            {{ lead.contact_person }}
+                            {% if lead.job_title %}
+                            · {{ lead.job_title }}
+                            {% endif %}
+                        </span>
                     </td>
-                    <td><span class="mark-chip">{{ lead.pipeline_status|upper }}</span></td>
-                    <td>{{ lead.priority|title }}</td>
-                    <td>{{ lead.created_by_name or 'Unassigned history' }}</td>
-                    <td>{{ lead.assigned_to_name or 'Not assigned' }}</td>
+                    <td>
+                        <span class="mark-chip">
+                            {{ lead.research_status
+                               |replace('_', ' ')
+                               |upper }}
+                        </span>
+                        {% if
+                            lead.research_status
+                            == 'changes_requested'
+                            and lead.review_notes
+                        %}
+                        <br>
+                        <span class="is-size-7 has-text-warning-dark">
+                            Owner feedback available
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="mark-chip">
+                            {{ lead.pipeline_status|upper }}
+                        </span>
+                    </td>
+                    <td>
+                        {{ lead.priority|title }}
+                    </td>
+                    <td>
+                        {{ lead.created_by_name
+                           or 'Unassigned history' }}
+                    </td>
+                    <td>
+                        {{ lead.assigned_to_name
+                           or 'Not assigned' }}
+                    </td>
                     <td>
                         {{ lead.next_action }}
-                        {% if lead.next_action_due_date %}<br><span class="mark-muted is-size-7">Due {{ lead.next_action_due_date }}</span>{% endif %}
+                        {% if lead.next_action_due_date %}
+                        <br>
+                        <span class="mark-muted is-size-7">
+                            Due
+                            {{ lead.next_action_due_date }}
+                        </span>
+                        {% endif %}
                     </td>
                     {% if can_manage_crm %}
-                    <td><a href="/quests/{{ lead.quest_id }}">Quest #{{ lead.quest_id }}</a></td>
+                    <td>
+                        <a href="/quests/{{ lead.quest_id }}">
+                            Quest #{{ lead.quest_id }}
+                        </a>
+                    </td>
                     {% endif %}
+                    <td>
+                        {% if
+                            current_user
+                            and current_user.role
+                                == 'lead_sourcer'
+                            and lead.research_status
+                                in [
+                                    'draft',
+                                    'researching',
+                                    'changes_requested'
+                                ]
+                        %}
+                        <a
+                            class="button is-small is-mark"
+                            href="/crm/leads/{{ lead.id }}/research/edit"
+                        >
+                            Continue research
+                        </a>
+                        {% else %}
+                        <a
+                            class="button
+                                   is-small
+                                   is-ghost-forest"
+                            href="/crm/leads/{{ lead.id }}"
+                        >
+                            Open
+                        </a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="{{ 7 if can_manage_crm else 6 }}" class="has-text-centered mark-muted p-6">
-                        No leads yet. Use Add Leads to create one manually or import a CSV.
+                    <td
+                        colspan="{{ 9 if can_manage_crm else 8 }}"
+                        class="has-text-centered
+                               mark-muted
+                               p-6"
+                    >
+                        No permitted leads yet. Use Add
+                        Leads to create one manually or
+                        import a CSV.
                     </td>
                 </tr>
                 {% endfor %}

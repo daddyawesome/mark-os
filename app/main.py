@@ -18,7 +18,16 @@ from app.auth import (
 from app.database import get_db, init_db
 from app.db.family_workspace import ensure_personal_workspace
 from app.routes import auth as auth_routes
-from app.routes import family, checkins, client_hunting, goals, pages, quests, users
+from app.routes import (
+    family,
+    checkins,
+    client_hunting,
+    lead_research,
+    goals,
+    pages,
+    quests,
+    users,
+)
 from app.services.access_control import (
     can_access_request,
     landing_path_for_user,
@@ -136,5 +145,6 @@ app.include_router(checkins.router)
 app.include_router(quests.router)
 app.include_router(goals.router)
 app.include_router(client_hunting.router)
+app.include_router(lead_research.router)
 app.include_router(users.router)
 app.include_router(pages.router)

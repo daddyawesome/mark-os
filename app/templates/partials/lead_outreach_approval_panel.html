@@ -1,0 +1,44 @@
+{% if lead.outreach_approved_at %}
+<div class="notification is-success is-light mb-5">
+    <strong>Outreach approved</strong>
+    <br>
+    Owner approval was recorded
+    {{ lead.outreach_approved_at }}.
+    The lead may now move to Contacted.
+</div>
+{% elif lead.research_status == 'approved' %}
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">
+        Outreach Approval
+    </p>
+    <h2 class="title is-3">
+        Research is approved
+    </h2>
+    {% if
+        current_user
+        and current_user.role == 'owner'
+        and can_approve_outreach
+    %}
+    <p class="mark-muted mb-4">
+        Approve outreach before moving this lead to
+        Contacted. This records permission only; it
+        does not send a message.
+    </p>
+    <form
+        method="post"
+        action="/crm/leads/{{ lead.id }}/outreach/approve"
+    >
+        <button
+            class="button is-success"
+            type="submit"
+        >
+            Approve Outreach
+        </button>
+    </form>
+    {% else %}
+    <p class="mark-muted">
+        Waiting for the Owner to approve outreach.
+    </p>
+    {% endif %}
+</div>
+{% endif %}

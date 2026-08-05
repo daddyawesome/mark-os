@@ -40,6 +40,7 @@ def test_owner_keeps_full_mark_os_access():
         ("POST", "/check-in"),
         ("GET", "/crm"),
         ("POST", "/crm/leads/1/pipeline"),
+        ("POST", "/crm/leads/1/outreach/approve"),
         ("POST", "/crm/leads/1/delete"),
     )
     assert all(
@@ -57,6 +58,8 @@ def test_lead_sourcer_has_small_read_and_intake_surface():
         ("GET", "/crm/leads/import/template"),
         ("GET", "/crm/leads/1"),
         ("GET", "/crm/leads/999"),
+        ("GET", "/crm/leads/1/research/edit"),
+        ("POST", "/crm/leads/1/research/edit"),
         ("POST", "/crm/leads"),
         ("POST", "/crm/leads/import"),
         ("POST", "/logout"),
@@ -71,6 +74,7 @@ def test_lead_sourcer_has_small_read_and_intake_surface():
         ("GET", "/crm/leads/1/edit"),
         ("POST", "/crm/leads/1/edit"),
         ("POST", "/crm/leads/1/pipeline"),
+        ("POST", "/crm/leads/1/outreach/approve"),
         ("POST", "/crm/leads/1/next-action"),
         ("GET", "/crm/leads/1/delete"),
         ("POST", "/crm/leads/1/delete"),
@@ -174,7 +178,7 @@ def test_role_aware_templates_hide_owner_controls():
 
     assert "request.state.current_user.role == 'owner'" in base
     assert "LEAD SOURCER" not in base
-    assert "Lead Sourcer access" in dashboard
+    assert "Lead Researcher access" in dashboard
     assert "{% if can_manage_crm %}<th>Quest</th>{% endif %}" in dashboard
     assert "saved as <strong>New</strong>" in intake
     assert "{% if can_manage_crm %}" in detail

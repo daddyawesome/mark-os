@@ -1,0 +1,91 @@
+{% if
+    current_user
+    and current_user.role == 'owner'
+    and lead.research_status == 'ready_for_review'
+%}
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">
+        Owner Research Review
+    </p>
+    <h2 class="title is-3">
+        Decide the research outcome
+    </h2>
+    <p class="mark-muted mb-4">
+        Approval confirms that the research is ready.
+        Outreach still requires a separate approval in
+        Phase 6.1F.
+    </p>
+
+    <form
+        method="post"
+        action="/crm/leads/{{ lead.id }}/research/review"
+    >
+        <div class="field">
+            <label
+                class="label"
+                for="review_notes"
+            >
+                Review notes
+            </label>
+            <textarea
+                class="textarea"
+                id="review_notes"
+                name="review_notes"
+                rows="5"
+                maxlength="2000"
+                placeholder="Required when requesting changes or rejecting."
+            ></textarea>
+            <p class="help">
+                Notes are optional for approval and
+                required for changes or rejection.
+            </p>
+        </div>
+
+        <div class="buttons">
+            <button
+                class="button is-success"
+                type="submit"
+                name="decision"
+                value="approved"
+            >
+                Approve Research
+            </button>
+
+            <button
+                class="button is-warning"
+                type="submit"
+                name="decision"
+                value="changes_requested"
+            >
+                Request Changes
+            </button>
+
+            <button
+                class="button is-danger is-light"
+                type="submit"
+                name="decision"
+                value="rejected"
+            >
+                Reject Research
+            </button>
+        </div>
+    </form>
+</div>
+{% endif %}
+
+{% if
+    lead.review_notes
+    and lead.research_status != 'ready_for_review'
+%}
+<div class="notification is-info is-light">
+    <strong>Owner review notes</strong>
+    <br>
+    {{ lead.review_notes }}
+    {% if lead.reviewed_at %}
+    <br>
+    <span class="is-size-7">
+        Reviewed {{ lead.reviewed_at }}
+    </span>
+    {% endif %}
+</div>
+{% endif %}

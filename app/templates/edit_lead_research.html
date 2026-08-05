@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}
+Research {{ lead.company }} · Client Hunting · MARK OS
+{% endblock %}
+
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">
+        Client Hunting // Lead Research
+    </p>
+    <h1 class="title is-1 mb-2">
+        Research {{ lead.company }}
+    </h1>
+    <p class="subtitle is-5 mark-muted">
+        Update the lead context. Pipeline, priority,
+        assignment, approval, and outcome decisions
+        remain Owner-controlled.
+    </p>
+    <div class="tags mt-4">
+        <span class="mark-chip">
+            RESEARCH:
+            {{ lead.research_status|replace('_', ' ')|upper }}
+        </span>
+        <span class="mark-chip">
+            PIPELINE:
+            {{ lead.pipeline_status|upper }}
+        </span>
+        <span class="mark-chip">
+            PRIORITY:
+            {{ lead.priority|upper }}
+        </span>
+    </div>
+</section>
+
+{% if error %}
+<div class="notification is-danger is-light">
+    {{ error }}
+</div>
+{% endif %}
+
+<div class="mark-card p-6">
+    <form
+        method="post"
+        action="/crm/leads/{{ lead.id }}/research/edit"
+    >
+        <div class="columns is-multiline">
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="company">
+                        Company
+                    </label>
+                    <input
+                        class="input"
+                        id="company"
+                        name="company"
+                        type="text"
+                        required
+                        value="{{ lead.company }}"
+                    >
+                </div>
+            </div>
+
+            <div class="column is-half">
+                <div class="field">
+                    <label
+                        class="label"
+                        for="contact_person"
+                    >
+                        Contact person
+                    </label>
+                    <input
+                        class="input"
+                        id="contact_person"
+                        name="contact_person"
+                        type="text"
+                        required
+                        value="{{ lead.contact_person }}"
+                    >
+                </div>
+            </div>
+
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="job_title">
+                        Job title
+                    </label>
+                    <input
+                        class="input"
+                        id="job_title"
+                        name="job_title"
+                        type="text"
+                        value="{{ lead.job_title }}"
+                    >
+                </div>
+            </div>
+
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="source">
+                        Source
+                    </label>
+                    <input
+                        class="input"
+                        id="source"
+                        name="source"
+                        type="text"
+                        required
+                        value="{{ lead.source }}"
+                    >
+                </div>
+            </div>
+
+            <div class="column is-full">
+                <div class="field">
+                    <label
+                        class="label"
+                        for="source_url"
+                    >
+                        Source link
+                    </label>
+                    <input
+                        class="input"
+                        id="source_url"
+                        name="source_url"
+                        type="url"
+                        value="{{ lead.source_url }}"
+                    >
+                </div>
+            </div>
+
+            <div class="column is-half">
+                <div class="field">
+                    <label
+                        class="label"
+                        for="problem_opportunity"
+                    >
+                        Problem or opportunity
+                    </label>
+                    <textarea
+                        class="textarea"
+                        id="problem_opportunity"
+                        name="problem_opportunity"
+                        rows="5"
+                        required
+                    >{{ lead.problem_opportunity }}</textarea>
+                </div>
+            </div>
+
+            <div class="column is-half">
+                <div class="field">
+                    <label
+                        class="label"
+                        for="why_mark_fits"
+                    >
+                        Why Mark fits
+                    </label>
+                    <textarea
+                        class="textarea"
+                        id="why_mark_fits"
+                        name="why_mark_fits"
+                        rows="5"
+                        required
+                    >{{ lead.why_mark_fits }}</textarea>
+                </div>
+            </div>
+
+            <div class="column is-two-thirds">
+                <div class="field">
+                    <label
+                        class="label"
+                        for="next_action"
+                    >
+                        Recommended next action
+                    </label>
+                    <input
+                        class="input"
+                        id="next_action"
+                        name="next_action"
+                        type="text"
+                        required
+                        value="{{ lead.next_action }}"
+                    >
+                </div>
+            </div>
+
+            <div class="column is-one-third">
+                <div class="field">
+                    <label
+                        class="label"
+                        for="next_action_due_date"
+                    >
+                        Suggested due date
+                    </label>
+                    <input
+                        class="input"
+                        id="next_action_due_date"
+                        name="next_action_due_date"
+                        type="date"
+                        value="{{ lead.next_action_due_date or '' }}"
+                    >
+                </div>
+            </div>
+
+            <div class="column is-full">
+                <div class="field">
+                    <label class="label" for="notes">
+                        Research notes
+                    </label>
+                    <textarea
+                        class="textarea"
+                        id="notes"
+                        name="notes"
+                        rows="5"
+                    >{{ lead.notes }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="notification is-info is-light">
+            Saving a Draft or Changes Requested lead
+            moves its research status to Researching.
+            Submitting for Owner review is added in
+            Phase 6.1D.
+        </div>
+
+        <div
+            class="buttons is-justify-content-flex-end"
+        >
+            <a
+                class="button is-ghost-forest"
+                href="/crm/leads/{{ lead.id }}"
+            >
+                Cancel
+            </a>
+            <button
+                class="button is-mark"
+                type="submit"
+            >
+                Save Research
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
