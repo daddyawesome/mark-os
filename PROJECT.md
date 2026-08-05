@@ -4,7 +4,7 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-05  
 **Current active phase:** Phase 6 — Agency CRM Operations  
-**Immediate next milestone:** Phase 6.1 — Staff Workflow, Research Ownership, and Approval  
+**Immediate next milestone:** Phase 6.1J — Relationship Manager and Sales Playbook  
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
 **Last locally reported test result:** 267 passed
@@ -935,7 +935,7 @@ brother before adding more advanced systems.
 
 ## Phase 6.1 — Staff Workflow, Research Ownership, and Approval
 
-**Status:** Next  
+**Status:** Complete  
 **Priority:** Critical
 
 ### Goal
@@ -1070,6 +1070,121 @@ Permanent purge should not be available in the normal UI.
 - Permission tests cover direct URL and forged POST attempts.
 - Existing leads are safely backfilled.
 - Existing CSV import still works.
+- Full test suite passes.
+
+---
+
+## Phase 6.1J — Relationship Manager and Sales Playbook
+
+**Status:** Active  
+**Priority:** High  
+**Start condition:** Phase 6.1 staff research and approval workflow is merged
+and stable.
+
+### Goal
+
+Add a separate Business Development Collaborator account for Junmar without
+weakening the Owner controls completed in Phase 6.1.
+
+### Account model
+
+```text
+Backend role: relationship_manager
+Displayed business title: Business Development Collaborator
+Dedicated landing page: /relationship-manager
+```
+
+This role is separate from `lead_sourcer`. The Lead Researcher verifies and
+submits research. The Relationship Manager develops qualified conversations
+and hands technical, pricing, proposal, closing, and delivery decisions to
+Mark.
+
+### Required CRM field
+
+```text
+business_development_owner_user_id
+```
+
+Do not replace or overload:
+
+```text
+created_by_user_id
+assigned_to_user_id
+researched_by_user_id
+```
+
+These fields represent different responsibilities.
+
+### Playbook storage
+
+Store internal Markdown playbooks in:
+
+```text
+playbooks
+user_playbook_assignments
+```
+
+The internal source Markdown must remain outside the public repository. Import
+it through a local maintenance command and assign it to an active Relationship
+Manager account. Render it with raw HTML escaped.
+
+### Relationship Manager permissions
+
+The Relationship Manager can:
+
+- open the dedicated playbook front page;
+- open the CRM;
+- create qualified leads;
+- import qualified leads;
+- view leads created by or assigned to them as Business Development Owner;
+- read research and outreach-approval status;
+- update the next action and due date for permitted relationship leads;
+- prepare approved relationship work;
+- escalate interested prospects to Mark.
+
+The Relationship Manager cannot:
+
+- access Mark's or family members' private OS;
+- edit or submit research as the Lead Researcher;
+- approve research;
+- approve outreach;
+- change pipeline stages;
+- mark Contacted, Proposal, Won, or Lost;
+- set pricing, scope, discounts, or delivery promises;
+- archive leads;
+- assign relationship ownership;
+- manage users or system settings.
+
+### Phase 6.2 dependency
+
+`Contacted` remains Owner-only during Phase 6.1J. Delegated outreach must wait
+until Phase 6.2 can record:
+
+```text
+date contacted
+message channel
+message summary
+next follow-up date
+responsible staff member
+current response status
+```
+
+### Definition of done
+
+- Existing users and user IDs survive the role-constraint migration.
+- Existing leads, quests, playbooks, and foreign keys remain valid.
+- Owners can create and deactivate Relationship Manager accounts.
+- Deactivation clears active business-development ownership.
+- Owners can assign or unassign a Relationship Manager from a lead.
+- Junmar's landing page displays his assigned playbook and work queues.
+- Junmar-created leads start as New and identify him as Business Development
+  Owner.
+- Unrelated relationship leads remain hidden.
+- Next-action updates are enforced in the service layer.
+- Forged review, outreach, pipeline, delete, settings, and private-OS requests
+  remain blocked.
+- The internal Markdown source is ignored by Git.
+- No Relationship Manager action changes XP.
 - Full test suite passes.
 
 ---
@@ -2672,7 +2787,7 @@ or use the existing `run.ps1` helper.
 Begin:
 
 ```text
-Phase 6.1 — Staff Workflow, Research Ownership, and Approval
+Phase 6.1J — Relationship Manager and Sales Playbook
 ```
 
 Recommended branch:
@@ -2684,7 +2799,7 @@ git switch main
 git pull --ff-only origin main
 git status
 
-git switch -c feature/lead-research-review-workflow
+git switch -c feature/relationship-manager-playbook
 ```
 
 Before coding, inspect:
@@ -2704,23 +2819,21 @@ tests/test_role_permissions.py
 tests/test_application.py
 ```
 
-### First Phase 6.1 implementation order
+### Phase 6.1 completion and Phase 6.1J order
 
 ```text
-6.1A  Additive research/review schema
-6.1B  Backfill existing leads
-6.1C  Service-level permission policy
-6.1D  Brother research-edit workflow
-6.1E  Mark review and approval workflow
-6.1F  Owner-only major stage transitions
-6.1G  Templates and CRM queues
-6.1H  Migration, permission, and route tests
-6.1I  Full-suite and browser verification
+6.1A–6.1I  Complete: staff research, review, outreach approval, queues,
+            acceptance, and release verification
+6.1J-A      Relationship Manager role and additive CRM ownership schema
+6.1J-B      Private playbook storage and import command
+6.1J-C      Dedicated landing page and relationship work queues
+6.1J-D      Narrow CRM permissions and next-action workflow
+6.1J-E      Migration, authorization, UI, and release tests
 ```
 
-Do not implement the full activity timeline in 6.1.
+Do not implement contact activity logging in Phase 6.1J.
 
-The activity timeline is Phase 6.2.
+The activity timeline and delegated contact audit trail are Phase 6.2.
 
 ---
 
@@ -2806,7 +2919,8 @@ The activity timeline is Phase 6.2.
 | Phase 5.1 | Complete | Persistent chat |
 | Phase 5.2 | Complete | Agent audit |
 | M1–M10 | Complete | Multi-user, family isolation, workspace release |
-| Phase 6.1 | Next | Staff research and approval workflow |
+| Phase 6.1 | Complete | Staff research, review, outreach approval, and role-aware queues |
+| Phase 6.1J | Active | Relationship Manager, private sales playbook, and relationship-owned CRM access |
 | Phase 6.2 | Planned | Lead activity timeline |
 | Phase 6.3 | Planned | Follow-up command center |
 | Phase 6.4 | Planned | Bulk lead management |

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from app.services.passwords import hash_password
 
 
-ROLES = ("owner", "member", "lead_sourcer")
+ROLES = ("owner", "member", "lead_sourcer", "relationship_manager")
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS users (
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL
         CHECK(length(trim(password_hash)) > 0),
     role TEXT NOT NULL DEFAULT 'lead_sourcer'
-        CHECK(role IN ('owner', 'member', 'lead_sourcer')),
+        CHECK(role IN ('owner', 'member', 'lead_sourcer', 'relationship_manager')),
     active INTEGER NOT NULL DEFAULT 1
         CHECK(active IN (0, 1)),
     must_change_password INTEGER NOT NULL DEFAULT 0
@@ -70,7 +70,7 @@ def migrate(db: sqlite3.Connection) -> None:
 
 
 def migrate_family_roles(db: sqlite3.Connection) -> None:
-    # Safely expand the role CHECK without redirecting child foreign keys.
+    """Expand the user role constraint without changing user IDs."""
     table_row = db.execute(
         """
         SELECT sql
@@ -81,17 +81,45 @@ def migrate_family_roles(db: sqlite3.Connection) -> None:
     if table_row is None or table_row["sql"] is None:
         return
 
-    normalized_sql = " ".join(table_row["sql"].lower().split())
-    if "check(role in ('owner', 'member', 'lead_sourcer'))" in normalized_sql:
+    normalized_sql = " ".join(
+        str(table_row["sql"]).lower().split()
+    )
+    normalized_sql = normalized_sql.replace(
+        "( ",
+        "(",
+    ).replace(
+        " )",
+        ")",
+    )
+    expanded_check = (
+        "check(role in ('owner', 'member', 'lead_sourcer', "
+        "'relationship_manager'))"
+    )
+    previous_checks = (
+        "check(role in ('owner', 'lead_sourcer'))",
+        "check(role in ('owner', 'member', 'lead_sourcer'))",
+    )
+
+    if expanded_check in normalized_sql:
         return
+    if not any(
+        previous_check in normalized_sql
+        for previous_check in previous_checks
+    ):
+        raise RuntimeError(
+            "Unsupported users role constraint; refusing to rebuild users."
+        )
 
     columns = {
         row["name"]
-        for row in db.execute("PRAGMA table_info(users)").fetchall()
+        for row in db.execute(
+            "PRAGMA table_info(users)"
+        ).fetchall()
     }
     if "session_version" not in columns:
         raise RuntimeError(
-            "M7 requires the M5/M6 session_version migration first."
+            "Relationship Manager role migration requires "
+            "session_version first."
         )
 
     db.commit()
@@ -99,10 +127,10 @@ def migrate_family_roles(db: sqlite3.Connection) -> None:
 
     try:
         db.execute("BEGIN IMMEDIATE")
-        db.execute("DROP TABLE IF EXISTS users_m7_new")
+        db.execute("DROP TABLE IF EXISTS users_role_new")
         db.execute(
             """
-            CREATE TABLE users_m7_new (
+            CREATE TABLE users_role_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL COLLATE NOCASE UNIQUE
                     CHECK(length(trim(username)) > 0),
@@ -111,7 +139,12 @@ def migrate_family_roles(db: sqlite3.Connection) -> None:
                 password_hash TEXT NOT NULL
                     CHECK(length(trim(password_hash)) > 0),
                 role TEXT NOT NULL DEFAULT 'lead_sourcer'
-                    CHECK(role IN ('owner', 'member', 'lead_sourcer')),
+                    CHECK(role IN (
+                        'owner',
+                        'member',
+                        'lead_sourcer',
+                        'relationship_manager'
+                    )),
                 active INTEGER NOT NULL DEFAULT 1
                     CHECK(active IN (0, 1)),
                 must_change_password INTEGER NOT NULL DEFAULT 0
@@ -126,7 +159,7 @@ def migrate_family_roles(db: sqlite3.Connection) -> None:
         )
         db.execute(
             """
-            INSERT INTO users_m7_new (
+            INSERT INTO users_role_new (
                 id,
                 username,
                 display_name,
@@ -156,7 +189,9 @@ def migrate_family_roles(db: sqlite3.Connection) -> None:
             """
         )
         db.execute("DROP TABLE users")
-        db.execute("ALTER TABLE users_m7_new RENAME TO users")
+        db.execute(
+            "ALTER TABLE users_role_new RENAME TO users"
+        )
         db.commit()
     except Exception:
         db.rollback()
@@ -164,10 +199,13 @@ def migrate_family_roles(db: sqlite3.Connection) -> None:
     finally:
         db.execute("PRAGMA foreign_keys = ON")
 
-    violations = db.execute("PRAGMA foreign_key_check").fetchall()
+    violations = db.execute(
+        "PRAGMA foreign_key_check"
+    ).fetchall()
     if violations:
         raise RuntimeError(
-            "M7 users migration produced foreign-key violations."
+            "Relationship Manager user migration produced "
+            "foreign-key violations."
         )
 
 def validate_schema(db: sqlite3.Connection) -> None:
@@ -255,12 +293,20 @@ def validate_schema(db: sqlite3.Connection) -> None:
         raise RuntimeError("Incompatible users schema; table definition is missing")
 
     normalized_sql = " ".join(table_row["sql"].lower().split())
+    normalized_sql = normalized_sql.replace(
+        "( ",
+        "(",
+    ).replace(
+        " )",
+        ")",
+    )
     required_fragments = (
         "username text not null collate nocase unique",
         "check(length(trim(username)) > 0)",
         "check(length(trim(display_name)) > 0)",
         "check(length(trim(password_hash)) > 0)",
-        "check(role in ('owner', 'member', 'lead_sourcer'))",
+        "check(role in ('owner', 'member', 'lead_sourcer', "
+        "'relationship_manager'))",
         "check(active in (0, 1))",
         "check(must_change_password in (0, 1))",
         "check(session_version >= 1)",

@@ -17,9 +17,13 @@
 {% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
 {% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
 {% if import_error %}<div class="notification is-danger is-light">{{ import_error }}</div>{% endif %}
-{% if not can_manage_crm %}
+{% if current_user and current_user.role == 'lead_sourcer' %}
 <div class="notification is-mark">
-    Leads you submit are saved as <strong>New</strong> for Mark to review. You cannot move the contact pipeline or archive leads.
+    Leads you submit are saved as <strong>New</strong> for Mark to review. You can research permitted leads, but cannot move the contact pipeline or archive leads.
+</div>
+{% elif current_user and current_user.role == 'relationship_manager' %}
+<div class="notification is-warning is-light">
+    Leads you create are saved as <strong>New</strong> and assigned to you as Business Development Owner. Mark retains approval, pipeline, pricing, proposal, closing, and archive authority.
 </div>
 {% endif %}
 

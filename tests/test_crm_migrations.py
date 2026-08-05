@@ -37,6 +37,7 @@ LEAD_COLUMNS = [
     "review_notes",
     "outreach_approved_by_user_id",
     "outreach_approved_at",
+    "business_development_owner_user_id",
 ]
 
 EXPECTED_LEAD_INDEXES = {
@@ -93,6 +94,16 @@ EXPECTED_LEAD_INDEXES = {
             "researched_by_user_id",
             "deleted_at",
             "updated_at",
+            "id",
+        ],
+    ),
+    "idx_leads_business_development_owner": (
+        False,
+        False,
+        [
+            "business_development_owner_user_id",
+            "deleted_at",
+            "next_action_due_date",
             "id",
         ],
     ),

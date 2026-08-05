@@ -20,6 +20,19 @@
                 active research, and track everything
                 waiting for Owner review.
             </p>
+            {% elif
+                current_user
+                and current_user.role == 'relationship_manager'
+            %}
+            <h1 class="title is-1 mb-2">
+                Build qualified conversations and keep
+                relationship work moving.
+            </h1>
+            <p class="subtitle is-5 mark-muted">
+                View only your relationship-owned leads,
+                update next actions, and escalate pricing,
+                proposals, and technical decisions to Mark.
+            </p>
             {% else %}
             <h1 class="title is-1 mb-2">
                 Review research, approve outreach, and
@@ -87,6 +100,18 @@
 </div>
 {% endif %}
 
+{% if
+    current_user
+    and current_user.role == 'relationship_manager'
+%}
+<div class="notification is-warning is-light">
+    Relationship Manager access: you can create qualified
+    leads, view relationship-owned opportunities, and update
+    their next actions. Contacted, proposals, Won/Lost,
+    pricing, scope, approval, and deletion remain with Mark.
+</div>
+{% endif %}
+
 <div class="columns is-multiline mb-5">
     {% for metric in metric_cards %}
     <div
@@ -129,6 +154,8 @@
             <p class="mark-kicker">
                 {% if queue_mode == 'researcher' %}
                 Permitted Lead Workspace
+                {% elif queue_mode == 'relationship_manager' %}
+                Relationship-Owned Pipeline
                 {% else %}
                 Complete Pipeline
                 {% endif %}
@@ -136,6 +163,8 @@
             <h2 class="title is-3 mb-0">
                 {% if queue_mode == 'researcher' %}
                 Leads related to your work
+                {% elif queue_mode == 'relationship_manager' %}
+                Leads assigned to your relationships
                 {% else %}
                 Current leads
                 {% endif %}
@@ -167,6 +196,7 @@
                     <th>Priority</th>
                     <th>Added by</th>
                     <th>Assigned to</th>
+                    <th>Relationship owner</th>
                     <th>Next action</th>
                     {% if can_manage_crm %}<th>Quest</th>{% endif %}
                     <th></th>
@@ -224,6 +254,10 @@
                            or 'Not assigned' }}
                     </td>
                     <td>
+                        {{ lead.business_development_owner_name
+                           or 'Not assigned' }}
+                    </td>
+                    <td>
                         {{ lead.next_action }}
                         {% if lead.next_action_due_date %}
                         <br>
@@ -273,7 +307,7 @@
                 {% else %}
                 <tr>
                     <td
-                        colspan="{{ 9 if can_manage_crm else 8 }}"
+                        colspan="{{ 10 if can_manage_crm else 9 }}"
                         class="has-text-centered
                                mark-muted
                                p-6"

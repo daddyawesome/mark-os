@@ -165,6 +165,9 @@ def import_leads_from_csv(
     content: bytes,
     *,
     pipeline_status_override: str | None = None,
+    created_by_user_id: int | None = None,
+    assigned_to_user_id: int | None = None,
+    business_development_owner_user_id: int | None = None,
 ) -> LeadCsvImportResult:
     """Import valid rows while reporting duplicates and row-level errors.
 
@@ -201,6 +204,11 @@ def import_leads_from_csv(
                 next_action_due_date=values["next_action_due_date"] or None,
                 notes=values["notes"],
                 request_key=request_key,
+                created_by_user_id=created_by_user_id,
+                assigned_to_user_id=assigned_to_user_id,
+                business_development_owner_user_id=(
+                    business_development_owner_user_id
+                ),
             )
         except ValueError as exc:
             errors.append(

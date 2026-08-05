@@ -8,6 +8,7 @@ from typing import Any
 OWNER_ROLE = "owner"
 MEMBER_ROLE = "member"
 LEAD_SOURCER_ROLE = "lead_sourcer"
+RELATIONSHIP_MANAGER_ROLE = "relationship_manager"
 
 _LEAD_DETAIL_PATTERN = re.compile(r"^/crm/leads/[1-9][0-9]*$")
 _LEAD_RESEARCH_EDIT_PATTERN = re.compile(
@@ -16,6 +17,10 @@ _LEAD_RESEARCH_EDIT_PATTERN = re.compile(
 _LEAD_RESEARCH_SUBMIT_PATTERN = re.compile(
     r"^/crm/leads/[1-9][0-9]*/research/submit$"
 )
+_RELATIONSHIP_NEXT_ACTION_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/next-action$"
+)
+
 _QUEST_DETAIL_PATTERN = re.compile(r"^/quests/[1-9][0-9]*$")
 _HISTORY_EDIT_PATTERN = re.compile(
     r"^/history/[1-9][0-9]*/edit$"
@@ -40,6 +45,24 @@ _LEAD_SOURCER_GET_PATHS = frozenset(
 )
 
 _LEAD_SOURCER_POST_PATHS = frozenset(
+    {
+        "/crm/leads",
+        "/crm/leads/import",
+        "/logout",
+    }
+)
+
+
+_RELATIONSHIP_MANAGER_GET_PATHS = frozenset(
+    {
+        "/relationship-manager",
+        "/crm",
+        "/crm/leads/new",
+        "/crm/leads/import/template",
+    }
+)
+
+_RELATIONSHIP_MANAGER_POST_PATHS = frozenset(
     {
         "/crm/leads",
         "/crm/leads/import",
@@ -86,6 +109,12 @@ def is_lead_sourcer(user: Mapping[str, Any] | None) -> bool:
     return role_of(user) == LEAD_SOURCER_ROLE
 
 
+def is_relationship_manager(
+    user: Mapping[str, Any] | None,
+) -> bool:
+    return role_of(user) == RELATIONSHIP_MANAGER_ROLE
+
+
 def is_personal_user(user: Mapping[str, Any] | None) -> bool:
     return role_of(user) in {OWNER_ROLE, MEMBER_ROLE}
 
@@ -93,6 +122,8 @@ def is_personal_user(user: Mapping[str, Any] | None) -> bool:
 def landing_path_for_user(user: Mapping[str, Any]) -> str:
     if is_personal_user(user):
         return "/"
+    if is_relationship_manager(user):
+        return "/relationship-manager"
     return "/crm"
 
 
@@ -135,6 +166,22 @@ def can_access_request(
             return _member_can_get(normalized_path)
         if normalized_method == "POST":
             return _member_can_post(normalized_path)
+        return False
+
+    if is_relationship_manager(user):
+        if normalized_method in {"GET", "HEAD"}:
+            return (
+                normalized_path in _RELATIONSHIP_MANAGER_GET_PATHS
+                or _LEAD_DETAIL_PATTERN.fullmatch(normalized_path) is not None
+            )
+        if normalized_method == "POST":
+            return (
+                normalized_path in _RELATIONSHIP_MANAGER_POST_PATHS
+                or _RELATIONSHIP_NEXT_ACTION_PATTERN.fullmatch(
+                    normalized_path
+                )
+                is not None
+            )
         return False
 
     if not is_lead_sourcer(user):

@@ -4,6 +4,8 @@
         <p class="mark-kicker">
             {% if queue_mode == 'owner' %}
             Owner Decision Queues
+            {% elif queue_mode == 'relationship_manager' %}
+            Relationship Manager Workspace
             {% else %}
             Lead Researcher Workspace
             {% endif %}
@@ -11,6 +13,8 @@
         <h2 class="title is-3 mb-2">
             {% if queue_mode == 'owner' %}
             What needs Mark's decision
+            {% elif queue_mode == 'relationship_manager' %}
+            What needs relationship attention
             {% else %}
             What needs research attention
             {% endif %}
@@ -19,6 +23,9 @@
             {% if queue_mode == 'owner' %}
             Review research, approve outreach, and open
             leads that are ready for first contact.
+            {% elif queue_mode == 'relationship_manager' %}
+            Track approved outreach, due next actions, and
+            prospects that need a handoff to Mark.
             {% else %}
             Work requested changes first, continue
             active research, and track submissions

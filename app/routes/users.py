@@ -53,7 +53,11 @@ def users_page(
     role: str | None = None,
 ):
     selected_role = (role or "").strip().casefold()
-    if selected_role not in {"member", "lead_sourcer"}:
+    if selected_role not in {
+        "member",
+        "lead_sourcer",
+        "relationship_manager",
+    }:
         selected_role = ""
 
     with get_db() as db:

@@ -26,6 +26,7 @@ from app.routes import (
     goals,
     pages,
     quests,
+    relationship_manager,
     users,
 )
 from app.services.access_control import (
@@ -146,5 +147,6 @@ app.include_router(quests.router)
 app.include_router(goals.router)
 app.include_router(client_hunting.router)
 app.include_router(lead_research.router)
+app.include_router(relationship_manager.router)
 app.include_router(users.router)
 app.include_router(pages.router)

@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Relationship Manager · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">
+                Business Development Collaborator
+            </p>
+            <h1 class="title is-1 mb-2">
+                Open qualified relationships and hand
+                strong opportunities to Mark.
+            </h1>
+            <p class="subtitle is-5 mark-muted">
+                Use the assigned playbook, keep every
+                relationship lead moving, and escalate
+                technical, pricing, proposal, and closing
+                decisions to Mark.
+            </p>
+        </div>
+        <div class="column is-narrow">
+            <div class="buttons">
+                <a class="button is-mark" href="/crm">
+                    Open CRM
+                </a>
+                <a class="button is-light" href="/crm/leads/new">
+                    Add Qualified Lead
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% if error %}
+<div class="notification is-danger is-light">
+    {{ error }}
+</div>
+{% endif %}
+
+<div class="notification is-warning is-light mb-5">
+    <strong>Phase 6.1J boundary:</strong>
+    prepare and manage approved relationship work, but
+    do not mark a lead Contacted yet. Phase 6.2 will add
+    the required date, channel, message summary,
+    follow-up, responsible staff member, and response log.
+</div>
+
+<div class="columns is-multiline mb-5">
+    {% for metric in metric_cards %}
+    <div class="column is-half-mobile is-one-quarter-tablet">
+        <div class="mark-card p-4 has-text-centered" style="height: 100%;">
+            <p class="mark-number">{{ metric.value }}</p>
+            <p class="mark-muted is-size-7 has-text-weight-bold">
+                {{ metric.label }}
+            </p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<section class="mb-6">
+    <p class="mark-kicker">Relationship Work</p>
+    <h2 class="title is-3">What needs attention</h2>
+
+    <div class="columns is-multiline">
+        {% for queue in relationship_queues %}
+        <div class="column is-half-tablet">
+            <div class="mark-card p-5" style="height: 100%;">
+                <div class="is-flex is-justify-content-space-between mb-3">
+                    <div>
+                        <h3 class="title is-5 mb-1">{{ queue.title }}</h3>
+                        <p class="mark-muted is-size-7">
+                            {{ queue.description }}
+                        </p>
+                    </div>
+                    <span class="mark-chip">{{ queue.leads|length }}</span>
+                </div>
+
+                {% for lead in queue.leads %}
+                <div class="mb-4">
+                    <a class="has-text-weight-bold"
+                       href="/crm/leads/{{ lead.id }}">
+                        {{ lead.company }}
+                    </a>
+                    <br>
+                    <span class="mark-muted is-size-7">
+                        {{ lead.contact_person }} ·
+                        {{ lead.pipeline_status|replace('_', ' ')|title }}
+                    </span>
+                    <br>
+                    <span class="is-size-7">
+                        {{ lead.next_action }}
+                        {% if lead.next_action_due_date %}
+                        · Due {{ lead.next_action_due_date }}
+                        {% endif %}
+                    </span>
+                </div>
+                {% else %}
+                <p class="mark-muted is-size-7">
+                    Nothing in this queue.
+                </p>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section id="playbook" class="mark-card p-6">
+    <p class="mark-kicker">Assigned Playbook</p>
+    {% if playbook %}
+    <div class="is-flex is-justify-content-space-between is-flex-wrap-wrap mb-4">
+        <div>
+            <h2 class="title is-2 mb-2">{{ playbook.title }}</h2>
+            <p class="mark-muted is-size-7">
+                Updated {{ playbook.updated_at }}
+            </p>
+        </div>
+        <span class="mark-chip">INTERNAL USE</span>
+    </div>
+    <div class="content playbook-content">
+        {{ playbook.rendered_content }}
+    </div>
+    {% else %}
+    <h2 class="title is-3">No playbook assigned yet.</h2>
+    <p class="mark-muted">
+        Ask Mark to import and assign the internal sales
+        playbook from User Management.
+    </p>
+    {% endif %}
+</section>
+
+<style>
+.playbook-content h1,
+.playbook-content h2,
+.playbook-content h3 {
+    margin-top: 1.75rem;
+}
+.playbook-content blockquote {
+    border-left: 4px solid currentColor;
+    padding-left: 1rem;
+    opacity: .9;
+}
+.playbook-content table {
+    margin-top: 1rem;
+}
+</style>
+{% endblock %}

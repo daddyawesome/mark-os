@@ -12,7 +12,9 @@ from app.db import (
     lead_research,
     leads,
     memory,
+    playbooks,
     quests,
+    relationship_manager,
     users,
 )
 from app.db import family_integrity
@@ -24,6 +26,7 @@ from app.db import family_integrity
 SCHEMA_SQL = "\n".join(
     (
         users.SCHEMA_SQL,
+        playbooks.SCHEMA_SQL,
         goals.SCHEMA_SQL,
         checkins.SCHEMA_SQL,
         quests.GAME_SCHEMA_SQL,
@@ -33,12 +36,14 @@ SCHEMA_SQL = "\n".join(
         agent_audit.SCHEMA_SQL,
         leads.SCHEMA_SQL,
         lead_research.SCHEMA_SQL,
+        relationship_manager.SCHEMA_SQL,
     )
 )
 
 INDEX_SQL = "\n".join(
     (
         users.INDEX_SQL,
+        playbooks.INDEX_SQL,
         checkins.INDEX_SQL,
         memory.INDEX_SQL,
         quests.INDEX_SQL,
@@ -46,6 +51,7 @@ INDEX_SQL = "\n".join(
         agent_audit.INDEX_SQL,
         leads.INDEX_SQL,
         lead_research.INDEX_SQL,
+        relationship_manager.INDEX_SQL,
     )
 )
 
@@ -64,8 +70,11 @@ def initialize_database(db: sqlite3.Connection) -> None:
     users.migrate_family_roles(db)
     users.validate_schema(db)
     users.bootstrap_owner_from_environment(db)
+    playbooks.validate_schema(db)
     lead_research.migrate(db)
     lead_research.validate_schema(db)
+    relationship_manager.migrate(db)
+    relationship_manager.validate_schema(db)
 
     # Safe additive migrations for already-live SQLite databases.
     quests.migrate_game_state(db)
@@ -88,6 +97,8 @@ def initialize_database(db: sqlite3.Connection) -> None:
     agent_audit.validate_indexes(db)
     leads.validate_indexes(db)
     lead_research.validate_indexes(db)
+    relationship_manager.validate_indexes(db)
+    playbooks.validate_indexes(db)
     users.validate_indexes(db)
 
     quests.backfill(db)

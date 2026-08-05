@@ -16,7 +16,11 @@ from app.services.lead_csv_import import (
     import_leads_from_csv,
     lead_csv_template_bytes,
 )
-from app.services.access_control import is_lead_sourcer, is_owner
+from app.services.access_control import (
+    is_lead_sourcer,
+    is_owner,
+    is_relationship_manager,
+)
 from app.services.lead_research_permissions import (
     LeadPermissionError,
     can_approve_outreach,
@@ -32,6 +36,12 @@ from app.services.lead_work_queues import (
     build_role_aware_crm_dashboard,
 )
 from app.services.team_users import get_primary_owner_id
+from app.services.relationship_manager import (
+    assign_relationship_manager,
+    can_update_relationship_next_action,
+    list_active_relationship_managers,
+    update_next_action_for_actor,
+)
 from app.services.leads import (
     PIPELINE_STATUSES,
     PRIORITIES,
@@ -39,7 +49,6 @@ from app.services.leads import (
     delete_lead as delete_lead_record,
     get_crm_dashboard_metrics,
     get_lead,
-    update_lead_next_action as update_next_action_record,
 )
 
 router = APIRouter(prefix="/crm")
@@ -72,6 +81,7 @@ NOTICE_MESSAGES = {
     "research_changes_requested": 'Changes requested. The Lead Researcher can edit and resubmit.',
     "research_rejected": 'Lead research rejected.',
     "outreach_approved": "Outreach approved. This lead may now move to Contacted.",
+    "relationship_owner": "Business development owner updated.",
 }
 ERROR_MESSAGES = {
     "invalid": "The lead could not be saved. Check the required fields and allowed values.",
@@ -270,11 +280,23 @@ async def import_leads_csv(
                     content,
                     pipeline_status_override=(
                         "new"
-                        if is_lead_sourcer(request.state.current_user)
+                        if (
+                            is_lead_sourcer(request.state.current_user)
+                            or is_relationship_manager(
+                                request.state.current_user
+                            )
+                        )
                         else None
                     ),
                     created_by_user_id=request.state.current_user["id"],
                     assigned_to_user_id=owner_id,
+                    business_development_owner_user_id=(
+                        request.state.current_user["id"]
+                        if is_relationship_manager(
+                            request.state.current_user
+                        )
+                        else None
+                    ),
                 )
             except LeadCsvImportError as exc:
                 import_error = str(exc)
@@ -335,7 +357,12 @@ def create_lead(
                 why_mark_fits=why_mark_fits,
                 pipeline_status=(
                     "new"
-                    if is_lead_sourcer(request.state.current_user)
+                    if (
+                        is_lead_sourcer(request.state.current_user)
+                        or is_relationship_manager(
+                            request.state.current_user
+                        )
+                    )
                     else pipeline_status
                 ),
                 priority=priority,
@@ -345,6 +372,13 @@ def create_lead(
                 request_key=request_key or None,
                 created_by_user_id=request.state.current_user["id"],
                 assigned_to_user_id=owner_id,
+                business_development_owner_user_id=(
+                    request.state.current_user["id"]
+                    if is_relationship_manager(
+                        request.state.current_user
+                    )
+                    else None
+                ),
             )
         except ValueError:
             return RedirectResponse(
@@ -371,6 +405,17 @@ def lead_detail(request: Request, lead_id: int):
             "can_approve_outreach": can_approve_outreach(
                 request.state.current_user,
                 lead,
+            ),
+            "can_update_next_action": (
+                can_update_relationship_next_action(
+                    request.state.current_user,
+                    lead,
+                )
+            ),
+            "relationship_managers": (
+                list_active_relationship_managers(db)
+                if is_owner(request.state.current_user)
+                else []
             ),
             "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
@@ -490,18 +535,25 @@ def update_pipeline(
 
 @router.post("/leads/{lead_id}/next-action")
 def update_next_action(
+    request: Request,
     lead_id: int,
     next_action: str = Form(...),
     next_action_due_date: str = Form(default=""),
 ):
     with get_db() as db:
-        _lead_or_404(db, lead_id)
+        _lead_or_404(db, lead_id, request)
         try:
-            update_next_action_record(
+            update_next_action_for_actor(
                 db,
                 lead_id,
+                actor=request.state.current_user,
                 next_action=next_action,
                 next_action_due_date=next_action_due_date or None,
+            )
+        except LeadPermissionError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=forbidden",
+                status_code=303,
             )
         except ValueError:
             return RedirectResponse(
@@ -510,6 +562,48 @@ def update_next_action(
             )
     return RedirectResponse(
         url=f"/crm/leads/{lead_id}?notice=next_action",
+        status_code=303,
+    )
+
+
+@router.post("/leads/{lead_id}/relationship-owner")
+def update_relationship_owner(
+    request: Request,
+    lead_id: int,
+    relationship_manager_user_id: str = Form(default=""),
+):
+    manager_id = None
+    if relationship_manager_user_id.strip():
+        try:
+            manager_id = int(relationship_manager_user_id)
+        except ValueError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=invalid",
+                status_code=303,
+            )
+
+    with get_db() as db:
+        _lead_or_404(db, lead_id)
+        try:
+            assign_relationship_manager(
+                db,
+                lead_id,
+                actor=request.state.current_user,
+                relationship_manager_user_id=manager_id,
+            )
+        except LeadPermissionError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=forbidden",
+                status_code=303,
+            )
+        except ValueError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=invalid",
+                status_code=303,
+            )
+
+    return RedirectResponse(
+        url=f"/crm/leads/{lead_id}?notice=relationship_owner",
         status_code=303,
     )
 
