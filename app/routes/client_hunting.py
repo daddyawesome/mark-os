@@ -17,7 +17,16 @@ from app.services.lead_csv_import import (
     lead_csv_template_bytes,
 )
 from app.services.access_control import is_lead_sourcer, is_owner
-from app.services.lead_research_permissions import can_edit_research
+from app.services.lead_research_permissions import (
+    LeadPermissionError,
+    can_approve_outreach,
+    can_edit_research,
+)
+from app.services.lead_pipeline_workflow import (
+    LeadPipelineRuleError,
+    change_pipeline_stage,
+    update_owner_lead,
+)
 from app.services.team_users import get_primary_owner_id
 from app.services.leads import (
     PIPELINE_STATUSES,
@@ -27,9 +36,7 @@ from app.services.leads import (
     get_crm_dashboard_metrics,
     get_lead,
     list_leads,
-    update_lead as update_lead_record,
     update_lead_next_action as update_next_action_record,
-    update_lead_pipeline as update_pipeline_record,
 )
 
 router = APIRouter(prefix="/crm")
@@ -61,6 +68,7 @@ NOTICE_MESSAGES = {
     "research_approved": 'Lead research approved.',
     "research_changes_requested": 'Changes requested. The Lead Researcher can edit and resubmit.',
     "research_rejected": 'Lead research rejected.',
+    "outreach_approved": "Outreach approved. This lead may now move to Contacted.",
 }
 ERROR_MESSAGES = {
     "invalid": "The lead could not be saved. Check the required fields and allowed values.",
@@ -68,6 +76,7 @@ ERROR_MESSAGES = {
     "forbidden": "Your account can add and review leads, but only the owner can edit pipeline actions or private MARK-OS data.",
     "review_notes_required": 'Review notes are required when requesting changes or rejecting.',
     "invalid_review": 'The research review decision could not be saved.',
+    "pipeline_rule": "That pipeline move is not allowed. Contacted requires approved research and outreach approval; Proposal requires Meeting; Won requires Proposal.",
 }
 METRIC_DEFINITIONS = (
     ("Total leads", "total_leads"),
@@ -333,6 +342,10 @@ def lead_detail(request: Request, lead_id: int):
                 request.state.current_user,
                 lead,
             ),
+            "can_approve_outreach": can_approve_outreach(
+                request.state.current_user,
+                lead,
+            ),
             "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
             **_shared_context(db, request),
@@ -362,6 +375,7 @@ def edit_lead_page(request: Request, lead_id: int):
 
 @router.post("/leads/{lead_id}/edit")
 def edit_lead(
+    request: Request,
     lead_id: int,
     company: str = Form(...),
     contact_person: str = Form(...),
@@ -379,9 +393,10 @@ def edit_lead(
     with get_db() as db:
         _lead_or_404(db, lead_id)
         try:
-            update_lead_record(
+            update_owner_lead(
                 db,
                 lead_id,
+                actor=request.state.current_user,
                 company=company,
                 contact_person=contact_person,
                 job_title=job_title,
@@ -394,6 +409,11 @@ def edit_lead(
                 next_action=next_action,
                 next_action_due_date=next_action_due_date or None,
                 notes=notes,
+            )
+        except LeadPermissionError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}/edit?error=forbidden",
+                status_code=303,
             )
         except ValueError:
             return RedirectResponse(
@@ -408,16 +428,28 @@ def edit_lead(
 
 @router.post("/leads/{lead_id}/pipeline")
 def update_pipeline(
+    request: Request,
     lead_id: int,
     pipeline_status: str = Form(...),
 ):
     with get_db() as db:
         _lead_or_404(db, lead_id)
         try:
-            update_pipeline_record(
+            change_pipeline_stage(
                 db,
                 lead_id,
+                actor=request.state.current_user,
                 pipeline_status=pipeline_status,
+            )
+        except LeadPermissionError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=forbidden",
+                status_code=303,
+            )
+        except LeadPipelineRuleError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=pipeline_rule",
+                status_code=303,
             )
         except ValueError:
             return RedirectResponse(

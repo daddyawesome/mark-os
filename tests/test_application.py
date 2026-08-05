@@ -48,6 +48,7 @@ EXPECTED_ROUTES = [
     ("POST", "/crm/leads/{lead_id}/research/edit", "edit_lead_research"),
     ("POST", "/crm/leads/{lead_id}/research/submit", "submit_lead_research_for_review"),
     ("POST", "/crm/leads/{lead_id}/research/review", "review_lead_research"),
+    ("POST", "/crm/leads/{lead_id}/outreach/approve", "approve_lead_outreach"),
     ("GET", "/crm/research-review", "research_review_queue"),
     ("GET", "/crm/leads/{lead_id}/edit", "edit_lead_page"),
     ("POST", "/crm/leads/{lead_id}/edit", "edit_lead"),

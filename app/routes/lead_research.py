@@ -306,3 +306,52 @@ def review_lead_research(
         ),
         status_code=303,
     )
+
+@router.post(
+    "/leads/{lead_id}/outreach/approve"
+)
+def approve_lead_outreach(
+    request: Request,
+    lead_id: int,
+):
+    from app.services.lead_pipeline_workflow import (
+        approve_outreach,
+    )
+    from app.services.lead_research_permissions import (
+        can_approve_outreach,
+    )
+
+    with get_db() as db:
+        lead = get_lead(db, lead_id)
+        if (
+            lead is None
+            or not can_approve_outreach(
+                request.state.current_user,
+                lead,
+            )
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail="Lead not found",
+            )
+
+        try:
+            approve_outreach(
+                db,
+                lead_id,
+                actor=request.state.current_user,
+            )
+        except LeadPermissionError:
+            raise HTTPException(
+                status_code=404,
+                detail="Lead not found",
+            )
+
+    return RedirectResponse(
+        url=(
+            f"/crm/leads/{lead_id}"
+            "?notice=outreach_approved"
+        ),
+        status_code=303,
+    )
+

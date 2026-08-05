@@ -40,6 +40,7 @@ def test_owner_keeps_full_mark_os_access():
         ("POST", "/check-in"),
         ("GET", "/crm"),
         ("POST", "/crm/leads/1/pipeline"),
+        ("POST", "/crm/leads/1/outreach/approve"),
         ("POST", "/crm/leads/1/delete"),
     )
     assert all(
@@ -73,6 +74,7 @@ def test_lead_sourcer_has_small_read_and_intake_surface():
         ("GET", "/crm/leads/1/edit"),
         ("POST", "/crm/leads/1/edit"),
         ("POST", "/crm/leads/1/pipeline"),
+        ("POST", "/crm/leads/1/outreach/approve"),
         ("POST", "/crm/leads/1/next-action"),
         ("GET", "/crm/leads/1/delete"),
         ("POST", "/crm/leads/1/delete"),
