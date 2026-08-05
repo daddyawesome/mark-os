@@ -912,11 +912,15 @@ The project numbering is now:
 Phase 6 — Agency CRM Operations
 Phase 7 — Product Hardening & Growth
 Phase 8 — Budget-Safe AI Continuation
+Phase 9 — Affordable Ambient Assistant
 ```
 
 The old Phase 5.3+ AI work is moved to Phase 8.
 
 The previous Phase 6 Product Hardening work is moved to Phase 7.
+
+The Ambient Assistant work is Phase 9. It begins only after the Phase 8
+intent router, budget controls, and confirmed-action protections are stable.
 
 This keeps the numbering chronological and removes overlapping active phase
 numbers.
@@ -1414,6 +1418,116 @@ Add:
 Agency financial data must remain Owner-only unless a future role is explicitly
 designed for finance access.
 
+## Phase 6.9 — Lead-Sourcing Effort Tracking and Webhook Intake
+
+**Start condition:** After Phase 6.4 (Bulk Lead Management) is stable.
+
+### Problem
+
+Phase 6.8 tracks contractor/staff cost and hours only from active client
+delivery onward. Nothing currently tracks the Lead Sourcer's research effort
+before a client is won, even though that research is the brother's actual
+work. Separately, leads only enter the system through manual add or CSV
+import — there is no way for an external form or automation to create a lead
+directly.
+
+### Effort tracking
+
+Add:
+
+- research time logged per lead (manual entry or simple start/stop timer);
+- leads researched per period;
+- leads approved per period;
+- lead-to-win rate per sourcer;
+- optional per-lead or per-period compensation note, Owner-only to configure.
+
+This does not require a payroll system — a simple additive record is enough
+to inform whether and how the Lead Sourcer role should be compensated.
+
+### Webhook lead intake
+
+Add:
+
+- one authenticated inbound endpoint that creates a lead using the existing
+  CRM validation and duplicate-protection path (`services/leads.py`,
+  `services/lead_identity.py`) — no new lead-creation logic;
+- a per-source API token, revocable, Owner-managed;
+- inbound leads land in the same `New` pipeline stage and require the same
+  review workflow as manually entered leads — no auto-approval;
+- rate limiting on the endpoint.
+
+Suitable sources: a public contact form, or a no-code automation tool
+(Zapier/Make) forwarding form submissions. This is deterministic intake, not
+an AI feature, and does not depend on Phase 8.
+
+### Definition of done
+
+- research effort is visible per Lead Sourcer and per period;
+- at least one external source can create a lead through the webhook without
+  manual CSV work;
+- webhook-created leads follow the identical pipeline and approval rules as
+  manually entered leads;
+- full-suite tests cover the webhook path, including duplicate protection and
+  an invalid/expired token.
+
+---
+
+## Phase 6.10 — Delegated Outreach Permission (Future Staff Contact Access)
+
+**Start condition:** Phase 6.1's research/review/approval workflow has been
+used in real operation and Mark trusts a specific staff member with direct
+outreach on specific leads.
+
+### Problem
+
+Phase 6.1 intentionally makes `approved → contacted`, and every later stage
+transition, Owner-only. That is the correct default for the first version,
+not a permanent limit — but nothing in the current plan describes how
+contacting leads stops being solely Mark's job as the team grows.
+
+### Design principle
+
+Do not create a broad "staff can do everything Owner can" role. Grant contact
+capability as a specific, revocable, auditable permission layered on top of
+the existing `lead_sourcer` role — never as a role-wide default.
+
+### Required additions
+
+```text
+users.can_contact_leads              boolean, default false, Owner-only to set
+lead_activity.performed_by_user_id   (already implied by Phase 6.2 timeline)
+lead_activity.outreach_channel       email / call / message / other
+lead_activity.outreach_sent_at
+```
+
+### Permission model
+
+- Owner grants or revokes `can_contact_leads` per staff account individually;
+  never automatic on role assignment.
+- A staff member with `can_contact_leads = true` may move an **already
+  Owner-approved** lead from `approved` to `contacted`, and may log further
+  outreach activity (follow-up sent, reply received) on leads assigned to
+  them.
+- Even with this permission, staff still cannot: approve outreach on a lead
+  still in `ready_for_review` or `changes_requested`; change pricing; mark a
+  lead Won or Lost; reassign leads; access financial data. Those remain
+  Owner-only per Phase 6.1 and Phase 6.8's security rule.
+- Every contact action is attributed to the acting user in the lead activity
+  timeline (Phase 6.2), so delegated outreach is always traceable back to who
+  actually sent it.
+
+### Definition of done
+
+- `can_contact_leads` defaults to `false` for all existing and new staff
+  accounts; enabling it is an explicit, logged Owner action.
+- A staff account with the permission can move an approved lead to
+  `contacted` and log outreach activity; one without it cannot, even via a
+  direct/forged POST request.
+- Revoking the permission takes effect immediately and is covered by a
+  permission test, matching the pattern already used for role checks in
+  `tests/test_role_permissions.py`.
+- Full test suite passes.
+
 ---
 
 # Phase 7 — Product Hardening & Growth
@@ -1427,6 +1541,12 @@ earlier only when a critical production risk requires it.
 ## Phase 7.1 — Backup and Disaster Recovery
 
 Work already started locally under the previous numbering may be reused.
+
+**Risk note (2026-08-05):** the locally completed backup code referenced in
+the decision log is not currently present in this repository. Until it is
+committed to a branch, it is a single point of failure — it exists on one
+machine, protecting the only real copy of the CRM data. Commit it
+(unmerged is fine) before further parking this phase.
 
 Planned deliverables:
 
@@ -1574,6 +1694,47 @@ Lead Researcher exports contain only authorized CRM data.
 
 Passwords, password hashes, session secrets, and environment secrets must never
 be exported.
+
+## Phase 7.8 — Staging Environment and Rollback Procedure
+
+**Reason:** Phase 6.1 ships schema and permission changes directly to the
+Railway production volume that holds real business data. The current
+"Release safety" checklist (§17) is manual and has no staging step and no
+documented rollback.
+
+Planned deliverables:
+
+- a low-cost staging deployment (a second Railway service, or a local run
+  against a copied snapshot of the production SQLite file), used before any
+  migration or permission change reaches production;
+- a documented, tested rollback procedure for a bad migration or bad
+  deploy — not just "back up first," but the exact revert steps;
+- a pre-deploy checklist addition: verify against staging, not only against
+  local tests.
+
+**Sequencing note:** consider pulling the staging-environment piece of this
+phase forward, ahead of Phase 6.1, since 6.1 is the first change to touch
+permission logic on live data. The rollback procedure and offsite backup
+should land no later than Phase 7.1.
+
+## Phase 7.9 — Observability and Error Monitoring
+
+**Reason:** nothing in the current plan answers "how do we find out the app
+is down or silently erroring in production" other than manual notice.
+
+Planned deliverables:
+
+- structured application logging for unhandled errors, distinct from access
+  logs;
+- an uptime check against `/health` (a free external monitor is sufficient
+  at this scale);
+- alert delivery to the Owner (email, Telegram, or Discord webhook — reuse
+  the same delivery mechanism built in Phase 7.3 if that lands first);
+- a minimal error-rate view, even if just a count over the last 24 hours.
+
+This phase is intentionally lightweight — the goal is knowing about a
+production problem before a client or the brother reports it, not building a
+full monitoring platform.
 
 ---
 
@@ -1884,6 +2045,460 @@ already substantially complete. Phase 8 should not repeat that migration.
 
 ---
 
+
+# Phase 9 — Affordable Ambient Assistant
+
+**Status:** Planned  
+**Previous proposal name:** Ambient Assistant  
+**Primary objective:** Make MARK-OS feel present, conversational, and proactive
+without increasing the existing PHP 200 monthly AI budget.
+
+## Preconditions
+
+The complete Phase 9 experience should begin only after these Phase 8
+foundations are stable:
+
+```text
+Phase 8.4  Intent Router and AI Gateway
+Phase 8.7  Confirmed Tool Actions
+```
+
+Phase 8.4 is required so every model request passes through one budget-aware
+router.
+
+Phase 8.7 is required before MARK-OS can perform consequential actions from a
+voice command or an external channel.
+
+The browser-only voice controls and deterministic nudge rules may be prototyped
+earlier, but they must not bypass Phase 8 permissions or spending controls.
+
+## Phase 9 affordability policy
+
+Phase 9 must not create a second AI budget.
+
+```text
+Total MARK-OS AI budget: PHP 200 per month
+Preferred Phase 9 incremental AI spend: PHP 0–30 per month
+Normal voice and nudge operation: PHP 0 in model charges
+```
+
+The PHP 0–30 allowance is part of, not additional to, the PHP 200 total limit.
+
+### Cost rules
+
+1. Use browser and operating-system speech features before paid speech APIs.
+2. Use deterministic rules for reminders and context selection.
+3. Do not call a model merely to decide whether a reminder is due.
+4. Do not generate an AI draft until the user explicitly requests it.
+5. Reuse deterministic outreach templates before asking AI to write.
+6. Cache prepared context instead of repeatedly summarizing the same records.
+7. Prefer Telegram or Discord before SMS.
+8. Keep SMS deferred because it introduces per-message charges.
+9. Do not run continuous cloud transcription.
+10. Do not send background prompts merely to make the assistant appear active.
+11. Count every Phase 9 model call through the existing Phase 8 audit and
+    monthly budget gate.
+12. When the budget is exhausted, voice capture, deterministic nudges, and
+    local navigation must continue working.
+
+---
+
+## Phase 9.1 — Browser Voice Input and Output
+
+**Priority:** High  
+**Expected additional model cost:** None
+
+### Goal
+
+Allow Mark to speak check-ins and chat messages and hear selected responses
+without adding a paid speech provider.
+
+### First implementation
+
+Use browser-supported speech capabilities for:
+
+- speech-to-text input for chat;
+- speech-to-text input for daily check-ins;
+- text-to-speech for selected responses;
+- push-to-talk controls;
+- stop-speaking control;
+- editable transcription before submission.
+
+### Affordability design
+
+- use browser APIs and device capabilities;
+- do not upload continuous microphone audio to MARK-OS;
+- do not add a paid speech-to-text service in the first version;
+- submit only the final text through the existing chat route;
+- text-to-speech reads an already generated response and does not trigger
+  another model call;
+- provide typed-input fallback when speech is unavailable.
+
+### Privacy and safety
+
+- microphone access requires explicit browser permission;
+- listening begins only after a visible user action;
+- display a clear listening indicator;
+- do not store raw audio;
+- do not auto-submit uncertain transcriptions;
+- consequential actions still require confirmation.
+
+### Definition of done
+
+- Mark can dictate a check-in;
+- Mark can review and edit the transcript before saving;
+- MARK-OS can read a response aloud;
+- voice controls work without changing the chat service contract;
+- no raw audio is stored;
+- typed operation remains fully available.
+
+---
+
+## Phase 9.2 — Proactive Check-ins and Deterministic Nudges
+
+**Priority:** Highest  
+**Expected additional model cost:** None by default
+
+### Goal
+
+Allow MARK-OS to speak first through useful, rule-based reminders.
+
+### Initial deterministic triggers
+
+```text
+No energy check-in by the configured evening time
+Quest overdue
+Quest due today
+Lead has had no contact for four or five days
+Follow-up due today
+Research waiting for Owner review
+Approved lead not yet contacted
+Weekly review not completed
+```
+
+### Example messages
+
+```text
+You have not logged your energy today. Start a quick check-in?
+
+Lead X has had no contact for five days. Open the lead?
+
+Research for Lead Y is waiting for your review.
+```
+
+These messages are rendered from templates and do not require AI.
+
+### AI use
+
+A nudge may offer an optional action such as:
+
+```text
+Draft follow-up
+Summarize lead
+Suggest next action
+```
+
+The model is called only after the user selects the action.
+
+### Affordability controls
+
+- one active nudge per resource and rule;
+- daily deduplication;
+- quiet hours;
+- per-user notification preferences;
+- snooze and dismiss actions;
+- maximum daily nudge count;
+- no model call for trigger evaluation;
+- use cached lead context for an optional draft;
+- use deterministic outreach templates before AI drafting.
+
+### Delivery order
+
+Start with:
+
+```text
+1. In-app notification center
+2. Browser notification when the app is installed or open
+3. External channels in Phase 9.4
+```
+
+### Definition of done
+
+- MARK-OS produces useful nudges without AI;
+- duplicates are prevented;
+- quiet hours are respected;
+- Mark can open the relevant record directly;
+- optional AI actions pass through the Phase 8 budget router;
+- the application remains useful at the hard monthly AI limit.
+
+---
+
+## Phase 9.3 — Optional Local Wake Word
+
+**Priority:** Stretch  
+**Expected additional model cost:** None  
+**Default status:** Disabled
+
+### Goal
+
+Allow a personally controlled device to open a MARK-OS voice session after a
+wake phrase.
+
+### First-version boundaries
+
+- local-only wake-word detection;
+- opt-in per device;
+- no always-listening cloud service;
+- wake word opens a visible voice session;
+- the user still confirms consequential actions;
+- raw audio is not stored by MARK-OS.
+
+A lightweight offline detector such as `openWakeWord` may be evaluated, but
+the implementation must remain optional.
+
+### Why this is later
+
+- continuous microphone use affects privacy and battery life;
+- mobile browser support may be limited;
+- background execution is more complex than push-to-talk;
+- it adds little business value compared with Phase 9.1 and Phase 9.2.
+
+### Affordability design
+
+- run detection locally;
+- use a small offline model;
+- do not transcribe until the wake word is detected;
+- do not keep a server connection open only for listening;
+- do not introduce a paid voice provider.
+
+### Definition of done
+
+- wake-word mode is explicitly enabled by the user;
+- it can be disabled immediately;
+- detection stays local;
+- a visible session opens after detection;
+- typed and push-to-talk modes remain the default reliable options.
+
+---
+
+## Phase 9.4 — Low-Cost Multi-Channel Presence
+
+**Priority:** Medium  
+**Expected additional model cost:** Controlled by Phase 8  
+**Preferred channels:** Telegram first, Discord second
+
+### Goal
+
+Allow the same authenticated Director and loop router to respond through a
+small number of low-cost channels.
+
+### Channel order
+
+```text
+1. Telegram bot
+2. Discord direct message or private channel
+3. Email notification links
+4. SMS only when financially justified
+```
+
+SMS is not part of the affordable first release because it adds a direct
+per-message cost.
+
+### Architecture
+
+```text
+Incoming channel message
+→ verify channel identity
+→ map channel user to MARK-OS user
+→ apply role and resource permissions
+→ route through Phase 8 intent and budget controls
+→ create proposed action
+→ request confirmation when required
+→ save audit trail
+→ return a concise response
+```
+
+### Cost controls
+
+- no unsolicited AI conversation loops;
+- concise default responses;
+- deterministic commands for data lookup;
+- channel-specific daily message caps;
+- one model call per accepted user request where possible;
+- no automatic retry storm;
+- no full-chat history sent on every message;
+- use small scoped context packets;
+- external channels may display a link to complete complex work in the web app.
+
+### Security requirements
+
+- channel identity linking requires an authenticated one-time process;
+- channel tokens remain in environment secrets;
+- family and staff roles keep the same permissions as the web app;
+- external channels cannot bypass confirmation;
+- lost-device/channel revocation is available;
+- all actions are auditable.
+
+### Definition of done
+
+- one low-cost external channel works;
+- channel identity is linked safely;
+- permissions match the web app;
+- messages use the Phase 8 router and budget gate;
+- SMS is still disabled unless Mark explicitly approves the expense.
+
+---
+
+## Phase 9.5 — Careful Ambient Context Awareness
+
+**Priority:** Last  
+**Privacy risk:** High  
+**Expected additional model cost:** Low only when event-driven
+
+### Goal
+
+Prepare relevant context at the right moment without continuously reading or
+summarizing private accounts.
+
+### Initial examples
+
+```text
+A meeting with Client X starts in 20 minutes.
+Open the last three CRM activities?
+
+A follow-up deadline is today.
+Open the lead and deterministic template?
+
+A calendar event matches an approved CRM client.
+Show the linked notes?
+```
+
+### First integrations
+
+- Google Calendar read-only observation;
+- Gmail metadata or specifically approved messages only;
+- authorized CRM records;
+- local MARK-OS tasks and follow-up dates.
+
+### Affordability design
+
+- use event or schedule triggers instead of frequent polling;
+- retrieve only the needed event or message metadata;
+- do not summarize the entire inbox;
+- do not call AI merely to check whether a meeting exists;
+- use stored CRM summaries before generating a new summary;
+- generate meeting preparation only after Mark opens or requests it;
+- cap context preparation length;
+- cache the prepared briefing for the event.
+
+### Privacy rules
+
+- use the minimum OAuth scopes;
+- read-only first;
+- do not ingest unrelated email;
+- do not store credentials in the database;
+- record which source supplied each context item;
+- external writes require explicit confirmation;
+- provide disconnect and data-removal controls.
+
+### Definition of done
+
+- one read-only context source is connected;
+- MARK-OS presents a useful deterministic heads-up;
+- AI preparation is optional;
+- unrelated private data is excluded;
+- disconnecting the source stops future access.
+
+---
+
+## Phase 9.6 — Personality and Response Shaping
+
+**Priority:** Medium  
+**Expected additional model cost:** None by itself
+
+### Goal
+
+Make every MARK-OS interaction feel consistent whether it comes from a
+template, the Director, chat, a reminder, or an external channel.
+
+### Configuration
+
+Store a small user-controlled response profile, such as:
+
+```text
+tone
+response_length
+directness
+encouragement_level
+use_of_humor
+voice_output_enabled
+preferred_name
+quiet_hours
+```
+
+Example tone choices:
+
+```text
+Direct and concise
+Warm coach
+Professional operator
+Calm strategic advisor
+```
+
+### Affordability design
+
+- deterministic messages use local templates;
+- personality settings are added to model context only when a model is already
+  being called;
+- do not call AI solely to rewrite a notification into the selected tone;
+- use short reusable phrasing libraries;
+- keep voice selection on the device/browser when possible.
+
+### Safety rule
+
+Personality changes presentation, not permissions, facts, risk controls, or
+confirmation requirements.
+
+### Definition of done
+
+- Mark can select a consistent tone;
+- deterministic and AI responses follow the same general style;
+- the setting does not create additional AI calls;
+- safety and permission messages remain clear.
+
+---
+
+## Phase 9 Build Order
+
+```text
+Phase 9.1  Browser Voice Input and Output
+Phase 9.2  Proactive Check-ins and Deterministic Nudges
+Phase 9.6  Personality and Response Shaping
+Phase 9.4  Telegram or Discord Presence
+Phase 9.5  Careful Ambient Context Awareness
+Phase 9.3  Optional Local Wake Word
+```
+
+The wake-word feature is intentionally last because it has the weakest
+business return and the greatest device/privacy complexity.
+
+## Phase 9 Definition of Done
+
+Phase 9 is complete when:
+
+- browser voice input works without a paid speech provider;
+- selected responses can be read aloud;
+- proactive nudges are deterministic and deduplicated;
+- optional AI actions use the Phase 8 router and budget gate;
+- the total AI cap remains PHP 200 per month;
+- one low-cost external channel works securely;
+- personality settings do not trigger extra model calls;
+- ambient context is read-only, minimal, and event-driven;
+- wake-word mode remains optional and local;
+- the app stays useful when AI spending is disabled.
+
+---
+
 # 13. Development and Migration Rules
 
 ## 13.1 Database migration order
@@ -2139,6 +2754,8 @@ The activity timeline is Phase 6.2.
 
 ## Could have later
 
+- delegated outreach permission for a trusted staff member (Phase 6.10);
+- affordable ambient assistant after Phase 8;
 - external notifications;
 - PWA;
 - advanced dashboards;
@@ -2197,8 +2814,13 @@ The activity timeline is Phase 6.2.
 | Phase 6.6 | Trigger-based | Build at proposal stage |
 | Phase 6.7 | Trigger-based | Build after Client #1 |
 | Phase 6.8 | Trigger-based | Build during delivery and billing |
+| Phase 6.9 | Planned | Lead-sourcing effort tracking and webhook intake |
+| Phase 6.10 | Trigger-based | Delegated outreach permission for staff |
 | Phase 7 | Parked | Product hardening and growth |
+| Phase 7.8 | Planned | Staging environment and rollback procedure |
+| Phase 7.9 | Planned | Observability and error monitoring |
 | Phase 8 | Planned | Budget-safe AI continuation |
+| Phase 9 | Planned | Affordable ambient assistant |
 
 ---
 
@@ -2251,6 +2873,70 @@ Reason:
 - avoid returning to an old Phase 5.3 label;
 - preserve completed Phase 5 history;
 - separate operational agency work from optional AI work.
+
+## 2026-08-05 — Add effort-tracking, staging, and observability phases
+
+Decision:
+
+- add Phase 6.9 — Lead-Sourcing Effort Tracking and Webhook Intake;
+- add Phase 7.8 — Staging Environment and Rollback Procedure;
+- add Phase 7.9 — Observability and Error Monitoring;
+- flag that the Phase 7.1 backup code is not yet present in this repository.
+
+Reason:
+
+- Phase 6.8 only tracks staff cost from client delivery onward, not the Lead
+  Sourcer's pre-client research effort;
+- lead intake is currently manual-only; a webhook removes repetitive CSV work
+  without requiring Phase 8's AI infrastructure;
+- Phase 6.1 is about to change permission logic on live production data with
+  no staging step and no documented rollback;
+- there is currently no way to learn about a production outage or error
+  other than manual notice.
+
+## 2026-08-05 — Add delegated outreach permission phase
+
+Decision:
+
+- add Phase 6.10 — Delegated Outreach Permission (Future Staff Contact
+  Access), trigger-based after Phase 6.1 is proven in real use;
+- keep it as a narrow, revocable, per-user permission (`can_contact_leads`)
+  layered on the existing `lead_sourcer` role, not a new broad role or a
+  change to Phase 6.1's Owner-only default.
+
+Reason:
+
+- Phase 6.1 correctly keeps every stage transition Owner-only for the first
+  version, but the plan had no path for that to change as trust in a staff
+  member grows;
+- contacting leads should be able to become a delegated staff capability
+  without reopening approval, pricing, Won/Lost, or financial access, which
+  must remain Owner-only regardless.
+
+## 2026-08-05 — Add an affordable Ambient Assistant phase
+
+Decision:
+
+- add Phase 9 — Affordable Ambient Assistant;
+- place it after the Phase 8 intent router, budget gate, and confirmed-action
+  protections;
+- use browser speech, deterministic nudges, local wake-word processing, and
+  low-cost channels before paid providers;
+- keep Phase 9 spending inside the existing PHP 200 monthly AI cap;
+- prefer Telegram and Discord, while deferring SMS because of direct
+  per-message cost.
+
+Reason:
+
+- browser speech and deterministic reminders provide most of the useful
+  "Jarvis" experience without additional model calls;
+- proactive behavior should come from stored data and rules, not constant
+  background prompting;
+- voice and external channels must not bypass permissions or confirmation;
+- the assistant should continue functioning when AI spending reaches its
+  monthly limit.
+
+---
 
 ## 2026-08-05 — Park backup work
 
