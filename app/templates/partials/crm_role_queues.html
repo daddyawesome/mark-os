@@ -1,0 +1,130 @@
+{% if queue_cards %}
+<section id="role-queues" class="mb-5">
+    <div class="mb-4">
+        <p class="mark-kicker">
+            {% if queue_mode == 'owner' %}
+            Owner Decision Queues
+            {% else %}
+            Lead Researcher Workspace
+            {% endif %}
+        </p>
+        <h2 class="title is-3 mb-2">
+            {% if queue_mode == 'owner' %}
+            What needs Mark's decision
+            {% else %}
+            What needs research attention
+            {% endif %}
+        </h2>
+        <p class="mark-muted">
+            {% if queue_mode == 'owner' %}
+            Review research, approve outreach, and open
+            leads that are ready for first contact.
+            {% else %}
+            Work requested changes first, continue
+            active research, and track submissions
+            waiting for Mark.
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="columns is-multiline">
+        {% for queue in queue_cards %}
+        <div class="column is-half-tablet is-one-third-desktop">
+            <div class="mark-card p-5" style="height: 100%;">
+                <div
+                    class="is-flex
+                           is-justify-content-space-between
+                           is-align-items-flex-start
+                           mb-3"
+                >
+                    <div>
+                        <p class="mark-kicker">
+                            {{ queue.title }}
+                        </p>
+                        <p class="mark-muted is-size-7">
+                            {{ queue.description }}
+                        </p>
+                    </div>
+                    <span class="mark-chip">
+                        {{ queue.count }}
+                    </span>
+                </div>
+
+                {% if queue.leads %}
+                <div class="content">
+                    {% for lead in queue.leads %}
+                    <div class="mb-4">
+                        <a
+                            class="has-text-weight-bold"
+                            href="/crm/leads/{{ lead.id }}"
+                        >
+                            {{ lead.company }}
+                        </a>
+                        <br>
+                        <span class="mark-muted is-size-7">
+                            {{ lead.contact_person }}
+                            {% if lead.priority %}
+                            · {{ lead.priority|title }}
+                            {% endif %}
+                        </span>
+                        <br>
+                        <span class="is-size-7">
+                            Research:
+                            {{ lead.research_status
+                               |replace('_', ' ')
+                               |title }}
+                        </span>
+                        {% if
+                            queue.key == 'research_changes'
+                            and lead.review_notes
+                        %}
+                        <div
+                            class="notification
+                                   is-warning
+                                   is-light
+                                   p-3
+                                   mt-2
+                                   mb-2"
+                        >
+                            {{ lead.review_notes }}
+                        </div>
+                        {% endif %}
+                        {% if lead.next_action_due_date %}
+                        <br>
+                        <span class="mark-muted is-size-7">
+                            Due {{ lead.next_action_due_date }}
+                        </span>
+                        {% endif %}
+                        <div class="mt-2">
+                            <a
+                                class="button
+                                       is-small
+                                       is-ghost-forest"
+                                href="{{ lead.queue_action_url }}"
+                            >
+                                {{ queue.action_label }}
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="mark-muted is-size-7">
+                    {{ queue.empty_message }}
+                </p>
+                {% endif %}
+
+                {% if queue.count > queue.leads|length %}
+                <p class="mark-muted is-size-7 mt-3">
+                    Showing {{ queue.leads|length }} of
+                    {{ queue.count }}.
+                    Open the full lead table below for
+                    the remaining records.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

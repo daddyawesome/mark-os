@@ -21,11 +21,15 @@ from app.services.lead_research_permissions import (
     LeadPermissionError,
     can_approve_outreach,
     can_edit_research,
+    can_view_lead,
 )
 from app.services.lead_pipeline_workflow import (
     LeadPipelineRuleError,
     change_pipeline_stage,
     update_owner_lead,
+)
+from app.services.lead_work_queues import (
+    build_role_aware_crm_dashboard,
 )
 from app.services.team_users import get_primary_owner_id
 from app.services.leads import (
@@ -35,7 +39,6 @@ from app.services.leads import (
     delete_lead as delete_lead_record,
     get_crm_dashboard_metrics,
     get_lead,
-    list_leads,
     update_lead_next_action as update_next_action_record,
 )
 
@@ -101,19 +104,26 @@ def _lead_or_404(
 ):
     lead = get_lead(db, lead_id)
     if lead is None:
-        raise HTTPException(status_code=404, detail="Lead not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Lead not found",
+        )
 
-    if request is not None:
-        user = request.state.current_user
-        if (
-            is_lead_sourcer(user)
-            and lead["created_by_user_id"] != user["id"]
-        ):
-            # Do not reveal whether another user's lead exists.
-            raise HTTPException(status_code=404, detail="Lead not found")
+    if (
+        request is not None
+        and not can_view_lead(
+            request.state.current_user,
+            lead,
+        )
+    ):
+        # Do not reveal whether another user's lead
+        # exists.
+        raise HTTPException(
+            status_code=404,
+            detail="Lead not found",
+        )
 
     return lead
-
 
 def _shared_context(db, request: Request) -> dict:
     user = request.state.current_user
@@ -150,34 +160,50 @@ def _add_leads_context(
 @router.get("", response_class=HTMLResponse)
 def crm_dashboard(request: Request):
     user = request.state.current_user
-    creator_filter = user["id"] if is_lead_sourcer(user) else None
 
     with get_db() as db:
-        metrics = get_crm_dashboard_metrics(
+        dashboard = build_role_aware_crm_dashboard(
             db,
-            created_by_user_id=creator_filter,
+            user,
         )
-        context = {
-            "leads": list_leads(
-                db,
-                created_by_user_id=creator_filter,
-            ),
-            "metric_cards": [
-                {"label": label, "value": metrics[key]}
+        metric_cards = dashboard["metric_cards"]
+
+        if is_owner(user):
+            metrics = get_crm_dashboard_metrics(db)
+            metric_cards = [
+                {
+                    "label": label,
+                    "value": metrics[key],
+                }
                 for label, key in METRIC_DEFINITIONS
+            ]
+
+        context = {
+            "leads": dashboard["leads"],
+            "metric_cards": metric_cards,
+            "queue_cards": dashboard[
+                "queue_cards"
             ],
-            "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
-            "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
+            "queue_mode": dashboard[
+                "queue_mode"
+            ],
+            "notice": _message(
+                NOTICE_MESSAGES,
+                request.query_params.get("notice"),
+            ),
+            "error": _message(
+                ERROR_MESSAGES,
+                request.query_params.get("error"),
+            ),
             **_shared_context(db, request),
         }
+
     return templates.TemplateResponse(
         request=request,
         name="client_hunting.html",
         context=context,
     )
 
-
-# These static routes must stay above /leads/{lead_id}.
 @router.get("/leads/new", response_class=HTMLResponse)
 def new_lead_page(request: Request):
     with get_db() as db:
