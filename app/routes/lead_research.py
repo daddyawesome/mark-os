@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+from fastapi import (
+    APIRouter,
+    Form,
+    HTTPException,
+    Request,
+)
+from fastapi.responses import (
+    HTMLResponse,
+    RedirectResponse,
+)
+
+from app.database import get_db
+from app.routes.shared import templates
+from app.services.lead_research_permissions import (
+    LeadPermissionError,
+    can_edit_research,
+)
+from app.services.lead_research_workflow import (
+    update_research_details,
+)
+from app.services.leads import get_lead
+
+
+router = APIRouter(prefix="/crm")
+
+
+def _editable_lead_or_404(
+    db,
+    lead_id: int,
+    request: Request,
+):
+    lead = get_lead(db, lead_id)
+    if (
+        lead is None
+        or not can_edit_research(
+            request.state.current_user,
+            lead,
+        )
+    ):
+        # Do not reveal another user's lead or a
+        # workflow state the actor cannot edit.
+        raise HTTPException(
+            status_code=404,
+            detail="Lead not found",
+        )
+    return lead
+
+
+@router.get(
+    "/leads/{lead_id}/research/edit",
+    response_class=HTMLResponse,
+)
+def edit_lead_research_page(
+    request: Request,
+    lead_id: int,
+):
+    with get_db() as db:
+        lead = _editable_lead_or_404(
+            db,
+            lead_id,
+            request,
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="edit_lead_research.html",
+        context={
+            "lead": lead,
+            "current_user": (
+                request.state.current_user
+            ),
+            "error": (
+                "The research could not be saved. "
+                "Check the required fields."
+                if request.query_params.get("error")
+                == "invalid"
+                else None
+            ),
+        },
+    )
+
+
+@router.post(
+    "/leads/{lead_id}/research/edit"
+)
+def edit_lead_research(
+    request: Request,
+    lead_id: int,
+    company: str = Form(...),
+    contact_person: str = Form(...),
+    source: str = Form(...),
+    problem_opportunity: str = Form(...),
+    why_mark_fits: str = Form(...),
+    next_action: str = Form(...),
+    job_title: str = Form(default=""),
+    source_url: str = Form(default=""),
+    next_action_due_date: str = Form(default=""),
+    notes: str = Form(default=""),
+):
+    with get_db() as db:
+        _editable_lead_or_404(
+            db,
+            lead_id,
+            request,
+        )
+
+        try:
+            update_research_details(
+                db,
+                lead_id,
+                actor=request.state.current_user,
+                company=company,
+                contact_person=contact_person,
+                job_title=job_title,
+                source=source,
+                source_url=source_url,
+                problem_opportunity=(
+                    problem_opportunity
+                ),
+                why_mark_fits=why_mark_fits,
+                next_action=next_action,
+                next_action_due_date=(
+                    next_action_due_date or None
+                ),
+                notes=notes,
+            )
+        except LeadPermissionError:
+            raise HTTPException(
+                status_code=404,
+                detail="Lead not found",
+            )
+        except ValueError:
+            return RedirectResponse(
+                url=(
+                    f"/crm/leads/{lead_id}/"
+                    "research/edit?error=invalid"
+                ),
+                status_code=303,
+            )
+
+    return RedirectResponse(
+        url=(
+            f"/crm/leads/{lead_id}"
+            "?notice=updated"
+        ),
+        status_code=303,
+    )

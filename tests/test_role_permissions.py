@@ -57,6 +57,8 @@ def test_lead_sourcer_has_small_read_and_intake_surface():
         ("GET", "/crm/leads/import/template"),
         ("GET", "/crm/leads/1"),
         ("GET", "/crm/leads/999"),
+        ("GET", "/crm/leads/1/research/edit"),
+        ("POST", "/crm/leads/1/research/edit"),
         ("POST", "/crm/leads"),
         ("POST", "/crm/leads/import"),
         ("POST", "/logout"),

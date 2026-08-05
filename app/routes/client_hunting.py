@@ -17,6 +17,7 @@ from app.services.lead_csv_import import (
     lead_csv_template_bytes,
 )
 from app.services.access_control import is_lead_sourcer, is_owner
+from app.services.lead_research_permissions import can_edit_research
 from app.services.team_users import get_primary_owner_id
 from app.services.leads import (
     PIPELINE_STATUSES,
@@ -322,6 +323,10 @@ def lead_detail(request: Request, lead_id: int):
         lead = _lead_or_404(db, lead_id, request)
         context = {
             "lead": lead,
+            "can_edit_research": can_edit_research(
+                request.state.current_user,
+                lead,
+            ),
             "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
             **_shared_context(db, request),

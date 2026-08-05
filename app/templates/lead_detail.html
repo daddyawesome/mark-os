@@ -17,6 +17,9 @@
         </div>
         <div class="buttons">
             <a class="button is-ghost-forest" href="/crm">Back to CRM</a>
+            {% if can_edit_research %}
+            <a class="button is-ghost-forest" href="/crm/leads/{{ lead.id }}/research/edit">Edit research</a>
+            {% endif %}
             {% if can_manage_crm %}
             <a class="button is-mark" href="/crm/leads/{{ lead.id }}/edit">Edit lead</a>
             {% endif %}
