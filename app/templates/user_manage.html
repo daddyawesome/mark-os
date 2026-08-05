@@ -38,7 +38,11 @@
                 <p><strong>Last login:</strong> {{ managed_user.last_login_at or "Never" }}</p>
                 <p><strong>Created:</strong> {{ managed_user.created_at }}</p>
                 <p><strong>Active leads:</strong> {{ managed_user.active_lead_count }}</p>
-                <p><strong>Total leads:</strong> {{ managed_user.lead_count }}</p>
+                <p><strong>Total leads created:</strong> {{ managed_user.lead_count }}</p>
+                {% if managed_user.role == "relationship_manager" %}
+                <p><strong>Active relationship leads:</strong> {{ managed_user.active_business_development_lead_count }}</p>
+                <p><strong>Total relationship leads:</strong> {{ managed_user.business_development_lead_count }}</p>
+                {% endif %}
             </div>
 
             {% if managed_user.role == "owner" %}
@@ -55,7 +59,7 @@
                 </button>
             </form>
             <p class="help mt-2">
-                Sessions will be revoked. Assigned leads will return to the owner.
+                Sessions will be revoked. Operational assignments return to the owner; relationship ownership is cleared for reassignment.
             </p>
             {% else %}
             <form method="post"

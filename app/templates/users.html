@@ -16,10 +16,15 @@
             <p class="subtitle is-5 mark-muted">
                 Manage CRM-only accounts used to find and submit leads.
             </p>
+            {% elif selected_role == "relationship_manager" %}
+            <h1 class="title is-1 mb-2">Relationship managers.</h1>
+            <p class="subtitle is-5 mark-muted">
+                Manage business-development collaborators, playbooks, and relationship-owned leads.
+            </p>
             {% else %}
             <h1 class="title is-1 mb-2">Manage users.</h1>
             <p class="subtitle is-5 mark-muted">
-                Review family members, lead sourcers, and account access.
+                Review family members, lead sourcers, relationship managers, and account access.
             </p>
             {% endif %}
         </div>
@@ -39,6 +44,9 @@
         </li>
         <li class="{% if selected_role == 'lead_sourcer' %}is-active{% endif %}">
             <a href="/settings/users?role=lead_sourcer">Sourcer</a>
+        </li>
+        <li class="{% if selected_role == 'relationship_manager' %}is-active{% endif %}">
+            <a href="/settings/users?role=relationship_manager">Relationship Manager</a>
         </li>
         <li class="{% if not selected_role %}is-active{% endif %}">
             <a href="/settings/users">All</a>
@@ -101,6 +109,8 @@
                         No family users found.
                         {% elif selected_role == "lead_sourcer" %}
                         No lead sourcers found.
+                        {% elif selected_role == "relationship_manager" %}
+                        No relationship managers found.
                         {% else %}
                         No users found.
                         {% endif %}

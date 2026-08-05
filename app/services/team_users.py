@@ -11,7 +11,7 @@ MAX_USERNAME_LENGTH = 50
 MAX_DISPLAY_NAME_LENGTH = 100
 MIN_PASSWORD_LENGTH = 10
 MAX_PASSWORD_LENGTH = 200
-MANAGED_ROLES = {"member", "lead_sourcer"}
+MANAGED_ROLES = {"member", "lead_sourcer", "relationship_manager"}
 
 
 def _positive_id(value: int, field_name: str) -> int:
@@ -100,7 +100,18 @@ def list_users_with_stats(
                          THEN 1 ELSE 0 END
                 ),
                 0
-            ) AS active_lead_count
+            ) AS active_lead_count,
+            (
+                SELECT COUNT(*)
+                FROM leads AS relationship_lead
+                WHERE relationship_lead.business_development_owner_user_id = u.id
+            ) AS business_development_lead_count,
+            (
+                SELECT COUNT(*)
+                FROM leads AS relationship_lead
+                WHERE relationship_lead.business_development_owner_user_id = u.id
+                  AND relationship_lead.deleted_at IS NULL
+            ) AS active_business_development_lead_count
         FROM users AS u
         LEFT JOIN leads AS l
           ON l.created_by_user_id = u.id
@@ -119,7 +130,9 @@ def list_users_with_stats(
             CASE
                 WHEN u.role = 'owner' THEN 0
                 WHEN u.role = 'member' THEN 1
-                ELSE 2
+                WHEN u.role = 'lead_sourcer' THEN 2
+                WHEN u.role = 'relationship_manager' THEN 3
+                ELSE 4
             END,
             u.active DESC,
             u.display_name COLLATE NOCASE,
@@ -155,7 +168,18 @@ def get_user_for_management(
                          THEN 1 ELSE 0 END
                 ),
                 0
-            ) AS active_lead_count
+            ) AS active_lead_count,
+            (
+                SELECT COUNT(*)
+                FROM leads AS relationship_lead
+                WHERE relationship_lead.business_development_owner_user_id = u.id
+            ) AS business_development_lead_count,
+            (
+                SELECT COUNT(*)
+                FROM leads AS relationship_lead
+                WHERE relationship_lead.business_development_owner_user_id = u.id
+                  AND relationship_lead.deleted_at IS NULL
+            ) AS active_business_development_lead_count
         FROM users AS u
         LEFT JOIN leads AS l
           ON l.created_by_user_id = u.id
@@ -251,6 +275,24 @@ def create_lead_sourcer(
     )
 
 
+def create_relationship_manager(
+    db: sqlite3.Connection,
+    *,
+    username: str,
+    display_name: str,
+    password: str,
+    password_confirmation: str,
+) -> dict[str, Any]:
+    return create_managed_user(
+        db,
+        username=username,
+        display_name=display_name,
+        password=password,
+        password_confirmation=password_confirmation,
+        role="relationship_manager",
+    )
+
+
 def create_member(
     db: sqlite3.Connection,
     *,
@@ -339,6 +381,15 @@ def set_user_active(
             WHERE assigned_to_user_id = ?
             """,
             (owner_id, target_id),
+        )
+        db.execute(
+            """
+            UPDATE leads
+            SET business_development_owner_user_id = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE business_development_owner_user_id = ?
+            """,
+            (target_id,),
         )
 
     managed = get_user_for_management(db, target_id)

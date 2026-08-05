@@ -31,3 +31,5 @@ Thumbs.db
 *.log
 # Local MARK OS installer backups
 .mark_os_backups/
+private_playbooks/
+.phase_6_1j_release/

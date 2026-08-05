@@ -46,7 +46,7 @@
 >
     <a
         class="mark-sidebar-brand"
-        href="{{ '/' if current_user.role in ['owner', 'member'] else '/crm' }}"
+        href="{{ '/' if current_user.role in ['owner', 'member'] else ('/relationship-manager' if current_user.role == 'relationship_manager' else '/crm') }}"
     >
         <span class="mark-brand-orb">M</span>
         <span class="mark-sidebar-brand-copy">
@@ -97,9 +97,18 @@
         </div>
         {% endif %}
 
-        {% if current_user.role in ['owner', 'lead_sourcer'] %}
+        {% if current_user.role in ['owner', 'lead_sourcer', 'relationship_manager'] %}
         <div class="mark-sidebar-section">
             <p class="mark-sidebar-label">Business</p>
+
+            {% if current_user.role == 'relationship_manager' %}
+            <a
+                class="mark-sidebar-link {% if request.url.path == '/relationship-manager' %}is-active{% endif %}"
+                href="/relationship-manager"
+            >
+                <span>Relationship Home</span>
+            </a>
+            {% endif %}
 
             <a
                 class="mark-sidebar-link {% if request.url.path.startswith('/crm') %}is-active{% endif %}"
@@ -147,6 +156,17 @@
                     >
                         Sourcer
                     </a>
+
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink
+                        {% if request.url.path.startswith('/settings/users')
+                              and request.query_params.get('role') == 'relationship_manager' %}
+                        is-active
+                        {% endif %}"
+                        href="/settings/users?role=relationship_manager"
+                    >
+                        Relationship Manager
+                    </a>
                 </div>
             </details>
         </div>
@@ -163,7 +183,7 @@
 
         <div class="mark-sidebar-user">
             <strong>{{ current_user.display_name }}</strong>
-            <span>{{ current_user.role|replace('_', ' ') }}</span>
+            <span>{{ "Business Development Collaborator" if current_user.role == "relationship_manager" else current_user.role|replace("_", " ") }}</span>
         </div>
 
         <form method="post" action="/logout">

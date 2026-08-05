@@ -309,10 +309,14 @@ def get_lead(
             creator.display_name AS created_by_name,
             creator.username AS created_by_username,
             assignee.display_name AS assigned_to_name,
-            assignee.username AS assigned_to_username
+            assignee.username AS assigned_to_username,
+            relationship_manager.display_name AS business_development_owner_name,
+            relationship_manager.username AS business_development_owner_username
         FROM leads AS l
         LEFT JOIN users AS creator ON creator.id = l.created_by_user_id
         LEFT JOIN users AS assignee ON assignee.id = l.assigned_to_user_id
+        LEFT JOIN users AS relationship_manager
+          ON relationship_manager.id = l.business_development_owner_user_id
         WHERE l.id = ? {deleted_condition}
         """,
         (safe_lead_id,),
@@ -535,6 +539,7 @@ def create_lead(
     request_key: str | None = None,
     created_by_user_id: int | None = None,
     assigned_to_user_id: int | None = None,
+    business_development_owner_user_id: int | None = None,
 ) -> LeadCreateResult:
     clean_request_key = _normalize_request_key(request_key)
     safe_creator_id = _active_user_id(
@@ -547,6 +552,28 @@ def create_lead(
         assigned_to_user_id,
         "Assigned-to user ID",
     )
+    safe_relationship_manager_id = _active_user_id(
+        db,
+        business_development_owner_user_id,
+        "Business-development owner user ID",
+    )
+    if safe_relationship_manager_id is not None:
+        relationship_manager = db.execute(
+            """
+            SELECT role
+            FROM users
+            WHERE id = ? AND active = 1
+            """,
+            (safe_relationship_manager_id,),
+        ).fetchone()
+        if (
+            relationship_manager is None
+            or relationship_manager["role"] != "relationship_manager"
+        ):
+            raise ValueError(
+                "Business-development owner must be an active "
+                "Relationship Manager."
+            )
     values = _normalize_lead_fields(
         company=company,
         contact_person=contact_person,
@@ -584,18 +611,20 @@ def create_lead(
                 """
                 INSERT INTO leads
                     (quest_id, created_by_user_id, assigned_to_user_id,
+                     business_development_owner_user_id,
                      request_key, request_fingerprint, dedupe_key,
                      company, contact_person, job_title, source, source_url,
                      problem_opportunity,
                      why_mark_fits, pipeline_status, priority, next_action,
                      next_action_due_date, notes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """,
                 (
                     quest["id"],
                     safe_creator_id,
                     safe_assignee_id,
+                    safe_relationship_manager_id,
                     clean_request_key,
                     lead_creation_fingerprint(values),
                     values["dedupe_key"],
@@ -668,10 +697,14 @@ def list_leads(
             creator.display_name AS created_by_name,
             creator.username AS created_by_username,
             assignee.display_name AS assigned_to_name,
-            assignee.username AS assigned_to_username
+            assignee.username AS assigned_to_username,
+            relationship_manager.display_name AS business_development_owner_name,
+            relationship_manager.username AS business_development_owner_username
         FROM leads AS l
         LEFT JOIN users AS creator ON creator.id = l.created_by_user_id
         LEFT JOIN users AS assignee ON assignee.id = l.assigned_to_user_id
+        LEFT JOIN users AS relationship_manager
+          ON relationship_manager.id = l.business_development_owner_user_id
         {where}
         ORDER BY
             CASE l.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,

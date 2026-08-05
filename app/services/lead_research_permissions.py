@@ -8,6 +8,7 @@ from app.db.lead_research import RESEARCH_STATUSES
 from app.services.access_control import (
     is_lead_sourcer,
     is_owner,
+    is_relationship_manager,
 )
 from app.services.leads import PIPELINE_STATUSES
 
@@ -42,6 +43,7 @@ SYSTEM_MANAGED_FIELDS = frozenset(
         "id",
         "quest_id",
         "created_by_user_id",
+        "business_development_owner_user_id",
         "researched_by_user_id",
         "research_status",
         "submitted_for_review_at",
@@ -168,10 +170,17 @@ def can_view_lead(
     if is_owner(user):
         return True
 
-    return (
-        is_lead_sourcer(user)
-        and _actor_matches_lead(user, lead)
-    )
+    if is_lead_sourcer(user):
+        return _actor_matches_lead(user, lead)
+
+    if is_relationship_manager(user):
+        actor_id = _positive_actor_id(user)
+        return actor_id in {
+            _value(lead, "created_by_user_id"),
+            _value(lead, "business_development_owner_user_id"),
+        }
+
+    return False
 
 
 def editable_fields_for(

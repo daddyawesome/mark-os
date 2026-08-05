@@ -7,6 +7,7 @@ from typing import Any
 from app.services.access_control import (
     is_lead_sourcer,
     is_owner,
+    is_relationship_manager,
 )
 
 
@@ -21,7 +22,9 @@ SELECT
     assignee.display_name AS assigned_to_name,
     assignee.username AS assigned_to_username,
     researcher.display_name AS researched_by_name,
-    researcher.username AS researched_by_username
+    researcher.username AS researched_by_username,
+    relationship_manager.display_name AS business_development_owner_name,
+    relationship_manager.username AS business_development_owner_username
 FROM leads AS l
 LEFT JOIN users AS creator
     ON creator.id = l.created_by_user_id
@@ -29,6 +32,8 @@ LEFT JOIN users AS assignee
     ON assignee.id = l.assigned_to_user_id
 LEFT JOIN users AS researcher
     ON researcher.id = l.researched_by_user_id
+LEFT JOIN users AS relationship_manager
+    ON relationship_manager.id = l.business_development_owner_user_id
 """
 
 _DEFAULT_ORDER = """
@@ -86,6 +91,20 @@ def _visibility_clause(
             )
             """,
             [user_id, user_id, user_id],
+        )
+
+    if is_relationship_manager(user):
+        user_id = _positive_user_id(user)
+        if user_id is None:
+            return "0 = 1", []
+        return (
+            """
+            (
+                l.business_development_owner_user_id = ?
+                OR l.created_by_user_id = ?
+            )
+            """,
+            [user_id, user_id],
         )
 
     return "0 = 1", []
@@ -514,6 +533,168 @@ def _researcher_metric_cards(
     ]
 
 
+
+def _relationship_manager_queues(
+    db: sqlite3.Connection,
+    *,
+    visibility_sql: str,
+    visibility_parameters: list[object],
+) -> list[dict[str, Any]]:
+    return [
+        _queue_card(
+            db,
+            visibility_sql=visibility_sql,
+            visibility_parameters=visibility_parameters,
+            key="relationship_qualification",
+            title="Qualify and coordinate",
+            description=(
+                "New relationship leads that need a clear "
+                "next action while research is completed."
+            ),
+            empty_message=(
+                "No new relationship leads need qualification."
+            ),
+            action_label="Open lead",
+            queue_sql="""
+                l.pipeline_status IN ('new', 'reviewed')
+                AND l.research_status IN (
+                    'draft',
+                    'researching',
+                    'changes_requested'
+                )
+            """,
+            action_path="/crm/leads/{lead_id}",
+        ),
+        _queue_card(
+            db,
+            visibility_sql=visibility_sql,
+            visibility_parameters=visibility_parameters,
+            key="relationship_ready",
+            title="Approved outreach",
+            description=(
+                "Research and Owner outreach approval "
+                "are complete. Contact logging remains "
+                "locked until Phase 6.2."
+            ),
+            empty_message=(
+                "No assigned leads are ready for approved outreach."
+            ),
+            action_label="Open lead",
+            queue_sql="""
+                l.research_status = 'approved'
+                AND l.outreach_approved_by_user_id IS NOT NULL
+                AND l.outreach_approved_at IS NOT NULL
+                AND l.pipeline_status IN ('new', 'reviewed')
+            """,
+            action_path="/crm/leads/{lead_id}",
+        ),
+        _queue_card(
+            db,
+            visibility_sql=visibility_sql,
+            visibility_parameters=visibility_parameters,
+            key="relationship_due",
+            title="Next actions due",
+            description=(
+                "Assigned relationship work due today or earlier."
+            ),
+            empty_message="No assigned next actions are overdue.",
+            action_label="Update next action",
+            queue_sql="""
+                l.next_action_due_date IS NOT NULL
+                AND l.next_action_due_date <= DATE('now')
+                AND l.pipeline_status NOT IN ('won', 'lost')
+            """,
+            action_path="/crm/leads/{lead_id}",
+        ),
+        _queue_card(
+            db,
+            visibility_sql=visibility_sql,
+            visibility_parameters=visibility_parameters,
+            key="relationship_waiting",
+            title="Waiting for Mark",
+            description=(
+                "Research review or outreach approval still "
+                "needs the Owner."
+            ),
+            empty_message="Nothing is waiting for Mark.",
+            action_label="View status",
+            queue_sql="""
+                l.pipeline_status IN ('new', 'reviewed')
+                AND (
+                    l.research_status = 'ready_for_review'
+                    OR (
+                        l.research_status = 'approved'
+                        AND (
+                            l.outreach_approved_by_user_id IS NULL
+                            OR l.outreach_approved_at IS NULL
+                        )
+                    )
+                )
+            """,
+            action_path="/crm/leads/{lead_id}",
+        ),
+        _queue_card(
+            db,
+            visibility_sql=visibility_sql,
+            visibility_parameters=visibility_parameters,
+            key="relationship_handoff",
+            title="Handoff to Mark",
+            description=(
+                "Interested prospects at Reply or Meeting stage."
+            ),
+            empty_message="No interested prospects need handoff.",
+            action_label="Open handoff",
+            queue_sql="""
+                l.pipeline_status IN ('replied', 'meeting')
+            """,
+            action_path="/crm/leads/{lead_id}",
+        ),
+    ]
+
+
+def _relationship_manager_metric_cards(
+    db: sqlite3.Connection,
+    *,
+    visibility_sql: str,
+    visibility_parameters: list[object],
+) -> list[dict[str, int | str]]:
+    definitions = (
+        ("Relationship leads", "1 = 1"),
+        (
+            "Approved outreach",
+            """
+            l.research_status = 'approved'
+            AND l.outreach_approved_by_user_id IS NOT NULL
+            AND l.outreach_approved_at IS NOT NULL
+            AND l.pipeline_status IN ('new', 'reviewed')
+            """,
+        ),
+        (
+            "Follow-ups due",
+            """
+            l.next_action_due_date IS NOT NULL
+            AND l.next_action_due_date <= DATE('now')
+            AND l.pipeline_status NOT IN ('won', 'lost')
+            """,
+        ),
+        (
+            "Replies / meetings",
+            "l.pipeline_status IN ('replied', 'meeting')",
+        ),
+    )
+    return [
+        {
+            "label": label,
+            "value": _queue_count(
+                db,
+                visibility_sql=visibility_sql,
+                visibility_parameters=visibility_parameters,
+                queue_sql=queue_sql,
+            ),
+        }
+        for label, queue_sql in definitions
+    ]
+
 def build_role_aware_crm_dashboard(
     db: sqlite3.Connection,
     user: Record | None,
@@ -545,6 +726,22 @@ def build_role_aware_crm_dashboard(
                 visibility_parameters=parameters,
             ),
             "metric_cards": _researcher_metric_cards(
+                db,
+                visibility_sql=visibility_sql,
+                visibility_parameters=parameters,
+            ),
+            "leads": leads,
+        }
+
+    if is_relationship_manager(user):
+        return {
+            "queue_mode": "relationship_manager",
+            "queue_cards": _relationship_manager_queues(
+                db,
+                visibility_sql=visibility_sql,
+                visibility_parameters=parameters,
+            ),
+            "metric_cards": _relationship_manager_metric_cards(
                 db,
                 visibility_sql=visibility_sql,
                 visibility_parameters=parameters,

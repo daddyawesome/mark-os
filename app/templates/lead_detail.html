@@ -54,13 +54,17 @@
 {% include "partials/lead_outreach_approval_panel.html" %}
 <div class="mark-card p-4 mb-5">
     <div class="columns is-mobile is-multiline">
-        <div class="column is-half">
+        <div class="column is-one-third">
             <p class="mark-kicker">Added by</p>
             <p class="has-text-weight-bold">{{ lead.created_by_name or 'Historical lead' }}</p>
         </div>
-        <div class="column is-half">
+        <div class="column is-one-third">
             <p class="mark-kicker">Assigned to</p>
             <p class="has-text-weight-bold">{{ lead.assigned_to_name or 'Not assigned' }}</p>
+        </div>
+        <div class="column is-one-third">
+            <p class="mark-kicker">Relationship owner</p>
+            <p class="has-text-weight-bold">{{ lead.business_development_owner_name or 'Not assigned' }}</p>
         </div>
     </div>
 </div>
@@ -112,7 +116,9 @@
                 <button class="button is-mark is-fullwidth" type="submit">Update Pipeline</button>
             </form>
         </div>
+        {% endif %}
 
+        {% if can_update_next_action %}
         <div class="mark-card p-5 mb-5">
             <p class="mark-kicker">Next Move</p>
             <h2 class="title is-4">Keep momentum visible.</h2>
@@ -128,13 +134,40 @@
                 <button class="button is-mark is-fullwidth" type="submit">Update Next Action</button>
             </form>
         </div>
+        {% endif %}
+
+        {% if can_manage_crm %}
+        <div class="mark-card p-5 mb-5">
+            <p class="mark-kicker">Business Development</p>
+            <h2 class="title is-4">Assign a relationship owner.</h2>
+            <form method="post" action="/crm/leads/{{ lead.id }}/relationship-owner">
+                <div class="field">
+                    <label class="label" for="relationship_manager_user_id">Relationship Manager</label>
+                    <div class="select is-fullwidth">
+                        <select id="relationship_manager_user_id" name="relationship_manager_user_id">
+                            <option value="">Not assigned</option>
+                            {% for manager in relationship_managers %}
+                            <option value="{{ manager.id }}" {% if lead.business_development_owner_user_id == manager.id %}selected{% endif %}>
+                                {{ manager.display_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <button class="button is-mark is-fullwidth" type="submit">Update Relationship Owner</button>
+            </form>
+        </div>
 
         <div class="mark-card p-5">
             <p class="mark-kicker">Archive</p>
             <p class="mark-muted mb-4">Remove this lead from the active CRM while preserving its linked quest history.</p>
             <a class="button is-danger is-outlined is-fullwidth" href="/crm/leads/{{ lead.id }}/delete">Archive lead</a>
         </div>
-        {% else %}
+        {% elif current_user and current_user.role == 'relationship_manager' %}
+        <div class="notification is-warning is-light">
+            You may update this relationship lead's next action. Mark retains research approval, outreach approval, pipeline movement, pricing, proposals, Won/Lost, and archiving.
+        </div>
+        {% elif not can_update_next_action %}
         <div class="mark-card p-5">
             <p class="mark-kicker">Read-only review</p>
             <h2 class="title is-4">Lead submitted for Mark.</h2>
