@@ -562,3 +562,108 @@ a:hover {
         border-radius: 18px;
     }
 }
+
+/* CRM hero layout: keep headings readable beside growing action sets. */
+.crm-hero-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: end;
+}
+
+.crm-hero-copy {
+    min-width: 0;
+    max-width: 52rem;
+}
+
+.crm-hero-copy .title {
+    max-width: 18ch;
+    margin-wrap: pretty;
+    font-size: clamp(2.25rem, 5vw, 4.5rem);
+    line-height: 1.02;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+}
+
+.crm-hero-copy .subtitle {
+    max-width: 62ch;
+    line-height: 1.45;
+}
+
+.crm-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.crm-hero-buttons {
+    display: flex;
+    flex: 1 1 32rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0 !important;
+}
+
+.crm-hero-buttons .button {
+    height: auto;
+    min-height: 2.6rem;
+    margin: 0 !important;
+    white-space: normal;
+    text-align: center;
+}
+
+.crm-hero-count {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+@media (min-width: 1180px) {
+    .crm-hero-layout {
+        grid-template-columns:
+            minmax(24rem, 1fr)
+            minmax(25rem, 0.9fr);
+        gap: 3rem;
+    }
+
+    .crm-hero-actions {
+        align-content: center;
+        justify-content: flex-end;
+    }
+
+    .crm-hero-buttons {
+        justify-content: flex-end;
+    }
+
+    .crm-hero-count {
+        width: 100%;
+        text-align: right;
+    }
+}
+
+@media (max-width: 640px) {
+    .crm-hero {
+        padding: 1.5rem !important;
+    }
+
+    .crm-hero-copy .title {
+        max-width: none;
+        font-size: clamp(2rem, 11vw, 3rem);
+    }
+
+    .crm-hero-buttons {
+        flex-basis: 100%;
+    }
+
+    .crm-hero-buttons .button {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+
+    .crm-hero-count {
+        margin-left: 0;
+    }
+}

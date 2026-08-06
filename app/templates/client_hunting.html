@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Client Hunting · MARK OS{% endblock %}
 {% block content %}
-<section class="mark-hero p-6 mb-5">
-    <div class="columns is-vcentered">
-        <div class="column">
+<section class="mark-hero crm-hero p-6 mb-5">
+    <div class="crm-hero-layout">
+        <div class="crm-hero-copy">
             <p class="mark-kicker">
                 Client Hunting // Opportunity Pipeline
             </p>
@@ -45,8 +45,8 @@
             </p>
             {% endif %}
         </div>
-        <div class="column is-narrow">
-            <div class="buttons is-justify-content-flex-end">
+        <div class="crm-hero-actions">
+            <div class="buttons crm-hero-buttons">
                 <a
                     class="button is-mark"
                     href="/crm/leads/new"
@@ -74,7 +74,7 @@
                 </a>
                 {% endif %}
             </div>
-            <div class="has-text-right mt-3">
+            <div class="crm-hero-count">
                 <span class="mark-chip">
                     {{ leads|length }} VISIBLE LEADS
                 </span>

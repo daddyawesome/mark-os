@@ -7,7 +7,7 @@
 **Immediate next milestone:** Phase 6.6A — Bulk Lead Import Preview and Row Validation
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 449 passed after Phase 6.5
+**Last verified full-suite baseline:** 452 passed after Phase 6.5 and CRM hero UI hotfix
 
 ---
 
@@ -289,6 +289,7 @@ The repository contains tests for:
 - structured application logging, correlation IDs, safe exception handling, and security-event summaries;
 - database-aware health responses, external uptime checks, backup visibility, and optional Owner webhook alerts;
 - bounded previous-24-hour structured error summaries, Railway wrappers, safe samples, and exact UTC boundaries;
+- responsive CRM hero layout, action wrapping, desktop sidebar widths, mobile stacking, and stylesheet cache busting;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -2825,6 +2826,34 @@ backup.
 
 
 
+
+
+## 2026-08-06 — Keep CRM hero copy independent from action width
+
+**Decision:**
+
+- replace the Bulma two-column CRM hero with a dedicated responsive grid;
+- stack CRM copy and actions at ordinary sidebar-constrained desktop widths;
+- use two columns only when at least 1180 pixels remain for the application
+  content;
+- allow action buttons to wrap without shrinking the headline into
+  character-sized columns;
+- apply the same layout contract to Client Hunting and the Follow-up Command
+  Center;
+- keep normal word-breaking and disable forced headline hyphenation;
+- make CRM actions full-width on small mobile screens;
+- bump the frontend stylesheet query version so Railway browsers do not retain
+  the broken cached layout.
+
+**Reason:**
+
+- the sidebar reduces the available application width even on a desktop
+  monitor;
+- four CRM actions made Bulma's narrow action column consume most of the hero,
+  leaving the flexible headline column too narrow for complete words;
+- the defect was visual and responsive, not a data or route failure;
+- sharing one hero contract prevents the Follow-up Command Center from
+  developing the same problem as more actions are added.
 
 ## 2026-08-06 — Count errors from bounded Railway JSON exports
 

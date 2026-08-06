@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Follow-up Command Center · MARK OS{% endblock %}
 {% block content %}
-<section class="mark-hero p-6 mb-5">
-    <div class="columns is-vcentered">
-        <div class="column">
+<section class="mark-hero crm-hero p-6 mb-5">
+    <div class="crm-hero-layout">
+        <div class="crm-hero-copy">
             <p class="mark-kicker">
                 Follow-up Command Center // {{ command_center.timezone }}
             </p>
@@ -16,12 +16,12 @@
                 Counts and records are limited to the leads your role may view.
             </p>
         </div>
-        <div class="column is-narrow">
-            <div class="buttons is-justify-content-flex-end">
+        <div class="crm-hero-actions">
+            <div class="buttons crm-hero-buttons">
                 <a class="button is-light" href="/crm">Client Hunting</a>
                 <a class="button is-mark" href="/crm/leads/new">Add Leads</a>
             </div>
-            <div class="has-text-right mt-3">
+            <div class="crm-hero-count">
                 <span class="mark-chip">
                     {{ command_center.filtered_lead_count }}
                     OF {{ command_center.visible_lead_count }} VISIBLE LEADS
