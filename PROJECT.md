@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.4 — Follow-up Command Center
+**Immediate next milestone:** Phase 6.4B — Command Center Route, Filters, and UI
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 405 passed after Phase 6.3
+**Last verified full-suite baseline:** 412 passed after Phase 6.4A
 
 ---
 
@@ -239,6 +239,7 @@ app/services/
 ├── agent_audit.py
 ├── chat.py
 ├── director.py
+├── follow_up_command_center.py
 ├── gamification.py
 ├── lead_activities.py
 ├── lead_csv_import.py
@@ -279,6 +280,7 @@ The repository contains tests for:
 - Lead Activity Timeline service and permissions;
 - Lead Activity Timeline routes and UI;
 - Atomic Contacted transition and rollback behavior;
+- Follow-up Command Center queue calculations, filters, role scope, and Manila boundaries;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -1221,7 +1223,7 @@ current response status
 
 ## Phase 6.4 — Follow-up Command Center
 
-**Status:** Active — immediate next milestone
+**Status:** Active — 6.4A complete
 **MoSCoW:** Must have now
 
 ### Goal
@@ -1253,6 +1255,15 @@ Proposal Follow-up Required
 - safe empty states;
 - date-boundary and timezone tests;
 - no external notification dependency.
+
+
+### Implementation progress
+
+- [x] 6.4A — Deterministic queue service, activity-derived dates, role
+  scoping, filters, and Manila boundary tests
+- [ ] 6.4B — Command Center route, filters, queue cards, and safe empty states
+- [ ] 6.4C — Isolation, date-boundary, rendering, and phase-completion
+  verification
 
 ## Phase 6.5 — Observability and Error Monitoring
 
@@ -2685,7 +2696,7 @@ backup.
 | Phase 6.1J | Complete and deployed | Relationship Manager, private playbook, and Business Development ownership |
 | Phase 6.2 | Complete | Backup and Disaster Recovery |
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
-| Phase 6.4 | Active — immediate next milestone | Follow-up Command Center |
+| Phase 6.4 | Active — 6.4A complete | Follow-up queue service; route and UI next |
 | Phase 6.5 | Must next | Observability and Error Monitoring |
 | Phase 6.6 | Should soon | Bulk Lead Management |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
@@ -2705,6 +2716,35 @@ backup.
 
 
 
+
+
+## 2026-08-06 — Define deterministic follow-up date semantics
+
+**Decision:**
+
+- use `Asia/Manila` as the operational timezone for command-center date
+  boundaries;
+- calculate the effective due date from the latest non-deleted activity carrying
+  `next_follow_up_date`, falling back to the lead's `next_action_due_date`;
+- calculate last contact from the latest non-deleted external activity, so later
+  internal research notes do not hide the prospect's actual contact state;
+- define Due This Week as dates after today through Sunday;
+- define stale contact as Contacted-or-later with no external contact in the
+  previous five Manila dates;
+- reload the actor from the database before applying the existing CRM visibility
+  rules;
+- apply assignee, researcher, and Business Development Owner filters only after
+  role-scoped visibility has been established.
+
+**Reason:**
+
+- activity follow-up is the more specific operational commitment once contact
+  history exists;
+- internal activity must not falsely reset a prospect-contact timer;
+- explicit timezone and week boundaries prevent server-local and Railway-UTC
+  differences;
+- database-backed role truth prevents forged mappings from widening CRM access;
+- filtering an already-scoped set prevents count and record leakage.
 
 ## 2026-08-06 — Make Contacted a dedicated atomic audit transition
 
