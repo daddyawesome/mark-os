@@ -2,12 +2,12 @@
 
 **Canonical project document**  
 **Repository:** `https://github.com/daddyawesome/mark-os`  
-**Reviewed against `main`:** 2026-08-05  
+**Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.3 — Lead Activity Timeline  
+**Immediate next milestone:** Phase 6.3B — Activity Service and Permissions
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 378 passed after Phase 6.2
+**Last verified full-suite baseline:** 382 passed after Phase 6.3A
 
 ---
 
@@ -204,6 +204,7 @@ app/db/
 ├── family_ownership.py
 ├── family_workspace.py
 ├── goals.py
+├── lead_activities.py
 ├── leads.py
 ├── memory.py
 ├── migrations.py
@@ -273,6 +274,7 @@ The repository contains tests for:
 - lead ownership;
 - CSV lead import;
 - CRM migrations;
+- Lead Activity Timeline schema and migration;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -1196,6 +1198,13 @@ next follow-up date
 responsible staff member
 current response status
 ```
+
+### Implementation progress
+
+- [x] 6.3A — Additive activity schema, indexes, validation, and migration tests
+- [ ] 6.3B — Validated activity service and role permissions
+- [ ] 6.3C — Lead-detail timeline and correction forms
+- [ ] 6.3D — Atomic Contacted transition and phase verification
 
 ### Definition of done
 
@@ -2672,7 +2681,7 @@ backup.
 | Phase 6.1A–6.1I | Complete | Staff research, review, approval, queues, security, and release verification |
 | Phase 6.1J | Complete and deployed | Relationship Manager, private playbook, and Business Development ownership |
 | Phase 6.2 | Complete | Backup and Disaster Recovery |
-| Phase 6.3 | Active | Lead Activity Timeline |
+| Phase 6.3 | Active — 6.3A complete | Lead Activity Timeline; service and permissions next |
 | Phase 6.4 | Must next | Follow-up Command Center |
 | Phase 6.5 | Must next | Observability and Error Monitoring |
 | Phase 6.6 | Should soon | Bulk Lead Management |
@@ -2690,6 +2699,32 @@ backup.
 ---
 
 # 19. Decision Log
+
+
+## 2026-08-06 — Define CRM activity ownership and audit retention
+
+Decision:
+
+- store lead activity history in a separate `lead_activities` table;
+- scope activities through the associated lead and existing CRM visibility rules
+  rather than adding personal-workspace `user_id` ownership;
+- preserve separate author, performer, responsible-user, and correcting-user
+  attribution;
+- restrict physical deletion of referenced leads and actor accounts while audit
+  records exist;
+- require an identified correcting user and a non-empty reason for corrections
+  and soft deletions.
+
+Reason:
+
+- CRM activities are collaborative business records rather than private personal
+  workspace records;
+- author, performer, and follow-up responsibility are different facts and must
+  not be overloaded;
+- deactivation is safer than physical deletion for staff accounts that appear in
+  the sales audit trail;
+- Phase 6.4 follow-up calculations and Phase 6.13 delegated outreach depend on
+  durable, attributable activity history.
 
 ## 2026-08-05 — Complete Phase 6.1J and promote production safety
 

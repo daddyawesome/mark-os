@@ -18,6 +18,7 @@ from app.db import (
     users,
 )
 from app.db import family_integrity
+from app.db import lead_activities
 
 
 # Keep table creation and ordinary-index creation in the same two executescript
@@ -37,6 +38,7 @@ SCHEMA_SQL = "\n".join(
         leads.SCHEMA_SQL,
         lead_research.SCHEMA_SQL,
         relationship_manager.SCHEMA_SQL,
+        lead_activities.SCHEMA_SQL,
     )
 )
 
@@ -52,6 +54,7 @@ INDEX_SQL = "\n".join(
         leads.INDEX_SQL,
         lead_research.INDEX_SQL,
         relationship_manager.INDEX_SQL,
+        lead_activities.INDEX_SQL,
     )
 )
 
@@ -75,6 +78,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     lead_research.validate_schema(db)
     relationship_manager.migrate(db)
     relationship_manager.validate_schema(db)
+    lead_activities.validate_schema(db)
 
     # Safe additive migrations for already-live SQLite databases.
     quests.migrate_game_state(db)
@@ -100,6 +104,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     relationship_manager.validate_indexes(db)
     playbooks.validate_indexes(db)
     users.validate_indexes(db)
+    lead_activities.validate_indexes(db)
 
     quests.backfill(db)
     goals.seed(db)
