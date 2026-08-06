@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.3B — Activity Service and Permissions
+**Immediate next milestone:** Phase 6.3C — Lead-Detail Timeline and Correction Forms
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 382 passed after Phase 6.3A
+**Last verified full-suite baseline:** 394 passed after Phase 6.3B
 
 ---
 
@@ -275,6 +275,7 @@ The repository contains tests for:
 - CSV lead import;
 - CRM migrations;
 - Lead Activity Timeline schema and migration;
+- Lead Activity Timeline service and permissions;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -1030,7 +1031,7 @@ agency requirement, so Backup and Disaster Recovery becomes Phase 6.2.
 |---|---:|---|
 | Phase 7.1 | Phase 6.2 | Backup and Disaster Recovery |
 | Phase 6.2 | Phase 6.3 | Lead Activity Timeline |
-| Phase 6.3 | Phase 6.4 | Follow-up Command Center |
+| Phase 6.3 | Active — 6.3A–6.3B complete | Lead Activity Timeline; lead-detail UI next |
 | Phase 7.9 | Phase 6.5 | Observability and Error Monitoring |
 | Phase 6.4 | Phase 6.6 | Bulk Lead Management |
 | Phase 7.4 | Phase 6.7 | Outreach Templates and Approval Controls |
@@ -1202,7 +1203,7 @@ current response status
 ### Implementation progress
 
 - [x] 6.3A — Additive activity schema, indexes, validation, and migration tests
-- [ ] 6.3B — Validated activity service and role permissions
+- [x] 6.3B — Validated activity service and role permissions
 - [ ] 6.3C — Lead-detail timeline and correction forms
 - [ ] 6.3D — Atomic Contacted transition and phase verification
 
@@ -2700,6 +2701,37 @@ backup.
 
 # 19. Decision Log
 
+
+
+## 2026-08-06 — Keep staff activity permissions narrow until delegated outreach
+
+**Decision:**
+
+- reload every activity actor from the database by user ID instead of trusting a
+  caller-supplied role;
+- convert the database row to a plain mapping before using shared permission
+  helpers;
+- allow Lead Researchers to append and correct only their own internal research
+  lifecycle activities on leads already visible to them;
+- allow Relationship Managers to read the timeline for leads in their existing
+  Business Development scope, but do not grant outbound activity creation in
+  Phase 6.3;
+- reserve outbound activity creation, cross-user performer attribution, deleted
+  history review, restoration, and unrestricted correction for the Owner;
+- use the same not-found service result for missing and non-visible lead or
+  activity records.
+
+**Reason:**
+
+- Phase 6.3 creates the audit mechanism, while Phase 6.13 is the explicit,
+  revocable delegated-outreach permission gate;
+- shared access-control helpers accept mapping-shaped users, so normalizing the
+  database row at the service boundary preserves one permission contract;
+- trusting the database role prevents forged service calls from escalating a
+  staff user's permissions;
+- preserving narrow role permissions keeps outreach approval and delegation
+  separate and auditable;
+- a uniform not-found result prevents cross-user record enumeration.
 
 ## 2026-08-06 — Define CRM activity ownership and audit retention
 
