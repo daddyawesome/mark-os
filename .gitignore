@@ -33,3 +33,11 @@ Thumbs.db
 .mark_os_backups/
 private_playbooks/
 .phase_6_1j_release/
+
+# Phase 6.2 backup and restore evidence
+data/backups/
+data/restore-test.sqlite3
+.phase_6_2_release/
+offsite_backups/
+*.gpg
+*.gpg.sha256
