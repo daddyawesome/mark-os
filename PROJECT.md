@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.3D — Atomic Contacted Transition and Phase Verification
+**Immediate next milestone:** Phase 6.4 — Follow-up Command Center
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 400 passed after Phase 6.3C
+**Last verified full-suite baseline:** 405 passed after Phase 6.3
 
 ---
 
@@ -240,6 +240,7 @@ app/services/
 ├── chat.py
 ├── director.py
 ├── gamification.py
+├── lead_activities.py
 ├── lead_csv_import.py
 ├── lead_identity.py
 ├── lead_pipeline_workflow.py
@@ -277,6 +278,7 @@ The repository contains tests for:
 - Lead Activity Timeline schema and migration;
 - Lead Activity Timeline service and permissions;
 - Lead Activity Timeline routes and UI;
+- Atomic Contacted transition and rollback behavior;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -397,8 +399,9 @@ This role cannot:
 - archive leads;
 - manage users or system settings.
 
-The `Contacted` transition remains controlled until Phase 6.3 adds the required
-activity audit trail and Phase 6.13 grants explicit delegated outreach.
+The `Contacted` transition is Owner-controlled and now writes its required
+activity audit atomically. Phase 6.13 remains the separate gate for explicit,
+revocable delegated outreach.
 
 ---
 
@@ -848,7 +851,6 @@ timeline history.
 | Requirement | Next phase |
 |---|---|
 | Tested production backup and restore process | Phase 6.2 |
-| Complete lead contact and interaction history | Phase 6.3 |
 | Due, overdue, waiting, and stale-lead command center | Phase 6.4 |
 | Production health and error alerts | Phase 6.5 |
 | Safe bulk preview, assignment, import, and export | Phase 6.6 |
@@ -857,9 +859,9 @@ timeline history.
 | Discovery, proposal, onboarding, and billing workflows | Trigger-based Phases 6.9–6.12 |
 | Delegated Relationship Manager outreach | Trigger-based Phase 6.13 |
 
-The next priority is production safety. MARK-OS now contains real accounts,
-leads, approvals, assignments, and an internal playbook on Railway. Backup and
-restore capability must be completed before more operational history is added.
+The next priority is the Phase 6.4 Follow-up Command Center. The activity
+timeline now provides the authoritative last-contact and next-follow-up data
+needed for deterministic due, overdue, waiting, and stale-lead queues.
 
 ---
 
@@ -1032,7 +1034,6 @@ agency requirement, so Backup and Disaster Recovery becomes Phase 6.2.
 |---|---:|---|
 | Phase 7.1 | Phase 6.2 | Backup and Disaster Recovery |
 | Phase 6.2 | Phase 6.3 | Lead Activity Timeline |
-| Phase 6.3 | Active — 6.3A–6.3C complete | Lead Activity Timeline; atomic Contacted transition next |
 | Phase 7.9 | Phase 6.5 | Observability and Error Monitoring |
 | Phase 6.4 | Phase 6.6 | Bulk Lead Management |
 | Phase 7.4 | Phase 6.7 | Outreach Templates and Approval Controls |
@@ -1129,7 +1130,7 @@ Live Railway volume
 
 ## Phase 6.3 — Lead Activity Timeline
 
-**Status:** Active — immediate next milestone  
+**Status:** Complete
 **MoSCoW:** Must have now
 
 ### Goal
@@ -1206,7 +1207,7 @@ current response status
 - [x] 6.3A — Additive activity schema, indexes, validation, and migration tests
 - [x] 6.3B — Validated activity service and role permissions
 - [x] 6.3C — Lead-detail timeline and correction forms
-- [ ] 6.3D — Atomic Contacted transition and phase verification
+- [x] 6.3D — Atomic Contacted transition and phase verification
 
 ### Definition of done
 
@@ -1220,7 +1221,7 @@ current response status
 
 ## Phase 6.4 — Follow-up Command Center
 
-**Status:** Planned immediately after 6.3  
+**Status:** Active — immediate next milestone
 **MoSCoW:** Must have now
 
 ### Goal
@@ -2683,8 +2684,8 @@ backup.
 | Phase 6.1A–6.1I | Complete | Staff research, review, approval, queues, security, and release verification |
 | Phase 6.1J | Complete and deployed | Relationship Manager, private playbook, and Business Development ownership |
 | Phase 6.2 | Complete | Backup and Disaster Recovery |
-| Phase 6.3 | Active — 6.3A complete | Lead Activity Timeline; service and permissions next |
-| Phase 6.4 | Must next | Follow-up Command Center |
+| Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
+| Phase 6.4 | Active — immediate next milestone | Follow-up Command Center |
 | Phase 6.5 | Must next | Observability and Error Monitoring |
 | Phase 6.6 | Should soon | Bulk Lead Management |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
@@ -2703,6 +2704,36 @@ backup.
 # 19. Decision Log
 
 
+
+
+## 2026-08-06 — Make Contacted a dedicated atomic audit transition
+
+**Decision:**
+
+- require an explicit outbound activity type, contact date and time, external
+  channel, message summary, responsible CRM user, response status, and next
+  follow-up date whenever a lead first moves to `contacted`;
+- insert the contact activity and update the pipeline inside one workflow
+  transaction;
+- keep the original activity service as the only validated write path;
+- remove `contacted` from ordinary create/edit and quick-stage selectors unless
+  the lead is already in that state;
+- block the full Owner edit service from creating a new Contacted transition;
+- treat a repeated `contacted` submission as an idempotent no-op rather than
+  writing a duplicate activity.
+
+**Reason:**
+
+- pipeline status alone cannot prove that outreach happened or identify who must
+  follow up;
+- a dedicated form makes all required audit fields visible before the
+  consequential transition;
+- one transaction prevents a Contacted lead without its activity and prevents an
+  orphan activity when the pipeline update fails;
+- explicit activity type is safer than inferring business meaning from the
+  channel;
+- Phase 6.13 can later reuse this audit foundation without granting blanket
+  staff authority.
 
 ## 2026-08-06 — Keep staff activity permissions narrow until delegated outreach
 

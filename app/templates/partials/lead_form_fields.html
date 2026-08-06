@@ -52,7 +52,9 @@
             <div class="select is-fullwidth">
                 <select id="pipeline_status" name="pipeline_status">
                     {% for value, label in pipeline_options %}
+                    {% if value != 'contacted' or selected_status == 'contacted' %}
                     <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}
                     {% endfor %}
                 </select>
             </div>

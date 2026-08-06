@@ -5,6 +5,11 @@ from collections.abc import Mapping
 from contextlib import contextmanager
 from typing import Any, Iterator
 
+from app.db.lead_activities import CHANNELS, RESPONSE_STATUSES
+from app.services.lead_activities import (
+    create_activity as create_lead_activity,
+)
+
 from app.services.lead_research_permissions import (
     LeadPermissionError,
     can_approve_outreach,
@@ -18,6 +23,24 @@ from app.services.leads import (
 
 
 Record = Mapping[str, Any]
+
+CONTACT_ACTIVITY_TYPES = (
+    "linkedin_message_sent",
+    "email_sent",
+    "follow_up_sent",
+    "call_scheduled",
+    "meeting_completed",
+)
+CONTACT_CHANNELS = tuple(
+    channel
+    for channel in CHANNELS
+    if channel != "internal"
+)
+CONTACT_RESPONSE_STATUSES = tuple(
+    status
+    for status in RESPONSE_STATUSES
+    if status != "not_applicable"
+)
 
 
 class LeadPipelineRuleError(ValueError):
@@ -137,6 +160,106 @@ def _validate_major_transition(
     # to move to Lost in the first version.
 
 
+
+def _required_contact_text(
+    value: str | None,
+    field_name: str,
+) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise LeadPipelineRuleError(
+            "The Contacted transition requires a complete contact audit. "
+            f"{field_name} is required."
+        )
+    return value.strip()
+
+
+def _required_contact_user_id(
+    value: int | None,
+) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value <= 0
+    ):
+        raise LeadPipelineRuleError(
+            "The Contacted transition requires a responsible CRM user."
+        )
+    return value
+
+
+def _append_contact_activity(
+    db: sqlite3.Connection,
+    lead_id: int,
+    *,
+    actor: Record,
+    actor_id: int,
+    contact_activity_type: str | None,
+    contact_activity_at: str | None,
+    contact_channel: str | None,
+    contact_message_summary: str | None,
+    contact_notes: str | None,
+    contact_responsible_user_id: int | None,
+    contact_response_status: str | None,
+    contact_next_follow_up_date: str | None,
+) -> sqlite3.Row:
+    activity_type = _required_contact_text(
+        contact_activity_type,
+        "Activity type",
+    ).casefold()
+    if activity_type not in CONTACT_ACTIVITY_TYPES:
+        raise LeadPipelineRuleError(
+            "The Contacted transition requires an outbound "
+            "contact activity type."
+        )
+
+    channel = _required_contact_text(
+        contact_channel,
+        "Contact channel",
+    ).casefold()
+    if channel not in CONTACT_CHANNELS:
+        raise LeadPipelineRuleError(
+            "The Contacted transition requires an external contact channel."
+        )
+
+    response_status = _required_contact_text(
+        contact_response_status,
+        "Response status",
+    ).casefold()
+    if response_status not in CONTACT_RESPONSE_STATUSES:
+        raise LeadPipelineRuleError(
+            "The Contacted transition requires a current response status."
+        )
+
+    responsible_user_id = _required_contact_user_id(
+        contact_responsible_user_id
+    )
+    activity_at = _required_contact_text(
+        contact_activity_at,
+        "Date and time contacted",
+    )
+    message_summary = _required_contact_text(
+        contact_message_summary,
+        "Message summary",
+    )
+    next_follow_up_date = _required_contact_text(
+        contact_next_follow_up_date,
+        "Next follow-up date",
+    )
+
+    return create_lead_activity(
+        db,
+        lead_id,
+        actor=actor,
+        activity_type=activity_type,
+        activity_at=activity_at,
+        channel=channel,
+        message_summary=message_summary,
+        notes=(contact_notes or "").strip(),
+        performed_by_user_id=actor_id,
+        responsible_user_id=responsible_user_id,
+        response_status=response_status,
+        next_follow_up_date=next_follow_up_date,
+    )
 def approve_outreach(
     db: sqlite3.Connection,
     lead_id: int,
@@ -243,10 +366,17 @@ def change_pipeline_stage(
     *,
     actor: Record,
     pipeline_status: str,
+    contact_activity_type: str | None = None,
+    contact_activity_at: str | None = None,
+    contact_channel: str | None = None,
+    contact_message_summary: str | None = None,
+    contact_notes: str | None = None,
+    contact_responsible_user_id: int | None = None,
+    contact_response_status: str | None = None,
+    contact_next_follow_up_date: str | None = None,
 ) -> sqlite3.Row:
-    """Apply an Owner-authorized pipeline transition."""
-    _actor_id(actor)
-
+    """Apply an Owner-authorized and audit-safe pipeline transition."""
+    actor_id = _actor_id(actor)
     with _workflow_write(
         db,
         "lead_pipeline_transition",
@@ -261,12 +391,40 @@ def change_pipeline_stage(
             current,
             target_status,
         )
+
+        current_status = str(
+            current["pipeline_status"] or ""
+        ).strip().casefold()
+        if (
+            target_status == "contacted"
+            and current_status != "contacted"
+        ):
+            _append_contact_activity(
+                db,
+                lead_id,
+                actor=actor,
+                actor_id=actor_id,
+                contact_activity_type=contact_activity_type,
+                contact_activity_at=contact_activity_at,
+                contact_channel=contact_channel,
+                contact_message_summary=contact_message_summary,
+                contact_notes=contact_notes,
+                contact_responsible_user_id=(
+                    contact_responsible_user_id
+                ),
+                contact_response_status=(
+                    contact_response_status
+                ),
+                contact_next_follow_up_date=(
+                    contact_next_follow_up_date
+                ),
+            )
+
         return update_lead_pipeline(
             db,
             lead_id,
             pipeline_status=target_status,
         )
-
 
 def update_owner_lead(
     db: sqlite3.Connection,
@@ -303,6 +461,18 @@ def update_owner_lead(
             current,
             target_status,
         )
+        current_status = str(
+            current["pipeline_status"] or ""
+        ).strip().casefold()
+        if (
+            target_status == "contacted"
+            and current_status != "contacted"
+        ):
+            raise LeadPipelineRuleError(
+                "Use the dedicated Contacted transition "
+                "so the required contact activity is saved "
+                "atomically."
+            )
 
         return update_lead(
             db,

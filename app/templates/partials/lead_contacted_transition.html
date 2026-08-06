@@ -1,0 +1,138 @@
+<div class="mark-card p-5 mb-5" id="contacted-transition">
+    <p class="mark-kicker">Audited First Contact</p>
+    <h2 class="title is-4">Record contact and move to Contacted.</h2>
+    <p class="mark-muted mb-4">
+        This is one transaction: if the activity cannot be saved, the pipeline
+        does not change. Research and Owner outreach approval are still required.
+    </p>
+
+    <form method="post" action="/crm/leads/{{ lead.id }}/pipeline">
+        <input type="hidden" name="pipeline_status" value="contacted">
+
+        <div class="field">
+            <label class="label" for="contact_activity_type">Activity type</label>
+            <div class="select is-fullwidth">
+                <select
+                    id="contact_activity_type"
+                    name="contact_activity_type"
+                    required
+                >
+                    {% for value in contact_activity_type_options %}
+                    <option value="{{ value }}">
+                        {{ value|replace('_', ' ')|title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label" for="contact_activity_at">
+                Date and time contacted
+            </label>
+            <input
+                class="input"
+                id="contact_activity_at"
+                name="contact_activity_at"
+                type="datetime-local"
+                required
+            >
+        </div>
+
+        <div class="field">
+            <label class="label" for="contact_channel">Channel</label>
+            <div class="select is-fullwidth">
+                <select id="contact_channel" name="contact_channel" required>
+                    {% for value in contact_channel_options %}
+                    <option value="{{ value }}">
+                        {{ value|replace('_', ' ')|title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label" for="contact_message_summary">
+                Message or contact summary
+            </label>
+            <textarea
+                class="textarea"
+                id="contact_message_summary"
+                name="contact_message_summary"
+                rows="4"
+                required
+            ></textarea>
+        </div>
+
+        <div class="field">
+            <label class="label" for="contact_notes">Notes</label>
+            <textarea
+                class="textarea"
+                id="contact_notes"
+                name="contact_notes"
+                rows="3"
+            ></textarea>
+        </div>
+
+        <div class="field">
+            <label class="label" for="contact_responsible_user_id">
+                Responsible for follow-up
+            </label>
+            <div class="select is-fullwidth">
+                <select
+                    id="contact_responsible_user_id"
+                    name="contact_responsible_user_id"
+                    required
+                >
+                    <option value="">Choose a CRM user</option>
+                    {% for activity_user in activity_users %}
+                    <option value="{{ activity_user.id }}">
+                        {{ activity_user.display_name }} ·
+                        {{ activity_user.role|replace('_', ' ')|title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label" for="contact_response_status">
+                Current response status
+            </label>
+            <div class="select is-fullwidth">
+                <select
+                    id="contact_response_status"
+                    name="contact_response_status"
+                    required
+                >
+                    {% for value in contact_response_status_options %}
+                    <option
+                        value="{{ value }}"
+                        {% if value == 'awaiting_reply' %}selected{% endif %}
+                    >
+                        {{ value|replace('_', ' ')|title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label" for="contact_next_follow_up_date">
+                Next follow-up date
+            </label>
+            <input
+                class="input"
+                id="contact_next_follow_up_date"
+                name="contact_next_follow_up_date"
+                type="date"
+                required
+            >
+        </div>
+
+        <button class="button is-mark is-fullwidth" type="submit">
+            Record Contact and Move to Contacted
+        </button>
+    </form>
+</div>

@@ -44,6 +44,9 @@ from app.services.lead_research_permissions import (
     can_view_lead,
 )
 from app.services.lead_pipeline_workflow import (
+    CONTACT_ACTIVITY_TYPES,
+    CONTACT_CHANNELS,
+    CONTACT_RESPONSE_STATUSES,
     LeadPipelineRuleError,
     change_pipeline_stage,
     update_owner_lead,
@@ -108,7 +111,7 @@ ERROR_MESSAGES = {
     "forbidden": "Your account can add and review leads, but only the owner can edit pipeline actions or private MARK-OS data.",
     "review_notes_required": 'Review notes are required when requesting changes or rejecting.',
     "invalid_review": 'The research review decision could not be saved.',
-    "pipeline_rule": "That pipeline move is not allowed. Contacted requires approved research and outreach approval; Proposal requires Meeting; Won requires Proposal.",
+    "pipeline_rule": "That pipeline move is not allowed. Contacted requires approved research, outreach approval, and a complete contact audit; Proposal requires Meeting; Won requires Proposal.",
 }
 METRIC_DEFINITIONS = (
     ("Total leads", "total_leads"),
@@ -126,11 +129,21 @@ def _message(mapping: dict[str, str], key: str | None) -> str | None:
     return mapping.get(key or "")
 
 
+def _optional_form_text(value: object) -> str:
+    """Normalize submitted strings and FastAPI direct-call defaults."""
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _optional_form_text(value: object) -> str:
+    """Normalize submitted strings and FastAPI direct-call defaults."""
+    return value.strip() if isinstance(value, str) else ""
+
+
 def _optional_positive_form_id(
-    value: str,
+    value: object,
     field_name: str,
 ) -> int | None:
-    clean = (value or "").strip()
+    clean = _optional_form_text(value)
     if not clean:
         return None
     try:
@@ -144,7 +157,6 @@ def _optional_positive_form_id(
             f"{field_name} must be a positive integer."
         )
     return parsed
-
 
 def _activity_form_context(
     db,
@@ -168,13 +180,27 @@ def _activity_form_context(
         "activity_type_options": activity_types,
         "activity_channel_options": channels,
         "activity_response_status_options": RESPONSE_STATUSES,
+        "contact_activity_type_options": (
+            CONTACT_ACTIVITY_TYPES
+            if is_owner(user)
+            else ()
+        ),
+        "contact_channel_options": (
+            CONTACT_CHANNELS
+            if is_owner(user)
+            else ()
+        ),
+        "contact_response_status_options": (
+            CONTACT_RESPONSE_STATUSES
+            if is_owner(user)
+            else ()
+        ),
         "activity_users": (
             list_active_activity_users(db, actor=user)
             if can_create
             else []
         ),
     }
-
 
 def _can_correct_activity_in_ui(
     user,
@@ -848,6 +874,14 @@ def update_pipeline(
     request: Request,
     lead_id: int,
     pipeline_status: str = Form(...),
+    contact_activity_type: str = Form(default=""),
+    contact_activity_at: str = Form(default=""),
+    contact_channel: str = Form(default=""),
+    contact_message_summary: str = Form(default=""),
+    contact_notes: str = Form(default=""),
+    contact_responsible_user_id: str = Form(default=""),
+    contact_response_status: str = Form(default=""),
+    contact_next_follow_up_date: str = Form(default=""),
 ):
     with get_db() as db:
         _lead_or_404(db, lead_id)
@@ -857,6 +891,36 @@ def update_pipeline(
                 lead_id,
                 actor=request.state.current_user,
                 pipeline_status=pipeline_status,
+                contact_activity_type=(
+                    _optional_form_text(contact_activity_type) or None
+                ),
+                contact_activity_at=(
+                    _optional_form_text(contact_activity_at) or None
+                ),
+                contact_channel=(
+                    _optional_form_text(contact_channel) or None
+                ),
+                contact_message_summary=(
+                    _optional_form_text(contact_message_summary) or None
+                ),
+                contact_notes=_optional_form_text(contact_notes),
+                contact_responsible_user_id=(
+                    _optional_positive_form_id(
+                        contact_responsible_user_id,
+                        "Responsible user ID",
+                    )
+                ),
+                contact_response_status=(
+                    _optional_form_text(contact_response_status) or None
+                ),
+                contact_next_follow_up_date=(
+                    _optional_form_text(contact_next_follow_up_date) or None
+                ),
+            )
+        except LeadActivityPermissionError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=forbidden",
+                status_code=303,
             )
         except LeadPermissionError:
             return RedirectResponse(
@@ -877,7 +941,6 @@ def update_pipeline(
         url=f"/crm/leads/{lead_id}?notice=pipeline",
         status_code=303,
     )
-
 
 @router.post("/leads/{lead_id}/next-action")
 def update_next_action(

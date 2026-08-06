@@ -146,6 +146,21 @@ def _create_approved_lead(
     )
 
 
+
+def _contact_audit() -> dict:
+    return {
+        "contact_activity_type": "email_sent",
+        "contact_activity_at": "2026-08-06T19:30",
+        "contact_channel": "email",
+        "contact_message_summary": (
+            "Sent the approved first introduction."
+        ),
+        "contact_notes": "",
+        "contact_responsible_user_id": OWNER["id"],
+        "contact_response_status": "awaiting_reply",
+        "contact_next_follow_up_date": "2026-08-09",
+    }
+
 def test_owner_approves_outreach_once(
     pipeline_database,
 ):
@@ -270,17 +285,36 @@ def test_contacted_requires_outreach_approval(
             lead["id"],
             actor=OWNER,
         )
+
+        with pytest.raises(
+            LeadPipelineRuleError,
+            match="complete contact audit",
+        ):
+            change_pipeline_stage(
+                db,
+                lead["id"],
+                actor=OWNER,
+                pipeline_status="contacted",
+            )
+
         contacted = change_pipeline_stage(
             db,
             lead["id"],
             actor=OWNER,
             pipeline_status="contacted",
+            **_contact_audit(),
         )
+        assert contacted["pipeline_status"] == "contacted"
+        assert db.execute(
+            """
+            SELECT COUNT(*)
+            FROM lead_activities
+            WHERE lead_id = ?
+              AND activity_type = 'email_sent'
+            """,
+            (lead["id"],),
+        ).fetchone()[0] == 1
 
-        assert (
-            contacted["pipeline_status"]
-            == "contacted"
-        )
         quest = db.execute(
             """
             SELECT status, progress, xp_reward
@@ -292,7 +326,6 @@ def test_contacted_requires_outreach_approval(
         assert quest["status"] == "active"
         assert quest["progress"] == 25
         assert quest["xp_reward"] == 0
-
 
 def test_proposal_and_won_require_prior_major_stage(
     pipeline_database,
@@ -385,7 +418,6 @@ def test_full_edit_cannot_bypass_contacted_gate(
             db,
             company="Full Edit Gate",
         )
-
         with pytest.raises(
             LeadPipelineRuleError,
             match="outreach approval",
@@ -395,18 +427,14 @@ def test_full_edit_cannot_bypass_contacted_gate(
                 lead["id"],
                 actor=OWNER,
                 company="Should Not Save",
-                contact_person=lead[
-                    "contact_person"
-                ],
+                contact_person=lead["contact_person"],
                 job_title=lead["job_title"],
                 source=lead["source"],
                 source_url=lead["source_url"],
                 problem_opportunity=lead[
                     "problem_opportunity"
                 ],
-                why_mark_fits=lead[
-                    "why_mark_fits"
-                ],
+                why_mark_fits=lead["why_mark_fits"],
                 pipeline_status="contacted",
                 priority=lead["priority"],
                 next_action=lead["next_action"],
@@ -415,7 +443,6 @@ def test_full_edit_cannot_bypass_contacted_gate(
                 ],
                 notes=lead["notes"],
             )
-
         unchanged = get_lead(db, lead["id"])
         assert unchanged["company"] == "Full Edit Gate"
         assert unchanged["pipeline_status"] == "new"
@@ -425,30 +452,45 @@ def test_full_edit_cannot_bypass_contacted_gate(
             lead["id"],
             actor=OWNER,
         )
-        updated = update_owner_lead(
+
+        with pytest.raises(
+            LeadPipelineRuleError,
+            match="dedicated Contacted",
+        ):
+            update_owner_lead(
+                db,
+                lead["id"],
+                actor=OWNER,
+                company="Approved Contact",
+                contact_person=lead["contact_person"],
+                job_title=lead["job_title"],
+                source=lead["source"],
+                source_url=lead["source_url"],
+                problem_opportunity=lead[
+                    "problem_opportunity"
+                ],
+                why_mark_fits=lead["why_mark_fits"],
+                pipeline_status="contacted",
+                priority=lead["priority"],
+                next_action="Send approved outreach.",
+                next_action_due_date=lead[
+                    "next_action_due_date"
+                ],
+                notes=lead["notes"],
+            )
+
+        still_unchanged = get_lead(db, lead["id"])
+        assert still_unchanged["company"] == "Full Edit Gate"
+        assert still_unchanged["pipeline_status"] == "new"
+
+        contacted = change_pipeline_stage(
             db,
             lead["id"],
             actor=OWNER,
-            company="Approved Contact",
-            contact_person=lead["contact_person"],
-            job_title=lead["job_title"],
-            source=lead["source"],
-            source_url=lead["source_url"],
-            problem_opportunity=lead[
-                "problem_opportunity"
-            ],
-            why_mark_fits=lead["why_mark_fits"],
             pipeline_status="contacted",
-            priority=lead["priority"],
-            next_action="Send approved outreach.",
-            next_action_due_date=lead[
-                "next_action_due_date"
-            ],
-            notes=lead["notes"],
+            **_contact_audit(),
         )
-        assert updated["company"] == "Approved Contact"
-        assert updated["pipeline_status"] == "contacted"
-
+        assert contacted["pipeline_status"] == "contacted"
 
 def test_phase_6_1f_does_not_change_xp(
     pipeline_database,
@@ -472,7 +514,6 @@ def test_phase_6_1f_does_not_change_xp(
         before_ledger = db.execute(
             "SELECT COUNT(*) FROM xp_ledger"
         ).fetchone()[0]
-
         lead = _create_approved_lead(
             db,
             company="No XP Pipeline",
@@ -487,6 +528,7 @@ def test_phase_6_1f_does_not_change_xp(
             lead["id"],
             actor=OWNER,
             pipeline_status="contacted",
+            **_contact_audit(),
         )
         change_pipeline_stage(
             db,
@@ -494,7 +536,6 @@ def test_phase_6_1f_does_not_change_xp(
             actor=OWNER,
             pipeline_status="lost",
         )
-
         after_state = [
             tuple(row)
             for row in db.execute(
@@ -513,6 +554,6 @@ def test_phase_6_1f_does_not_change_xp(
         after_ledger = db.execute(
             "SELECT COUNT(*) FROM xp_ledger"
         ).fetchone()[0]
-
         assert after_state == before_state
         assert after_ledger == before_ledger
+

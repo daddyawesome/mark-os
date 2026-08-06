@@ -568,11 +568,43 @@ def test_complete_staff_review_and_outreach_workflow(
             outreach["id"],
             actor=owner,
             pipeline_status="contacted",
+            contact_activity_type="email_sent",
+            contact_activity_at="2026-08-06T19:30",
+            contact_channel="email",
+            contact_message_summary=(
+                "Sent the Owner-approved first introduction."
+            ),
+            contact_notes="",
+            contact_responsible_user_id=owner["id"],
+            contact_response_status="awaiting_reply",
+            contact_next_follow_up_date="2026-08-09",
         )
         assert (
             contacted["pipeline_status"]
             == "contacted"
         )
+        contact_activity = db.execute(
+            """
+            SELECT
+                activity_type,
+                channel,
+                responsible_user_id,
+                response_status,
+                next_follow_up_date
+            FROM lead_activities
+            WHERE lead_id = ?
+              AND deleted_at IS NULL
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (outreach["id"],),
+        ).fetchone()
+        assert contact_activity is not None
+        assert contact_activity["activity_type"] == "email_sent"
+        assert contact_activity["channel"] == "email"
+        assert contact_activity["responsible_user_id"] == owner["id"]
+        assert contact_activity["response_status"] == "awaiting_reply"
+        assert contact_activity["next_follow_up_date"] == "2026-08-09"
 
         event_types = [
             row["event_type"]

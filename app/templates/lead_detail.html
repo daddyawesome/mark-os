@@ -108,7 +108,9 @@
                     <div class="select is-fullwidth">
                         <select id="pipeline_status" name="pipeline_status">
                             {% for value, label in pipeline_options %}
+                            {% if value != 'contacted' or lead.pipeline_status == 'contacted' %}
                             <option value="{{ value }}" {% if lead.pipeline_status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endif %}
                             {% endfor %}
                         </select>
                     </div>
@@ -116,6 +118,9 @@
                 <button class="button is-mark is-fullwidth" type="submit">Update Pipeline</button>
             </form>
         </div>
+        {% if lead.pipeline_status != "contacted" %}
+        {% include "partials/lead_contacted_transition.html" %}
+        {% endif %}
         {% endif %}
 
         {% if can_update_next_action %}
