@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.4C — Isolation, Boundary, Rendering, and Phase Verification
+**Immediate next milestone:** Phase 6.5A — Structured Error Logging and Correlation IDs
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 416 passed after Phase 6.4B
+**Last verified full-suite baseline:** 421 passed after Phase 6.4
 
 ---
 
@@ -282,6 +282,7 @@ The repository contains tests for:
 - Atomic Contacted transition and rollback behavior;
 - Follow-up Command Center queue calculations, filters, role scope, and Manila boundaries;
 - Follow-up Command Center route, filters, queue rendering, empty states, and navigation;
+- Follow-up Command Center acceptance isolation, exact Manila cutoffs, read-only behavior, and complete empty-state rendering;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -862,9 +863,10 @@ timeline history.
 | Discovery, proposal, onboarding, and billing workflows | Trigger-based Phases 6.9–6.12 |
 | Delegated Relationship Manager outreach | Trigger-based Phase 6.13 |
 
-The next priority is the Phase 6.4 Follow-up Command Center. The activity
-timeline now provides the authoritative last-contact and next-follow-up data
-needed for deterministic due, overdue, waiting, and stale-lead queues.
+The next priority is Phase 6.5 Observability and Error Monitoring. The
+production workflow now needs structured errors, correlation IDs, uptime and
+backup-failure visibility, and one low-cost Owner alert path before more staff
+and automation depend on it.
 
 ---
 
@@ -1224,7 +1226,7 @@ current response status
 
 ## Phase 6.4 — Follow-up Command Center
 
-**Status:** Active — 6.4A–6.4B complete
+**Status:** Complete
 **MoSCoW:** Must have now
 
 ### Goal
@@ -1263,12 +1265,12 @@ Proposal Follow-up Required
 - [x] 6.4A — Deterministic queue service, activity-derived dates, role
   scoping, filters, and Manila boundary tests
 - [x] 6.4B — Command Center route, filters, queue cards, and safe empty states
-- [ ] 6.4C — Isolation, date-boundary, rendering, and phase-completion
+- [x] 6.4C — Isolation, date-boundary, rendering, and phase-completion
   verification
 
 ## Phase 6.5 — Observability and Error Monitoring
 
-**Status:** Planned immediately after 6.4  
+**Status:** Active — immediate next milestone
 **MoSCoW:** Must have now
 
 ### Goal
@@ -2697,8 +2699,8 @@ backup.
 | Phase 6.1J | Complete and deployed | Relationship Manager, private playbook, and Business Development ownership |
 | Phase 6.2 | Complete | Backup and Disaster Recovery |
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
-| Phase 6.4 | Active — 6.4A–6.4B complete | Command Center route and UI; final verification next |
-| Phase 6.5 | Must next | Observability and Error Monitoring |
+| Phase 6.4 | Complete | Follow-up Command Center, role-scoped filters, Manila boundaries, and safe empty states |
+| Phase 6.5 | Active — immediate next milestone | Observability and Error Monitoring |
 | Phase 6.6 | Should soon | Bulk Lead Management |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
 | Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
@@ -2719,6 +2721,34 @@ backup.
 
 
 
+
+
+## 2026-08-06 — Complete the Follow-up Command Center after acceptance verification
+
+**Decision:**
+
+- close Phase 6.4 only after service, route, template, navigation, and role-scoped
+  rendering have passed together;
+- verify Lead Researcher and Relationship Manager isolation through the rendered
+  page, including filter-option names and visible-record counts;
+- verify the exact UTC instant at which the Manila operational date changes;
+- verify the five-day stale-contact cutoff on both sides of Manila midnight;
+- verify all ten empty queues remain visible with explicit operational copy;
+- verify command-center service and rendering paths do not mutate leads,
+  activities, quests, XP state, or the XP ledger;
+- keep the completed command center read-only and route all writes through
+  existing lead-detail workflows.
+
+**Reason:**
+
+- unit-level visibility checks are insufficient if templates or filter choices
+  later reveal foreign names, counts, or links;
+- date rules must remain stable when Railway runs in UTC;
+- an empty command center is still actionable information;
+- a read-only dashboard must be proven not to create hidden CRM or gamification
+  side effects;
+- the acceptance matrix establishes a safe baseline before observability work
+  changes middleware and error handling.
 
 ## 2026-08-06 — Keep the Follow-up Command Center read-only and visibility-scoped
 
