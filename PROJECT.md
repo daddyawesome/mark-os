@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.4B — Command Center Route, Filters, and UI
+**Immediate next milestone:** Phase 6.4C — Isolation, Boundary, Rendering, and Phase Verification
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 412 passed after Phase 6.4A
+**Last verified full-suite baseline:** 416 passed after Phase 6.4B
 
 ---
 
@@ -281,6 +281,7 @@ The repository contains tests for:
 - Lead Activity Timeline routes and UI;
 - Atomic Contacted transition and rollback behavior;
 - Follow-up Command Center queue calculations, filters, role scope, and Manila boundaries;
+- Follow-up Command Center route, filters, queue rendering, empty states, and navigation;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -1223,7 +1224,7 @@ current response status
 
 ## Phase 6.4 — Follow-up Command Center
 
-**Status:** Active — 6.4A complete
+**Status:** Active — 6.4A–6.4B complete
 **MoSCoW:** Must have now
 
 ### Goal
@@ -1261,7 +1262,7 @@ Proposal Follow-up Required
 
 - [x] 6.4A — Deterministic queue service, activity-derived dates, role
   scoping, filters, and Manila boundary tests
-- [ ] 6.4B — Command Center route, filters, queue cards, and safe empty states
+- [x] 6.4B — Command Center route, filters, queue cards, and safe empty states
 - [ ] 6.4C — Isolation, date-boundary, rendering, and phase-completion
   verification
 
@@ -2696,7 +2697,7 @@ backup.
 | Phase 6.1J | Complete and deployed | Relationship Manager, private playbook, and Business Development ownership |
 | Phase 6.2 | Complete | Backup and Disaster Recovery |
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
-| Phase 6.4 | Active — 6.4A complete | Follow-up queue service; route and UI next |
+| Phase 6.4 | Active — 6.4A–6.4B complete | Command Center route and UI; final verification next |
 | Phase 6.5 | Must next | Observability and Error Monitoring |
 | Phase 6.6 | Should soon | Bulk Lead Management |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
@@ -2717,6 +2718,35 @@ backup.
 
 
 
+
+
+## 2026-08-06 — Keep the Follow-up Command Center read-only and visibility-scoped
+
+**Decision:**
+
+- expose the deterministic Phase 6.4 queue service at `/crm/follow-ups`;
+- allow Owner, Lead Researcher, and Relationship Manager access through the
+  existing CRM request matrix;
+- keep the page read-only and send every action to the existing lead-detail
+  workflow;
+- show all required queue cards even when empty, with explicit safe empty-state
+  copy;
+- expose assignee, researcher, and Business Development Owner filters only from
+  the actor's already-visible lead set;
+- keep date calculations and queue membership in the service layer rather than
+  duplicating them in templates or routes.
+
+**Reason:**
+
+- a command center should summarize operational truth, not create a second write
+  path;
+- linking to lead detail preserves existing approval, activity, correction, and
+  pipeline permission checks;
+- empty queues are meaningful operational signals and must not disappear;
+- visibility-scoped filter options prevent names and record counts from leaking
+  across staff boundaries;
+- thin routes and presentation-only templates keep queue rules independently
+  testable.
 
 ## 2026-08-06 — Define deterministic follow-up date semantics
 

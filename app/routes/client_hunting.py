@@ -54,6 +54,11 @@ from app.services.lead_pipeline_workflow import (
 from app.services.lead_work_queues import (
     build_role_aware_crm_dashboard,
 )
+from app.services.follow_up_command_center import (
+    FollowUpFilterError,
+    FollowUpPermissionError,
+    build_follow_up_command_center,
+)
 from app.services.team_users import get_primary_owner_id
 from app.services.relationship_manager import (
     assign_relationship_manager,
@@ -367,6 +372,51 @@ def crm_dashboard(request: Request):
         context=context,
     )
 
+@router.get("/follow-ups", response_class=HTMLResponse)
+def follow_up_command_center_page(
+    request: Request,
+    assignee_id: int | None = None,
+    researcher_id: int | None = None,
+    business_development_owner_id: int | None = None,
+):
+    user = request.state.current_user
+    with get_db() as db:
+        try:
+            command_center = build_follow_up_command_center(
+                db,
+                user,
+                assignee_id=assignee_id,
+                researcher_id=researcher_id,
+                business_development_owner_id=(
+                    business_development_owner_id
+                ),
+            )
+        except FollowUpPermissionError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail="CRM access is required",
+            ) from exc
+        except FollowUpFilterError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        selected = command_center["selected_filters"]
+        context = {
+            "command_center": command_center,
+            "has_active_filters": any(
+                value is not None
+                for value in selected.values()
+            ),
+            **_shared_context(db, request),
+        }
+
+    return templates.TemplateResponse(
+        request=request,
+        name="follow_up_command_center.html",
+        context=context,
+    )
 @router.get("/leads/new", response_class=HTMLResponse)
 def new_lead_page(request: Request):
     with get_db() as db:
