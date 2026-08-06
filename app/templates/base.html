@@ -111,10 +111,16 @@
             {% endif %}
 
             <a
-                class="mark-sidebar-link {% if request.url.path.startswith('/crm') %}is-active{% endif %}"
+                class="mark-sidebar-link {% if request.url.path.startswith('/crm') and not request.url.path.startswith('/crm/follow-ups') %}is-active{% endif %}"
                 href="/crm"
             >
                 <span>Client Hunting</span>
+            </a>
+            <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/crm/follow-ups') %}is-active{% endif %}"
+                href="/crm/follow-ups"
+            >
+                <span>Follow-up Command Center</span>
             </a>
         </div>
         {% endif %}

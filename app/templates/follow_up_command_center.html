@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Follow-up Command Center · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">
+                Follow-up Command Center // {{ command_center.timezone }}
+            </p>
+            <h1 class="title is-1 mb-2">
+                See the next CRM actions without relying on memory.
+            </h1>
+            <p class="subtitle is-5 mark-muted">
+                Operational date {{ command_center.operational_date }}.
+                Due This Week ends {{ command_center.week_ends_on }}.
+                Counts and records are limited to the leads your role may view.
+            </p>
+        </div>
+        <div class="column is-narrow">
+            <div class="buttons is-justify-content-flex-end">
+                <a class="button is-light" href="/crm">Client Hunting</a>
+                <a class="button is-mark" href="/crm/leads/new">Add Leads</a>
+            </div>
+            <div class="has-text-right mt-3">
+                <span class="mark-chip">
+                    {{ command_center.filtered_lead_count }}
+                    OF {{ command_center.visible_lead_count }} VISIBLE LEADS
+                </span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mark-card p-5 mb-5" aria-labelledby="follow-up-filters-title">
+    <div class="is-flex is-justify-content-space-between is-align-items-flex-start is-flex-wrap-wrap mb-4">
+        <div>
+            <p class="mark-kicker">Role-scoped filters</p>
+            <h2 class="title is-4 mb-2" id="follow-up-filters-title">
+                Narrow the command center
+            </h2>
+            <p class="mark-muted">
+                Filters are applied only after CRM visibility rules.
+            </p>
+        </div>
+        {% if has_active_filters %}
+        <a class="button is-small is-ghost-forest" href="/crm/follow-ups">
+            Clear Filters
+        </a>
+        {% endif %}
+    </div>
+
+    <form method="get" action="/crm/follow-ups">
+        <div class="columns is-multiline is-align-items-flex-end">
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="assignee_id">Assignee</label>
+                    <div class="select is-fullwidth">
+                        <select id="assignee_id" name="assignee_id">
+                            <option value="">All visible assignees</option>
+                            {% for option in command_center.filter_options.assignees %}
+                            <option
+                                value="{{ option.id }}"
+                                {% if command_center.selected_filters.assignee_id == option.id %}selected{% endif %}
+                            >
+                                {{ option.display_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="researcher_id">Researcher</label>
+                    <div class="select is-fullwidth">
+                        <select id="researcher_id" name="researcher_id">
+                            <option value="">All visible researchers</option>
+                            {% for option in command_center.filter_options.researchers %}
+                            <option
+                                value="{{ option.id }}"
+                                {% if command_center.selected_filters.researcher_id == option.id %}selected{% endif %}
+                            >
+                                {{ option.display_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="business_development_owner_id">
+                        Business Development Owner
+                    </label>
+                    <div class="select is-fullwidth">
+                        <select
+                            id="business_development_owner_id"
+                            name="business_development_owner_id"
+                        >
+                            <option value="">All visible owners</option>
+                            {% for option in command_center.filter_options.business_development_owners %}
+                            <option
+                                value="{{ option.id }}"
+                                {% if command_center.selected_filters.business_development_owner_id == option.id %}selected{% endif %}
+                            >
+                                {{ option.display_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="column is-full">
+                <button class="button is-mark" type="submit">
+                    Apply Filters
+                </button>
+            </div>
+        </div>
+    </form>
+</section>
+
+<section aria-label="Follow-up queues">
+    {% for queue in command_center.queues %}
+    <article class="mark-card p-5 mb-5" id="queue-{{ queue.key }}">
+        <div class="is-flex is-justify-content-space-between is-align-items-flex-start is-flex-wrap-wrap mb-4">
+            <div>
+                <p class="mark-kicker">{{ queue.key|replace('_', ' ')|upper }}</p>
+                <h2 class="title is-4 mb-2">{{ queue.title }}</h2>
+                <p class="mark-muted">{{ queue.description }}</p>
+            </div>
+            <span class="tag is-dark is-medium">
+                {{ queue.count }}
+            </span>
+        </div>
+
+        {% if queue.leads %}
+        <div class="table-container">
+            <table class="table is-fullwidth is-hoverable">
+                <thead>
+                    <tr>
+                        <th>Lead</th>
+                        <th>Pipeline</th>
+                        <th>Priority</th>
+                        <th>Effective due</th>
+                        <th>Last contact</th>
+                        <th>Response</th>
+                        <th>Ownership</th>
+                        <th>Next action</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lead in queue.leads %}
+                    <tr data-lead-id="{{ lead.id }}">
+                        <td>
+                            <strong>{{ lead.company }}</strong>
+                            {% if lead.contact_person %}
+                            <br>
+                            <span class="mark-muted is-size-7">
+                                {{ lead.contact_person }}
+                                {% if lead.job_title %}· {{ lead.job_title }}{% endif %}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="mark-chip">
+                                {{ lead.pipeline_status|replace('_', ' ')|upper }}
+                            </span>
+                        </td>
+                        <td>{{ lead.priority|title }}</td>
+                        <td>
+                            {{ lead.effective_due_date or 'Not scheduled' }}
+                            {% if lead.due_source %}
+                            <br>
+                            <span class="mark-muted is-size-7">
+                                From {{ lead.due_source }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ lead.last_contact_date or 'No external contact' }}
+                            {% if lead.last_contact_channel %}
+                            <br>
+                            <span class="mark-muted is-size-7">
+                                {{ lead.last_contact_channel|replace('_', ' ')|title }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ (lead.last_response_status or 'Not recorded')|replace('_', ' ')|title }}
+                        </td>
+                        <td>
+                            <span class="is-size-7">
+                                <strong>Assignee:</strong>
+                                {{ lead.assigned_to_name or 'Not assigned' }}
+                                <br>
+                                <strong>Researcher:</strong>
+                                {{ lead.researched_by_name or 'Not assigned' }}
+                                <br>
+                                <strong>BD Owner:</strong>
+                                {{ lead.business_development_owner_name or 'Not assigned' }}
+                            </span>
+                        </td>
+                        <td>
+                            {{ lead.next_action }}
+                            {% if lead.next_action_due_date %}
+                            <br>
+                            <span class="mark-muted is-size-7">
+                                Lead due {{ lead.next_action_due_date }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a
+                                class="button is-small is-ghost-forest"
+                                href="{{ lead.action_url }}"
+                            >
+                                Open
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="notification is-light mb-0" data-empty-queue="{{ queue.key }}">
+            {{ queue.empty_message }}
+        </div>
+        {% endif %}
+    </article>
+    {% endfor %}
+</section>
+{% endblock %}

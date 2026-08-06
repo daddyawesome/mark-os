@@ -46,6 +46,7 @@ _QUEST_ACTION_PATTERN = re.compile(
 _LEAD_SOURCER_GET_PATHS = frozenset(
     {
         "/crm",
+        "/crm/follow-ups",
         "/crm/leads/new",
         "/crm/leads/import/template",
     }
@@ -64,6 +65,7 @@ _RELATIONSHIP_MANAGER_GET_PATHS = frozenset(
     {
         "/relationship-manager",
         "/crm",
+        "/crm/follow-ups",
         "/crm/leads/new",
         "/crm/leads/import/template",
     }

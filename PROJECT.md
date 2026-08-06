@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.4 — Follow-up Command Center
+**Immediate next milestone:** Phase 6.5A — Structured Error Logging and Correlation IDs
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 405 passed after Phase 6.3
+**Last verified full-suite baseline:** 421 passed after Phase 6.4
 
 ---
 
@@ -239,6 +239,7 @@ app/services/
 ├── agent_audit.py
 ├── chat.py
 ├── director.py
+├── follow_up_command_center.py
 ├── gamification.py
 ├── lead_activities.py
 ├── lead_csv_import.py
@@ -279,6 +280,9 @@ The repository contains tests for:
 - Lead Activity Timeline service and permissions;
 - Lead Activity Timeline routes and UI;
 - Atomic Contacted transition and rollback behavior;
+- Follow-up Command Center queue calculations, filters, role scope, and Manila boundaries;
+- Follow-up Command Center route, filters, queue rendering, empty states, and navigation;
+- Follow-up Command Center acceptance isolation, exact Manila cutoffs, read-only behavior, and complete empty-state rendering;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -859,9 +863,10 @@ timeline history.
 | Discovery, proposal, onboarding, and billing workflows | Trigger-based Phases 6.9–6.12 |
 | Delegated Relationship Manager outreach | Trigger-based Phase 6.13 |
 
-The next priority is the Phase 6.4 Follow-up Command Center. The activity
-timeline now provides the authoritative last-contact and next-follow-up data
-needed for deterministic due, overdue, waiting, and stale-lead queues.
+The next priority is Phase 6.5 Observability and Error Monitoring. The
+production workflow now needs structured errors, correlation IDs, uptime and
+backup-failure visibility, and one low-cost Owner alert path before more staff
+and automation depend on it.
 
 ---
 
@@ -1221,7 +1226,7 @@ current response status
 
 ## Phase 6.4 — Follow-up Command Center
 
-**Status:** Active — immediate next milestone
+**Status:** Complete
 **MoSCoW:** Must have now
 
 ### Goal
@@ -1254,9 +1259,18 @@ Proposal Follow-up Required
 - date-boundary and timezone tests;
 - no external notification dependency.
 
+
+### Implementation progress
+
+- [x] 6.4A — Deterministic queue service, activity-derived dates, role
+  scoping, filters, and Manila boundary tests
+- [x] 6.4B — Command Center route, filters, queue cards, and safe empty states
+- [x] 6.4C — Isolation, date-boundary, rendering, and phase-completion
+  verification
+
 ## Phase 6.5 — Observability and Error Monitoring
 
-**Status:** Planned immediately after 6.4  
+**Status:** Active — immediate next milestone
 **MoSCoW:** Must have now
 
 ### Goal
@@ -2685,8 +2699,8 @@ backup.
 | Phase 6.1J | Complete and deployed | Relationship Manager, private playbook, and Business Development ownership |
 | Phase 6.2 | Complete | Backup and Disaster Recovery |
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
-| Phase 6.4 | Active — immediate next milestone | Follow-up Command Center |
-| Phase 6.5 | Must next | Observability and Error Monitoring |
+| Phase 6.4 | Complete | Follow-up Command Center, role-scoped filters, Manila boundaries, and safe empty states |
+| Phase 6.5 | Active — immediate next milestone | Observability and Error Monitoring |
 | Phase 6.6 | Should soon | Bulk Lead Management |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
 | Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
@@ -2705,6 +2719,92 @@ backup.
 
 
 
+
+
+
+
+## 2026-08-06 — Complete the Follow-up Command Center after acceptance verification
+
+**Decision:**
+
+- close Phase 6.4 only after service, route, template, navigation, and role-scoped
+  rendering have passed together;
+- verify Lead Researcher and Relationship Manager isolation through the rendered
+  page, including filter-option names and visible-record counts;
+- verify the exact UTC instant at which the Manila operational date changes;
+- verify the five-day stale-contact cutoff on both sides of Manila midnight;
+- verify all ten empty queues remain visible with explicit operational copy;
+- verify command-center service and rendering paths do not mutate leads,
+  activities, quests, XP state, or the XP ledger;
+- keep the completed command center read-only and route all writes through
+  existing lead-detail workflows.
+
+**Reason:**
+
+- unit-level visibility checks are insufficient if templates or filter choices
+  later reveal foreign names, counts, or links;
+- date rules must remain stable when Railway runs in UTC;
+- an empty command center is still actionable information;
+- a read-only dashboard must be proven not to create hidden CRM or gamification
+  side effects;
+- the acceptance matrix establishes a safe baseline before observability work
+  changes middleware and error handling.
+
+## 2026-08-06 — Keep the Follow-up Command Center read-only and visibility-scoped
+
+**Decision:**
+
+- expose the deterministic Phase 6.4 queue service at `/crm/follow-ups`;
+- allow Owner, Lead Researcher, and Relationship Manager access through the
+  existing CRM request matrix;
+- keep the page read-only and send every action to the existing lead-detail
+  workflow;
+- show all required queue cards even when empty, with explicit safe empty-state
+  copy;
+- expose assignee, researcher, and Business Development Owner filters only from
+  the actor's already-visible lead set;
+- keep date calculations and queue membership in the service layer rather than
+  duplicating them in templates or routes.
+
+**Reason:**
+
+- a command center should summarize operational truth, not create a second write
+  path;
+- linking to lead detail preserves existing approval, activity, correction, and
+  pipeline permission checks;
+- empty queues are meaningful operational signals and must not disappear;
+- visibility-scoped filter options prevent names and record counts from leaking
+  across staff boundaries;
+- thin routes and presentation-only templates keep queue rules independently
+  testable.
+
+## 2026-08-06 — Define deterministic follow-up date semantics
+
+**Decision:**
+
+- use `Asia/Manila` as the operational timezone for command-center date
+  boundaries;
+- calculate the effective due date from the latest non-deleted activity carrying
+  `next_follow_up_date`, falling back to the lead's `next_action_due_date`;
+- calculate last contact from the latest non-deleted external activity, so later
+  internal research notes do not hide the prospect's actual contact state;
+- define Due This Week as dates after today through Sunday;
+- define stale contact as Contacted-or-later with no external contact in the
+  previous five Manila dates;
+- reload the actor from the database before applying the existing CRM visibility
+  rules;
+- apply assignee, researcher, and Business Development Owner filters only after
+  role-scoped visibility has been established.
+
+**Reason:**
+
+- activity follow-up is the more specific operational commitment once contact
+  history exists;
+- internal activity must not falsely reset a prospect-contact timer;
+- explicit timezone and week boundaries prevent server-local and Railway-UTC
+  differences;
+- database-backed role truth prevents forged mappings from widening CRM access;
+- filtering an already-scoped set prevents count and record leakage.
 
 ## 2026-08-06 — Make Contacted a dedicated atomic audit transition
 
