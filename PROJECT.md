@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-05  
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.2 — Backup and Disaster Recovery  
+**Immediate next milestone:** Phase 6.3 — Lead Activity Timeline  
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 368 passed after Phase 6.1J
+**Last verified full-suite baseline:** 378 passed after Phase 6.2
 
 ---
 
@@ -1079,7 +1079,7 @@ The attached Junmar operating rule remains authoritative:
 
 ## Phase 6.2 — Backup and Disaster Recovery
 
-**Status:** Active — immediate next milestone  
+**Status:** Complete  
 **MoSCoW:** Must have now
 
 ### Goal
@@ -1125,7 +1125,7 @@ Live Railway volume
 
 ## Phase 6.3 — Lead Activity Timeline
 
-**Status:** Next after 6.2  
+**Status:** Active — immediate next milestone  
 **MoSCoW:** Must have now
 
 ### Goal
@@ -2512,7 +2512,7 @@ or use the existing `run.ps1` helper.
 Begin:
 
 ```text
-Phase 6.2 — Backup and Disaster Recovery
+Phase 6.3 — Lead Activity Timeline
 ```
 
 Recommended branch:
@@ -2524,7 +2524,7 @@ git switch main
 git pull --ff-only origin main
 git status
 
-git switch -c feature/phase-6-2-backup-recovery
+git switch -c feature/phase-6-3-lead-activity-timeline
 ```
 
 Before coding, inspect:
@@ -2671,8 +2671,8 @@ backup.
 | M1–M10 | Complete | Multi-user, family isolation, workspace release |
 | Phase 6.1A–6.1I | Complete | Staff research, review, approval, queues, security, and release verification |
 | Phase 6.1J | Complete and deployed | Relationship Manager, private playbook, and Business Development ownership |
-| Phase 6.2 | Active | Backup and Disaster Recovery |
-| Phase 6.3 | Must next | Lead Activity Timeline |
+| Phase 6.2 | Complete | Backup and Disaster Recovery |
+| Phase 6.3 | Active | Lead Activity Timeline |
 | Phase 6.4 | Must next | Follow-up Command Center |
 | Phase 6.5 | Must next | Observability and Error Monitoring |
 | Phase 6.6 | Should soon | Bulk Lead Management |
