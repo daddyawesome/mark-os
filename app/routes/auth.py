@@ -16,6 +16,7 @@ from app.services.access_control import (
     landing_path_for_user,
     permitted_destination,
 )
+from app.services.observability import log_security_event
 
 
 router = APIRouter()
@@ -53,12 +54,25 @@ def login_submit(
 
     if user is not None:
         sign_in(request, user)
+        log_security_event(
+            "authentication_succeeded",
+            request,
+            user=user,
+            status_code=303,
+        )
         return RedirectResponse(
             url=permitted_destination(user, requested_destination),
             status_code=303,
         )
 
     configured = credentials_configured()
+    log_security_event(
+        "authentication_failed",
+        request,
+        status_code=401,
+        configured=configured,
+        username_present=bool(username.strip()),
+    )
     return templates.TemplateResponse(
         request=request,
         name="login.html",

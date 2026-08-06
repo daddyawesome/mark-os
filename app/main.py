@@ -37,6 +37,12 @@ from app.services.security import (
     apply_security_headers,
     is_cross_site_unsafe_request,
 )
+from app.services.observability import (
+    ObservabilityMiddleware,
+    configure_observability,
+    log_exception,
+    log_security_event,
+)
 from app.services.personal_scope import (
     bind_request_user,
     reset_request_user,
@@ -47,9 +53,29 @@ BASE_DIR = Path(__file__).resolve().parent
 
 
 def startup() -> None:
-    # Refuse unsafe Railway configuration before opening or migrating SQLite.
-    validate_auth_configuration()
-    init_db()
+    # Configure application events before validation or SQLite migrations.
+    configure_observability()
+    try:
+        validate_auth_configuration()
+    except Exception as exc:
+        log_exception(
+            "startup_failure",
+            exc,
+            correlation_id="startup",
+            stage="auth_configuration",
+        )
+        raise
+
+    try:
+        init_db()
+    except Exception as exc:
+        log_exception(
+            "startup_failure",
+            exc,
+            correlation_id="startup",
+            stage="database_initialization",
+        )
+        raise
 
 
 @asynccontextmanager
@@ -87,6 +113,11 @@ async def login_and_permission_guard(request: Request, call_next):
     user = current_user(request)
     if user is None:
         next_path = quote(path, safe="/")
+        log_security_event(
+            "authentication_required",
+            request,
+            status_code=303,
+        )
         return RedirectResponse(
             url=f"/login?next={next_path}",
             status_code=303,
@@ -95,6 +126,17 @@ async def login_and_permission_guard(request: Request, call_next):
     request.state.current_user = user
 
     if not can_access_request(user, method, path):
+        status_code = (
+            303
+            if method in {"GET", "HEAD"}
+            else 403
+        )
+        log_security_event(
+            "authorization_denied",
+            request,
+            user=user,
+            status_code=status_code,
+        )
         if method in {"GET", "HEAD"}:
             return RedirectResponse(
                 url=f"{landing_path_for_user(user)}?error=forbidden",
@@ -119,6 +161,11 @@ async def login_and_permission_guard(request: Request, call_next):
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     if is_cross_site_unsafe_request(request):
+        log_security_event(
+            "cross_site_write_blocked",
+            request,
+            status_code=403,
+        )
         response = PlainTextResponse("Forbidden", status_code=403)
     else:
         response = await call_next(request)
@@ -138,6 +185,10 @@ app.add_middleware(
     max_age=60 * 60 * 24 * 7,
     same_site="lax",
     https_only=IS_RAILWAY,
+)
+app.add_middleware(
+    ObservabilityMiddleware,
+    secure_transport=IS_RAILWAY,
 )
 
 app.include_router(auth_routes.router)

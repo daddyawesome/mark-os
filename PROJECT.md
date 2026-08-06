@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.5A — Structured Error Logging and Correlation IDs
+**Immediate next milestone:** Phase 6.5B — Backup Failure Visibility, Uptime Checks, and Owner Alert
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 421 passed after Phase 6.4
+**Last verified full-suite baseline:** 429 passed after Phase 6.5A
 
 ---
 
@@ -249,6 +249,7 @@ app/services/
 ├── lead_research_workflow.py
 ├── lead_work_queues.py
 ├── leads.py
+├── observability.py
 ├── passwords.py
 ├── personal_scope.py
 ├── playbooks.py
@@ -283,6 +284,7 @@ The repository contains tests for:
 - Follow-up Command Center queue calculations, filters, role scope, and Manila boundaries;
 - Follow-up Command Center route, filters, queue rendering, empty states, and navigation;
 - Follow-up Command Center acceptance isolation, exact Manila cutoffs, read-only behavior, and complete empty-state rendering;
+- structured application logging, correlation IDs, safe exception handling, and security-event summaries;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -1270,7 +1272,7 @@ Proposal Follow-up Required
 
 ## Phase 6.5 — Observability and Error Monitoring
 
-**Status:** Active — immediate next milestone
+**Status:** Active — 6.5A complete
 **MoSCoW:** Must have now
 
 ### Goal
@@ -1292,6 +1294,16 @@ them.
 
 This phase is intentionally lightweight. The goal is reliable awareness, not a
 large monitoring platform.
+
+
+### Implementation progress
+
+- [x] 6.5A — Structured application errors, safe correlation IDs, startup
+  failure events, and authentication/authorization summaries
+- [ ] 6.5B — Backup failure visibility, `/health` uptime check, and one
+  low-cost Owner alert path
+- [ ] 6.5C — Previous-24-hour error count, Railway log-review runbook, and
+  phase-completion verification
 
 ## Phase 6.6 — Bulk Lead Management
 
@@ -2700,7 +2712,7 @@ backup.
 | Phase 6.2 | Complete | Backup and Disaster Recovery |
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
 | Phase 6.4 | Complete | Follow-up Command Center, role-scoped filters, Manila boundaries, and safe empty states |
-| Phase 6.5 | Active — immediate next milestone | Observability and Error Monitoring |
+| Phase 6.5 | Active — 6.5A complete | Structured application events and correlation IDs; external failure visibility next |
 | Phase 6.6 | Should soon | Bulk Lead Management |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
 | Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
@@ -2722,6 +2734,39 @@ backup.
 
 
 
+
+
+## 2026-08-06 — Use one structured application logger and safe correlation IDs
+
+**Decision:**
+
+- create one JSON logger named `mark_os.application`, separate from Uvicorn
+  access logs;
+- emit structured events to standard output so Railway can collect them without
+  a paid monitoring SDK;
+- accept `X-Request-ID` only when it is short and restricted to safe characters,
+  otherwise generate a UUID-based correlation ID;
+- include the correlation ID on every response and bind it through a context
+  variable for route and service events;
+- log startup, authentication, authorization, cross-site security, unhandled
+  application, and explicit 5xx-response events;
+- log only method, path, status, database-backed user ID and role, event fields,
+  exception type, and traceback frame locations;
+- exclude query strings, request bodies, passwords, cookies, authorization
+  headers, session values, usernames, display names, and exception messages;
+- return a generic 500 response while retaining browser security headers.
+
+**Reason:**
+
+- Railway already captures standard output, so JSON events create immediate
+  production visibility without another service or recurring cost;
+- correlation IDs let Mark connect a user-visible failure to one log event;
+- strict request-ID validation prevents log injection and oversized attacker
+  input;
+- exception messages and request payloads may contain credentials or personal
+  data and are not required for the first observability baseline;
+- preserving a separate application logger keeps operational errors distinct
+  from high-volume access logs.
 
 ## 2026-08-06 — Complete the Follow-up Command Center after acceptance verification
 
