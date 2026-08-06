@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.5C — 24-Hour Error Count, Railway Log Review, and Phase Verification
+**Immediate next milestone:** Phase 6.6A — Bulk Lead Import Preview and Row Validation
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 437 passed after Phase 6.5B
+**Last verified full-suite baseline:** 449 passed after Phase 6.5
 
 ---
 
@@ -239,6 +239,7 @@ app/services/
 ├── agent_audit.py
 ├── chat.py
 ├── director.py
+├── error_summary.py
 ├── follow_up_command_center.py
 ├── gamification.py
 ├── lead_activities.py
@@ -287,6 +288,7 @@ The repository contains tests for:
 - Follow-up Command Center acceptance isolation, exact Manila cutoffs, read-only behavior, and complete empty-state rendering;
 - structured application logging, correlation IDs, safe exception handling, and security-event summaries;
 - database-aware health responses, external uptime checks, backup visibility, and optional Owner webhook alerts;
+- bounded previous-24-hour structured error summaries, Railway wrappers, safe samples, and exact UTC boundaries;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -867,10 +869,10 @@ timeline history.
 | Discovery, proposal, onboarding, and billing workflows | Trigger-based Phases 6.9–6.12 |
 | Delegated Relationship Manager outreach | Trigger-based Phase 6.13 |
 
-The next priority is Phase 6.5 Observability and Error Monitoring. The
-production workflow now needs structured errors, correlation IDs, uptime and
-backup-failure visibility, and one low-cost Owner alert path before more staff
-and automation depend on it.
+The next priority is Phase 6.6 Bulk Lead Management. The production system now
+has verified backup, auditable activity, deterministic follow-up, and lightweight
+observability, so the next business need is safe high-volume lead intake with
+preview, row validation, duplicate warnings, and permission-scoped assignment.
 
 ---
 
@@ -1274,7 +1276,7 @@ Proposal Follow-up Required
 
 ## Phase 6.5 — Observability and Error Monitoring
 
-**Status:** Active — 6.5A–6.5B complete
+**Status:** Complete
 **MoSCoW:** Must have now
 
 ### Goal
@@ -1304,12 +1306,96 @@ large monitoring platform.
   failure events, and authentication/authorization summaries
 - [x] 6.5B — Backup failure visibility, `/health` uptime check, and one
   low-cost Owner alert path
-- [ ] 6.5C — Previous-24-hour error count, Railway log-review runbook, and
+- [x] 6.5C — Previous-24-hour error count, Railway log-review runbook, and
   phase-completion verification
+
+### Phase 6.5 production operations runbook
+
+#### One-time Railway configuration
+
+Set these Railway service variables without committing their real values:
+
+```text
+MARK_OS_HEALTH_URL=https://YOUR-SERVICE.up.railway.app/health
+MARK_OS_HEALTH_TIMEOUT_SECONDS=10
+MARK_OS_OWNER_ALERT_WEBHOOK_URL=YOUR_DISCORD_WEBHOOK_SECRET
+MARK_OS_BACKUP_DIR=/app/data/backups
+MARK_OS_BACKUP_PREFIX=mark_os
+MARK_OS_BACKUP_MAX_AGE_HOURS=26
+```
+
+Keep the Discord webhook secret only in Railway Variables or the local untracked
+`.env`. Never paste it into logs, issues, commits, or screenshots.
+
+Run the combined application-health and verified-backup check manually:
+
+```bash
+python tools/check_operations.py --json
+```
+
+Use the same command in the scheduled Railway operations service or cron job.
+A healthy run exits `0`. An uptime or backup failure exits `1` and attempts one
+Owner alert when the webhook is configured.
+
+#### Previous-24-hour application-error count
+
+Link the Railway CLI to the production project and service, then use either the
+direct pipeline:
+
+```bash
+railway logs --since 24h --json --filter "@level:error" \
+  | python tools/summarize_errors.py --json
+```
+
+or retain a temporary review file outside the repository:
+
+```bash
+railway logs --since 24h --json --filter "@level:error" \
+  > /tmp/mark-os-errors-24h.ndjson
+
+python tools/summarize_errors.py \
+  --input /tmp/mark-os-errors-24h.ndjson
+```
+
+The summary counts only `mark_os.application` errors inside the exact bounded
+window. It reports event counts, unique correlation IDs, and a small allowlisted
+sample. It does not repeat request bodies, webhook URLs, traceback details,
+passwords, authorization data, or arbitrary log fields.
+
+#### Investigate one reported request
+
+Copy the browser response's `X-Request-ID`, then search the application logs:
+
+```bash
+railway logs --since 24h --json \
+  --filter "@correlation_id:PASTE_REQUEST_ID"
+```
+
+Review edge-level server errors separately:
+
+```bash
+railway logs --http --since 24h --status 500..599 --json
+```
+
+In the Railway dashboard, use the deployment log panel for one deployment or
+the environment Log Explorer for cross-deployment review. Filter structured
+application events with `@level:error`, `@event:application_error`, or the
+correlation ID. Use View in Context only after identifying the safe event.
+
+#### Incident review order
+
+1. Confirm `/health` returns HTTP `200` and database status `ok`.
+2. Run `python tools/check_operations.py --json`.
+3. Generate the bounded previous-24-hour error summary.
+4. Search the affected correlation ID.
+5. Review the latest deployment and startup events.
+6. Verify the newest backup and restore evidence before any database action.
+7. Follow the Phase 6.2 recovery runbook rather than editing the live SQLite
+   file during an incident.
 
 ## Phase 6.6 — Bulk Lead Management
 
-**Status:** Planned  
+**Status:** Active — immediate next milestone
 **MoSCoW:** Should have soon
 
 ### Goal
@@ -2714,8 +2800,8 @@ backup.
 | Phase 6.2 | Complete | Backup and Disaster Recovery |
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
 | Phase 6.4 | Complete | Follow-up Command Center, role-scoped filters, Manila boundaries, and safe empty states |
-| Phase 6.5 | Active — 6.5A–6.5B complete | Structured events, database-aware health, backup visibility, and optional Owner webhook; 24-hour view next |
-| Phase 6.6 | Should soon | Bulk Lead Management |
+| Phase 6.5 | Complete | Structured errors, correlation IDs, database-aware health, backup and uptime alerts, 24-hour count, and Railway runbook |
+| Phase 6.6 | Active — immediate next milestone | Bulk Lead Management |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
 | Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
 | Phase 6.9 | Trigger-based | Discovery and Qualification |
@@ -2738,6 +2824,40 @@ backup.
 
 
 
+
+
+## 2026-08-06 — Count errors from bounded Railway JSON exports
+
+**Decision:**
+
+- make Railway-captured standard-output JSON the lightweight source for the
+  previous-24-hour application-error count;
+- add the Railway-required `message` field while retaining the stable `event`
+  field and existing safe structured attributes;
+- parse both direct MARK-OS JSON lines and Railway JSON wrappers whose `message`
+  contains the original application event;
+- count only `mark_os.application` records with error or critical severity
+  inside an inclusive, timezone-aware bounded window;
+- report counts by event, unique correlation IDs, and at most a small allowlisted
+  set of recent samples;
+- exclude arbitrary payload fields, traceback details, usernames, request bodies,
+  credentials, paths outside the request URL, deployment identifiers, and raw
+  network messages from the generated summary;
+- keep the report as a local/CLI review tool rather than adding another database
+  table, background worker, or paid monitoring platform;
+- document current Railway CLI commands for application errors, HTTP 5xx
+  responses, and correlation-ID investigation in `PROJECT.md`.
+
+**Reason:**
+
+- Railway already retains and filters standard-output logs, so duplicating them
+  into SQLite would create storage, retention, migration, and privacy work;
+- a bounded parser supplies the required daily count while remaining useful with
+  manually exported or piped logs;
+- allowlisted samples give Mark enough context to investigate without recreating
+  sensitive raw logs;
+- preserving both `message` and `event` improves Railway compatibility without
+  changing the application's stable event taxonomy.
 
 ## 2026-08-06 — Separate web readiness from scheduled operations monitoring
 

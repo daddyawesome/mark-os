@@ -210,15 +210,17 @@ class JsonEventFormatter(logging.Formatter):
             "event_fields",
             {},
         )
+        event_name = getattr(
+            record,
+            "event_name",
+            record.getMessage(),
+        )
         payload: dict[str, Any] = {
             "timestamp": _utc_timestamp(),
             "level": record.levelname,
             "logger": record.name,
-            "event": getattr(
-                record,
-                "event_name",
-                record.getMessage(),
-            ),
+            "message": event_name,
+            "event": event_name,
         }
         payload.update(
             sanitize_fields(event_fields)
