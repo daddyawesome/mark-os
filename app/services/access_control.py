@@ -17,6 +17,13 @@ _LEAD_RESEARCH_EDIT_PATTERN = re.compile(
 _LEAD_RESEARCH_SUBMIT_PATTERN = re.compile(
     r"^/crm/leads/[1-9][0-9]*/research/submit$"
 )
+_LEAD_ACTIVITY_CREATE_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/activities$"
+)
+_LEAD_ACTIVITY_ACTION_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/activities/"
+    r"[1-9][0-9]*/(?:correct|delete)$"
+)
 _RELATIONSHIP_NEXT_ACTION_PATTERN = re.compile(
     r"^/crm/leads/[1-9][0-9]*/next-action$"
 )
@@ -199,6 +206,14 @@ def can_access_request(
             normalized_path in _LEAD_SOURCER_POST_PATHS
             or _LEAD_RESEARCH_EDIT_PATTERN.fullmatch(normalized_path) is not None
             or _LEAD_RESEARCH_SUBMIT_PATTERN.fullmatch(normalized_path) is not None
+            or _LEAD_ACTIVITY_CREATE_PATTERN.fullmatch(
+                normalized_path
+            )
+            is not None
+            or _LEAD_ACTIVITY_ACTION_PATTERN.fullmatch(
+                normalized_path
+            )
+            is not None
         )
 
     return False

@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.3C — Lead-Detail Timeline and Correction Forms
+**Immediate next milestone:** Phase 6.3D — Atomic Contacted Transition and Phase Verification
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 394 passed after Phase 6.3B
+**Last verified full-suite baseline:** 400 passed after Phase 6.3C
 
 ---
 
@@ -276,6 +276,7 @@ The repository contains tests for:
 - CRM migrations;
 - Lead Activity Timeline schema and migration;
 - Lead Activity Timeline service and permissions;
+- Lead Activity Timeline routes and UI;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -1031,7 +1032,7 @@ agency requirement, so Backup and Disaster Recovery becomes Phase 6.2.
 |---|---:|---|
 | Phase 7.1 | Phase 6.2 | Backup and Disaster Recovery |
 | Phase 6.2 | Phase 6.3 | Lead Activity Timeline |
-| Phase 6.3 | Active — 6.3A–6.3B complete | Lead Activity Timeline; lead-detail UI next |
+| Phase 6.3 | Active — 6.3A–6.3C complete | Lead Activity Timeline; atomic Contacted transition next |
 | Phase 7.9 | Phase 6.5 | Observability and Error Monitoring |
 | Phase 6.4 | Phase 6.6 | Bulk Lead Management |
 | Phase 7.4 | Phase 6.7 | Outreach Templates and Approval Controls |
@@ -1204,7 +1205,7 @@ current response status
 
 - [x] 6.3A — Additive activity schema, indexes, validation, and migration tests
 - [x] 6.3B — Validated activity service and role permissions
-- [ ] 6.3C — Lead-detail timeline and correction forms
+- [x] 6.3C — Lead-detail timeline and correction forms
 - [ ] 6.3D — Atomic Contacted transition and phase verification
 
 ### Definition of done

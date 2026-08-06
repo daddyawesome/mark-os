@@ -1,0 +1,432 @@
+<section class="mark-card p-5 mb-5" id="lead-activity-timeline">
+    <div class="is-flex is-justify-content-space-between is-align-items-flex-start is-flex-wrap-wrap mb-4">
+        <div>
+            <p class="mark-kicker">Lead Activity Timeline</p>
+            <h2 class="title is-3 mb-2">Interaction history</h2>
+            <p class="mark-muted">
+                Activities are shown oldest to newest. Corrections preserve the
+                original author and require a reason.
+            </p>
+        </div>
+        {% if can_manage_crm %}
+        <a
+            class="button is-ghost-forest is-small"
+            href="/crm/leads/{{ lead.id }}{% if not show_deleted_activities %}?include_deleted=1{% endif %}#lead-activity-timeline"
+        >
+            {% if show_deleted_activities %}Hide deleted activities{% else %}Show deleted activities{% endif %}
+        </a>
+        {% endif %}
+    </div>
+
+    {% if can_create_activity %}
+    <details class="mb-5" {% if not activities %}open{% endif %}>
+        <summary class="has-text-weight-bold">Record an activity</summary>
+        <form
+            class="mt-4"
+            method="post"
+            action="/crm/leads/{{ lead.id }}/activities"
+        >
+            <div class="columns is-multiline">
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label" for="activity_type">Activity type</label>
+                        <div class="select is-fullwidth">
+                            <select id="activity_type" name="activity_type" required>
+                                {% for value in activity_type_options %}
+                                <option value="{{ value }}">{{ value|replace('_', ' ')|title }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label" for="activity_at">Activity date and time</label>
+                        <input
+                            class="input"
+                            id="activity_at"
+                            name="activity_at"
+                            type="datetime-local"
+                            required
+                        >
+                    </div>
+                </div>
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label" for="activity_channel">Channel</label>
+                        <div class="select is-fullwidth">
+                            <select id="activity_channel" name="channel" required>
+                                {% for value in activity_channel_options %}
+                                <option value="{{ value }}">{{ value|replace('_', ' ')|title }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label" for="activity_response_status">Response status</label>
+                        <div class="select is-fullwidth">
+                            <select id="activity_response_status" name="response_status" required>
+                                {% for value in activity_response_status_options %}
+                                <option
+                                    value="{{ value }}"
+                                    {% if value == 'not_applicable' %}selected{% endif %}
+                                >
+                                    {{ value|replace('_', ' ')|title }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                {% if can_manage_crm %}
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label" for="performed_by_user_id">Performed by</label>
+                        <div class="select is-fullwidth">
+                            <select id="performed_by_user_id" name="performed_by_user_id">
+                                <option value="">Current user</option>
+                                {% for activity_user in activity_users %}
+                                <option value="{{ activity_user.id }}">
+                                    {{ activity_user.display_name }} · {{ activity_user.role|replace('_', ' ')|title }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label" for="responsible_user_id">Responsible for follow-up</label>
+                        <div class="select is-fullwidth">
+                            <select id="responsible_user_id" name="responsible_user_id">
+                                <option value="">Not assigned</option>
+                                {% for activity_user in activity_users %}
+                                <option value="{{ activity_user.id }}">
+                                    {{ activity_user.display_name }} · {{ activity_user.role|replace('_', ' ')|title }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="column is-half">
+                    <div class="field">
+                        <label class="label" for="next_follow_up_date">Next follow-up date</label>
+                        <input
+                            class="input"
+                            id="next_follow_up_date"
+                            name="next_follow_up_date"
+                            type="date"
+                        >
+                    </div>
+                </div>
+                <div class="column is-full">
+                    <div class="field">
+                        <label class="label" for="message_summary">Message or activity summary</label>
+                        <textarea
+                            class="textarea"
+                            id="message_summary"
+                            name="message_summary"
+                            rows="3"
+                            required
+                        ></textarea>
+                    </div>
+                </div>
+                <div class="column is-full">
+                    <div class="field">
+                        <label class="label" for="activity_notes">Notes</label>
+                        <textarea
+                            class="textarea"
+                            id="activity_notes"
+                            name="notes"
+                            rows="3"
+                        ></textarea>
+                    </div>
+                </div>
+            </div>
+            <button class="button is-mark" type="submit">Save Activity</button>
+        </form>
+    </details>
+    {% elif current_user and current_user.role == 'relationship_manager' %}
+    <div class="notification is-warning is-light">
+        This timeline is read-only. Delegated outreach and outbound activity
+        creation remain disabled until Phase 6.13 and explicit Owner approval.
+    </div>
+    {% endif %}
+
+    {% if activities %}
+    <div class="content">
+        {% for activity in activities %}
+        <article
+            class="box mb-4"
+            data-activity-id="{{ activity.id }}"
+            {% if activity.deleted_at %}data-activity-deleted="true"{% endif %}
+        >
+            <div class="is-flex is-justify-content-space-between is-align-items-flex-start is-flex-wrap-wrap mb-3">
+                <div>
+                    <div class="tags mb-2">
+                        <span class="tag is-dark">
+                            {{ activity.activity_type|replace('_', ' ')|upper }}
+                        </span>
+                        <span class="tag">{{ activity.channel|replace('_', ' ')|title }}</span>
+                        <span class="tag">
+                            {{ activity.response_status|replace('_', ' ')|title }}
+                        </span>
+                        {% if activity.deleted_at %}
+                        <span class="tag is-danger">Deleted</span>
+                        {% endif %}
+                    </div>
+                    <p class="has-text-weight-bold mb-1">{{ activity.activity_at }}</p>
+                </div>
+                {% if activity.next_follow_up_date %}
+                <span class="mark-chip">FOLLOW UP {{ activity.next_follow_up_date }}</span>
+                {% endif %}
+            </div>
+
+            <p class="mb-3" style="white-space: pre-wrap;">{{ activity.message_summary }}</p>
+            {% if activity.notes %}
+            <div class="notification is-light mb-3" style="white-space: pre-wrap;">
+                {{ activity.notes }}
+            </div>
+            {% endif %}
+
+            <div class="columns is-mobile is-multiline is-size-7 mark-muted">
+                <div class="column is-half">
+                    <strong>Created by:</strong>
+                    {{ activity.created_by_name or activity.created_by_username }}
+                </div>
+                <div class="column is-half">
+                    <strong>Performed by:</strong>
+                    {{ activity.performed_by_name or activity.performed_by_username }}
+                </div>
+                <div class="column is-half">
+                    <strong>Responsible:</strong>
+                    {{ activity.responsible_name or activity.responsible_username or 'Not assigned' }}
+                </div>
+                <div class="column is-half">
+                    <strong>Recorded:</strong> {{ activity.created_at }}
+                </div>
+            </div>
+
+            {% if activity.corrected_by_user_id %}
+            <div class="notification is-warning is-light mt-3 mb-3">
+                <strong>Correction audit:</strong>
+                {{ activity.corrected_by_name or activity.corrected_by_username }}
+                · {{ activity.correction_reason }}
+                {% if activity.deleted_at %}· deleted {{ activity.deleted_at }}{% endif %}
+            </div>
+            {% endif %}
+
+            {% if activity.can_correct and not activity.deleted_at %}
+            <details class="mt-4">
+                <summary class="has-text-weight-bold">Correct this activity</summary>
+                <form
+                    class="mt-4"
+                    method="post"
+                    action="/crm/leads/{{ lead.id }}/activities/{{ activity.id }}/correct"
+                >
+                    <div class="columns is-multiline">
+                        <div class="column is-half">
+                            <div class="field">
+                                <label class="label" for="activity_type_{{ activity.id }}">Activity type</label>
+                                <div class="select is-fullwidth">
+                                    <select
+                                        id="activity_type_{{ activity.id }}"
+                                        name="activity_type"
+                                        required
+                                    >
+                                        {% for value in activity_type_options %}
+                                        <option
+                                            value="{{ value }}"
+                                            {% if activity.activity_type == value %}selected{% endif %}
+                                        >
+                                            {{ value|replace('_', ' ')|title }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="column is-half">
+                            <div class="field">
+                                <label class="label" for="activity_at_{{ activity.id }}">Activity date and time</label>
+                                <input
+                                    class="input"
+                                    id="activity_at_{{ activity.id }}"
+                                    name="activity_at"
+                                    type="datetime-local"
+                                    value="{{ activity.activity_at_input }}"
+                                    required
+                                >
+                            </div>
+                        </div>
+                        <div class="column is-half">
+                            <div class="field">
+                                <label class="label" for="channel_{{ activity.id }}">Channel</label>
+                                <div class="select is-fullwidth">
+                                    <select id="channel_{{ activity.id }}" name="channel" required>
+                                        {% for value in activity_channel_options %}
+                                        <option
+                                            value="{{ value }}"
+                                            {% if activity.channel == value %}selected{% endif %}
+                                        >
+                                            {{ value|replace('_', ' ')|title }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="column is-half">
+                            <div class="field">
+                                <label class="label" for="response_status_{{ activity.id }}">Response status</label>
+                                <div class="select is-fullwidth">
+                                    <select
+                                        id="response_status_{{ activity.id }}"
+                                        name="response_status"
+                                        required
+                                    >
+                                        {% for value in activity_response_status_options %}
+                                        <option
+                                            value="{{ value }}"
+                                            {% if activity.response_status == value %}selected{% endif %}
+                                        >
+                                            {{ value|replace('_', ' ')|title }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        {% if can_manage_crm %}
+                        <div class="column is-half">
+                            <div class="field">
+                                <label class="label" for="performed_by_{{ activity.id }}">Performed by</label>
+                                <div class="select is-fullwidth">
+                                    <select
+                                        id="performed_by_{{ activity.id }}"
+                                        name="performed_by_user_id"
+                                        required
+                                    >
+                                        {% for activity_user in activity_users %}
+                                        <option
+                                            value="{{ activity_user.id }}"
+                                            {% if activity.performed_by_user_id == activity_user.id %}selected{% endif %}
+                                        >
+                                            {{ activity_user.display_name }} · {{ activity_user.role|replace('_', ' ')|title }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <div class="column is-half">
+                            <div class="field">
+                                <label class="label" for="responsible_{{ activity.id }}">Responsible for follow-up</label>
+                                <div class="select is-fullwidth">
+                                    <select
+                                        id="responsible_{{ activity.id }}"
+                                        name="responsible_user_id"
+                                    >
+                                        <option value="">Not assigned</option>
+                                        {% for activity_user in activity_users %}
+                                        <option
+                                            value="{{ activity_user.id }}"
+                                            {% if activity.responsible_user_id == activity_user.id %}selected{% endif %}
+                                        >
+                                            {{ activity_user.display_name }} · {{ activity_user.role|replace('_', ' ')|title }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="column is-half">
+                            <div class="field">
+                                <label class="label" for="follow_up_{{ activity.id }}">Next follow-up date</label>
+                                <input
+                                    class="input"
+                                    id="follow_up_{{ activity.id }}"
+                                    name="next_follow_up_date"
+                                    type="date"
+                                    value="{{ activity.next_follow_up_date or '' }}"
+                                >
+                            </div>
+                        </div>
+                        <div class="column is-full">
+                            <div class="field">
+                                <label class="label" for="summary_{{ activity.id }}">Summary</label>
+                                <textarea
+                                    class="textarea"
+                                    id="summary_{{ activity.id }}"
+                                    name="message_summary"
+                                    rows="3"
+                                    required
+                                >{{ activity.message_summary }}</textarea>
+                            </div>
+                        </div>
+                        <div class="column is-full">
+                            <div class="field">
+                                <label class="label" for="notes_{{ activity.id }}">Notes</label>
+                                <textarea
+                                    class="textarea"
+                                    id="notes_{{ activity.id }}"
+                                    name="notes"
+                                    rows="3"
+                                >{{ activity.notes }}</textarea>
+                            </div>
+                        </div>
+                        <div class="column is-full">
+                            <div class="field">
+                                <label class="label" for="correction_reason_{{ activity.id }}">Correction reason</label>
+                                <input
+                                    class="input"
+                                    id="correction_reason_{{ activity.id }}"
+                                    name="correction_reason"
+                                    type="text"
+                                    required
+                                >
+                            </div>
+                        </div>
+                    </div>
+                    <button class="button is-warning is-light" type="submit">
+                        Save Correction
+                    </button>
+                </form>
+
+                <form
+                    class="mt-4"
+                    method="post"
+                    action="/crm/leads/{{ lead.id }}/activities/{{ activity.id }}/delete"
+                >
+                    <div class="field">
+                        <label class="label" for="delete_reason_{{ activity.id }}">
+                            Reason for soft deletion
+                        </label>
+                        <input
+                            class="input"
+                            id="delete_reason_{{ activity.id }}"
+                            name="correction_reason"
+                            type="text"
+                            required
+                        >
+                    </div>
+                    <button class="button is-danger is-outlined" type="submit">
+                        Soft Delete Activity
+                    </button>
+                </form>
+            </details>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="notification is-light">
+        No lead activity has been recorded yet.
+    </div>
+    {% endif %}
+</section>

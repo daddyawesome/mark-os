@@ -407,6 +407,39 @@ def _write_unit(db: sqlite3.Connection) -> Iterator[None]:
         db.execute("RELEASE SAVEPOINT lead_activity_service_write")
 
 
+
+def list_active_activity_users(
+    db: sqlite3.Connection,
+    *,
+    actor: Record,
+) -> list[sqlite3.Row]:
+    """Return active CRM users available for activity attribution."""
+    _load_active_actor(db, actor)
+    return db.execute(
+        """
+        SELECT
+            id,
+            username,
+            display_name,
+            role
+        FROM users
+        WHERE active = 1
+          AND role IN (
+              'owner',
+              'lead_sourcer',
+              'relationship_manager'
+          )
+        ORDER BY
+            CASE role
+                WHEN 'owner' THEN 1
+                WHEN 'lead_sourcer' THEN 2
+                WHEN 'relationship_manager' THEN 3
+                ELSE 4
+            END,
+            display_name COLLATE NOCASE,
+            id
+        """
+    ).fetchall()
 def create_activity(
     db: sqlite3.Connection,
     lead_id: int,

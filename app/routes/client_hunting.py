@@ -6,6 +6,22 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.database import get_db
+from app.db.lead_activities import (
+    ACTIVITY_TYPES,
+    CHANNELS,
+    RESPONSE_STATUSES,
+)
+from app.services.lead_activities import (
+    LEAD_SOURCER_ACTIVITY_TYPES,
+    LeadActivityNotFoundError,
+    LeadActivityPermissionError,
+    correct_activity as correct_activity_record,
+    create_activity as create_activity_record,
+    get_activity as get_activity_record,
+    list_active_activity_users,
+    list_lead_activities,
+    soft_delete_activity as soft_delete_activity_record,
+)
 from app.routes.shared import load_system_state, templates
 from app.services.lead_csv_import import (
     CSV_HEADERS,
@@ -82,6 +98,9 @@ NOTICE_MESSAGES = {
     "research_rejected": 'Lead research rejected.',
     "outreach_approved": "Outreach approved. This lead may now move to Contacted.",
     "relationship_owner": "Business development owner updated.",
+    "activity_created": "Lead activity recorded.",
+    "activity_corrected": "Lead activity corrected with an audit reason.",
+    "activity_deleted": "Lead activity soft deleted with an audit reason.",
 }
 ERROR_MESSAGES = {
     "invalid": "The lead could not be saved. Check the required fields and allowed values.",
@@ -105,6 +124,114 @@ METRIC_DEFINITIONS = (
 def _message(mapping: dict[str, str], key: str | None) -> str | None:
     """Resolve only known message keys so query strings cannot inject copy."""
     return mapping.get(key or "")
+
+
+def _optional_positive_form_id(
+    value: str,
+    field_name: str,
+) -> int | None:
+    clean = (value or "").strip()
+    if not clean:
+        return None
+    try:
+        parsed = int(clean)
+    except ValueError as exc:
+        raise ValueError(
+            f"{field_name} must be a positive integer."
+        ) from exc
+    if parsed <= 0:
+        raise ValueError(
+            f"{field_name} must be a positive integer."
+        )
+    return parsed
+
+
+def _activity_form_context(
+    db,
+    user,
+) -> dict:
+    can_create = is_owner(user) or is_lead_sourcer(user)
+    activity_types = (
+        ACTIVITY_TYPES
+        if is_owner(user)
+        else tuple(
+            activity_type
+            for activity_type in ACTIVITY_TYPES
+            if activity_type in LEAD_SOURCER_ACTIVITY_TYPES
+        )
+        if is_lead_sourcer(user)
+        else ()
+    )
+    channels = CHANNELS if is_owner(user) else ("internal",)
+    return {
+        "can_create_activity": can_create,
+        "activity_type_options": activity_types,
+        "activity_channel_options": channels,
+        "activity_response_status_options": RESPONSE_STATUSES,
+        "activity_users": (
+            list_active_activity_users(db, actor=user)
+            if can_create
+            else []
+        ),
+    }
+
+
+def _can_correct_activity_in_ui(
+    user,
+    activity: dict,
+) -> bool:
+    if is_owner(user):
+        return True
+    return (
+        is_lead_sourcer(user)
+        and int(activity["created_by_user_id"])
+        == int(user["id"])
+        and str(activity["activity_type"])
+        in LEAD_SOURCER_ACTIVITY_TYPES
+    )
+
+
+def _activity_redirect(
+    lead_id: int,
+    *,
+    notice: str | None = None,
+    error: str | None = None,
+) -> RedirectResponse:
+    key = "notice" if notice else "error"
+    value = notice or error or "activity_invalid"
+    return RedirectResponse(
+        url=(
+            f"/crm/leads/{lead_id}?{key}={value}"
+            "#lead-activity-timeline"
+        ),
+        status_code=303,
+    )
+
+
+def _activity_for_lead_or_404(
+    db,
+    *,
+    lead_id: int,
+    activity_id: int,
+    user,
+):
+    try:
+        activity = get_activity_record(
+            db,
+            activity_id,
+            actor=user,
+        )
+    except LeadActivityNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="Lead activity not found",
+        ) from exc
+    if int(activity["lead_id"]) != int(lead_id):
+        raise HTTPException(
+            status_code=404,
+            detail="Lead activity not found",
+        )
+    return activity
 
 
 def _lead_or_404(
@@ -394,31 +521,72 @@ def create_lead(
 
 @router.get("/leads/{lead_id}", response_class=HTMLResponse)
 def lead_detail(request: Request, lead_id: int):
+    user = request.state.current_user
     with get_db() as db:
         lead = _lead_or_404(db, lead_id, request)
+        show_deleted = (
+            is_owner(user)
+            and request.query_params.get("include_deleted") == "1"
+        )
+        try:
+            activity_rows = list_lead_activities(
+                db,
+                lead_id,
+                actor=user,
+                include_deleted=show_deleted,
+            )
+        except LeadActivityNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Lead not found",
+            ) from exc
+
+        activities = []
+        for row in reversed(activity_rows):
+            activity = dict(row)
+            activity["activity_at_input"] = str(
+                activity["activity_at"]
+            ).replace(" ", "T", 1)
+            activity["can_correct"] = (
+                _can_correct_activity_in_ui(
+                    user,
+                    activity,
+                )
+            )
+            activities.append(activity)
+
         context = {
             "lead": lead,
+            "activities": activities,
+            "show_deleted_activities": show_deleted,
             "can_edit_research": can_edit_research(
-                request.state.current_user,
+                user,
                 lead,
             ),
             "can_approve_outreach": can_approve_outreach(
-                request.state.current_user,
+                user,
                 lead,
             ),
             "can_update_next_action": (
                 can_update_relationship_next_action(
-                    request.state.current_user,
+                    user,
                     lead,
                 )
             ),
             "relationship_managers": (
                 list_active_relationship_managers(db)
-                if is_owner(request.state.current_user)
+                if is_owner(user)
                 else []
             ),
-            "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
-            "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
+            "notice": _message(
+                NOTICE_MESSAGES,
+                request.query_params.get("notice"),
+            ),
+            "error": _message(
+                ERROR_MESSAGES,
+                request.query_params.get("error"),
+            ),
+            **_activity_form_context(db, user),
             **_shared_context(db, request),
         }
     return templates.TemplateResponse(
@@ -427,6 +595,184 @@ def lead_detail(request: Request, lead_id: int):
         context=context,
     )
 
+
+@router.post("/leads/{lead_id}/activities")
+def create_lead_activity(
+    request: Request,
+    lead_id: int,
+    activity_type: str = Form(...),
+    activity_at: str = Form(...),
+    message_summary: str = Form(...),
+    channel: str = Form(default="internal"),
+    notes: str = Form(default=""),
+    performed_by_user_id: str = Form(default=""),
+    responsible_user_id: str = Form(default=""),
+    response_status: str = Form(default="not_applicable"),
+    next_follow_up_date: str = Form(default=""),
+):
+    user = request.state.current_user
+    with get_db() as db:
+        _lead_or_404(db, lead_id, request)
+        try:
+            create_activity_record(
+                db,
+                lead_id,
+                actor=user,
+                activity_type=activity_type,
+                activity_at=activity_at,
+                channel=channel,
+                message_summary=message_summary,
+                notes=notes,
+                performed_by_user_id=_optional_positive_form_id(
+                    performed_by_user_id,
+                    "Performed-by user ID",
+                ),
+                responsible_user_id=_optional_positive_form_id(
+                    responsible_user_id,
+                    "Responsible user ID",
+                ),
+                response_status=response_status,
+                next_follow_up_date=(
+                    next_follow_up_date.strip() or None
+                ),
+            )
+        except LeadActivityNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Lead not found",
+            ) from exc
+        except LeadActivityPermissionError:
+            return _activity_redirect(
+                lead_id,
+                error="activity_forbidden",
+            )
+        except ValueError:
+            return _activity_redirect(
+                lead_id,
+                error="activity_invalid",
+            )
+    return _activity_redirect(
+        lead_id,
+        notice="activity_created",
+    )
+
+
+@router.post(
+    "/leads/{lead_id}/activities/{activity_id}/correct"
+)
+def correct_lead_activity(
+    request: Request,
+    lead_id: int,
+    activity_id: int,
+    correction_reason: str = Form(...),
+    activity_type: str = Form(...),
+    activity_at: str = Form(...),
+    message_summary: str = Form(...),
+    channel: str = Form(default="internal"),
+    notes: str = Form(default=""),
+    performed_by_user_id: str = Form(default=""),
+    responsible_user_id: str = Form(default=""),
+    response_status: str = Form(default="not_applicable"),
+    next_follow_up_date: str = Form(default=""),
+):
+    user = request.state.current_user
+    with get_db() as db:
+        _lead_or_404(db, lead_id, request)
+        _activity_for_lead_or_404(
+            db,
+            lead_id=lead_id,
+            activity_id=activity_id,
+            user=user,
+        )
+        try:
+            correct_activity_record(
+                db,
+                activity_id,
+                actor=user,
+                correction_reason=correction_reason,
+                activity_type=activity_type,
+                activity_at=activity_at,
+                channel=channel,
+                message_summary=message_summary,
+                notes=notes,
+                performed_by_user_id=_optional_positive_form_id(
+                    performed_by_user_id,
+                    "Performed-by user ID",
+                ),
+                responsible_user_id=_optional_positive_form_id(
+                    responsible_user_id,
+                    "Responsible user ID",
+                ),
+                response_status=response_status,
+                next_follow_up_date=(
+                    next_follow_up_date.strip() or None
+                ),
+            )
+        except LeadActivityNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Lead activity not found",
+            ) from exc
+        except LeadActivityPermissionError:
+            return _activity_redirect(
+                lead_id,
+                error="activity_forbidden",
+            )
+        except ValueError:
+            return _activity_redirect(
+                lead_id,
+                error="activity_invalid",
+            )
+    return _activity_redirect(
+        lead_id,
+        notice="activity_corrected",
+    )
+
+
+@router.post(
+    "/leads/{lead_id}/activities/{activity_id}/delete"
+)
+def delete_lead_activity(
+    request: Request,
+    lead_id: int,
+    activity_id: int,
+    correction_reason: str = Form(...),
+):
+    user = request.state.current_user
+    with get_db() as db:
+        _lead_or_404(db, lead_id, request)
+        _activity_for_lead_or_404(
+            db,
+            lead_id=lead_id,
+            activity_id=activity_id,
+            user=user,
+        )
+        try:
+            soft_delete_activity_record(
+                db,
+                activity_id,
+                actor=user,
+                correction_reason=correction_reason,
+            )
+        except LeadActivityNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Lead activity not found",
+            ) from exc
+        except LeadActivityPermissionError:
+            return _activity_redirect(
+                lead_id,
+                error="activity_forbidden",
+            )
+        except ValueError:
+            return _activity_redirect(
+                lead_id,
+                error="activity_invalid",
+            )
+    return _activity_redirect(
+        lead_id,
+        notice="activity_deleted",
+    )
 
 @router.get("/leads/{lead_id}/edit", response_class=HTMLResponse)
 def edit_lead_page(request: Request, lead_id: int):
