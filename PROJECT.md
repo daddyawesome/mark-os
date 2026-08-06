@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.5B — Backup Failure Visibility, Uptime Checks, and Owner Alert
+**Immediate next milestone:** Phase 6.5C — 24-Hour Error Count, Railway Log Review, and Phase Verification
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 429 passed after Phase 6.5A
+**Last verified full-suite baseline:** 437 passed after Phase 6.5B
 
 ---
 
@@ -250,6 +250,7 @@ app/services/
 ├── lead_work_queues.py
 ├── leads.py
 ├── observability.py
+├── operations_monitoring.py
 ├── passwords.py
 ├── personal_scope.py
 ├── playbooks.py
@@ -285,6 +286,7 @@ The repository contains tests for:
 - Follow-up Command Center route, filters, queue rendering, empty states, and navigation;
 - Follow-up Command Center acceptance isolation, exact Manila cutoffs, read-only behavior, and complete empty-state rendering;
 - structured application logging, correlation IDs, safe exception handling, and security-event summaries;
+- database-aware health responses, external uptime checks, backup visibility, and optional Owner webhook alerts;
 - lead behavior;
 - chat;
 - chat migrations;
@@ -1272,7 +1274,7 @@ Proposal Follow-up Required
 
 ## Phase 6.5 — Observability and Error Monitoring
 
-**Status:** Active — 6.5A complete
+**Status:** Active — 6.5A–6.5B complete
 **MoSCoW:** Must have now
 
 ### Goal
@@ -1300,7 +1302,7 @@ large monitoring platform.
 
 - [x] 6.5A — Structured application errors, safe correlation IDs, startup
   failure events, and authentication/authorization summaries
-- [ ] 6.5B — Backup failure visibility, `/health` uptime check, and one
+- [x] 6.5B — Backup failure visibility, `/health` uptime check, and one
   low-cost Owner alert path
 - [ ] 6.5C — Previous-24-hour error count, Railway log-review runbook, and
   phase-completion verification
@@ -2712,7 +2714,7 @@ backup.
 | Phase 6.2 | Complete | Backup and Disaster Recovery |
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
 | Phase 6.4 | Complete | Follow-up Command Center, role-scoped filters, Manila boundaries, and safe empty states |
-| Phase 6.5 | Active — 6.5A complete | Structured application events and correlation IDs; external failure visibility next |
+| Phase 6.5 | Active — 6.5A–6.5B complete | Structured events, database-aware health, backup visibility, and optional Owner webhook; 24-hour view next |
 | Phase 6.6 | Should soon | Bulk Lead Management |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
 | Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
@@ -2735,6 +2737,39 @@ backup.
 
 
 
+
+
+## 2026-08-06 — Separate web readiness from scheduled operations monitoring
+
+**Decision:**
+
+- make `/health` verify that the configured SQLite file is readable and
+  initialized, returning HTTP 503 with generic details when it is not;
+- keep backup freshness out of the Railway readiness decision so one stale
+  backup does not create a web-service restart loop;
+- add `tools/check_operations.py` as the single scheduled check for both the
+  public `/health` endpoint and the verified Phase 6.2 backup directory;
+- classify backup failures as missing, stale, or invalid without placing
+  database paths or verification exception text in alerts;
+- support one optional Discord-compatible Owner webhook through
+  `MARK_OS_OWNER_ALERT_WEBHOOK_URL`;
+- remove query strings and embedded credentials from checked URLs before use;
+- never include the webhook URL, database path, backup path, or raw network
+  exception message in structured events or Owner alerts;
+- return a non-zero command status whenever uptime or backup verification fails.
+
+**Reason:**
+
+- Railway should restart MARK-OS when the application database is unavailable,
+  but not repeatedly restart a healthy web process because a scheduled backup
+  is late;
+- one scheduled command is easier and cheaper to operate than a monitoring
+  platform;
+- the existing Phase 6.2 backup verifier remains the source of backup truth;
+- a Discord webhook is free, simple, revocable, and does not require storing an
+  email password or adding a paid SDK;
+- generic alerts provide enough information to investigate in Railway logs
+  without leaking operational paths or secrets.
 
 ## 2026-08-06 — Use one structured application logger and safe correlation IDs
 

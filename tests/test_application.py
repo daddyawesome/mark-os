@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sqlite3
 from collections import Counter
 from pathlib import Path
@@ -310,15 +311,37 @@ def test_windows_helper_loads_local_env_when_present():
     assert "python -m uvicorn @markOsUvicornArgs" in script
 
 
-def test_public_health_static_and_protected_home_behavior():
-    health_status, _, health_body = asyncio.run(_request("/health"))
-    home_status, home_headers, _ = asyncio.run(_request("/"))
-    static_status, _, _ = asyncio.run(_request("/static/quests.css"))
+def test_public_health_static_and_protected_home_behavior(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        database,
+        "DB_PATH",
+        tmp_path / "public-health.db",
+    )
+    database.init_db()
 
+    health_status, _, health_body = asyncio.run(
+        _request("/health")
+    )
+    home_status, home_headers, _ = asyncio.run(
+        _request("/")
+    )
+    static_status, _, _ = asyncio.run(
+        _request("/static/quests.css")
+    )
+
+    health_payload = json.loads(health_body)
     assert health_status == 200
-    assert health_body == b'{"status":"ok","version":"0.3.0-client-hunting-mvp"}'
+    assert health_payload["status"] == "ok"
+    assert health_payload["version"] == "0.5.0-observability"
+    assert health_payload["checks"]["database"]["status"] == "ok"
     assert home_status == 303
-    assert _header_values(home_headers, b"location") == [b"/login?next=/"]
+    assert _header_values(
+        home_headers,
+        b"location",
+    ) == [b"/login?next=/"]
     assert static_status == 200
 
 

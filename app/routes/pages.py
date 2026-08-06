@@ -3,9 +3,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
+from app import database
 from app.database import get_db
 from app.routes.shared import load_system_state, templates
 from app.services.access_control import is_owner
+from app.services.operations_monitoring import build_health_response
 from app.services.personal_scope import request_user_id
 
 
@@ -175,8 +177,7 @@ def life_os(request: Request):
 
 
 @router.get("/health")
-def health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "version": "0.3.0-client-hunting-mvp",
-    }
+def health():
+    return build_health_response(
+        database.DB_PATH
+    )
