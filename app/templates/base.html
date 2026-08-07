@@ -21,6 +21,8 @@
 <body>
 {% set current_user = request.state.current_user %}
 {% set current_workspace = request.state.current_workspace %}
+{% set authorized_workspaces = request.state.authorized_workspaces %}
+{% set is_business_workspace_path = request.url.path.startswith('/crm') or request.url.path.startswith('/relationship-manager') %}
 
 {% if current_user %}
 <button
@@ -217,10 +219,7 @@
                     MARK OS Fieldbook
                 </span>
                 <strong class="fieldbook-context-title">
-                    {% if
-                        request.url.path.startswith('/crm')
-                        or request.url.path.startswith('/relationship-manager')
-                    %}
+                    {% if is_business_workspace_path %}
                         Business workspace:
                         {{ current_workspace.name if current_workspace else 'Pending workspace' }}
                     {% else %}
@@ -229,25 +228,31 @@
                 </strong>
             </div>
             <div class="fieldbook-context-meta">
+                {% if
+                    is_business_workspace_path
+                    and current_user.role == 'owner'
+                    and authorized_workspaces|length > 1
+                %}
+                <form method="post" action="/workspace/select" class="is-flex is-align-items-center" style="gap: .4rem;">
+                    <input type="hidden" name="next" value="{{ request.url.path }}">
+                    <div class="select is-small">
+                        <select name="organization_id" aria-label="Business workspace">
+                            {% for workspace in authorized_workspaces %}
+                            <option value="{{ workspace.id }}" {% if current_workspace and workspace.id == current_workspace.id %}selected{% endif %}>
+                                {{ workspace.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button class="button is-small is-light" type="submit">Switch</button>
+                </form>
+                <span class="fieldbook-context-dot" aria-hidden="true"></span>
+                {% endif %}
                 <span>{{ current_user.display_name }}</span>
-                <span
-                    class="fieldbook-context-dot"
-                    aria-hidden="true"
-                ></span>
+                <span class="fieldbook-context-dot" aria-hidden="true"></span>
                 <span>
-                    {% if
-                        request.url.path.startswith('/crm')
-                        or request.url.path.startswith('/relationship-manager')
-                    %}
-                        {{
-                            (
-                                current_workspace.membership_role
-                                if current_workspace
-                                else current_user.role
-                            )
-                            |replace('_', ' ')
-                            |title
-                        }}
+                    {% if is_business_workspace_path %}
+                        {{ current_user.workspace_display_role }}
                     {% else %}
                         {{ current_user.role|replace('_', ' ')|title }}
                     {% endif %}

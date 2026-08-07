@@ -28,6 +28,7 @@ from app.routes import (
     quests,
     relationship_manager,
     users,
+    workspaces,
 )
 from app.services.access_control import (
     can_access_request,
@@ -154,6 +155,26 @@ async def login_and_permission_guard(request: Request, call_next):
             status_code=403,
         )
 
+    if bool(user.get("must_change_password")) and path not in {
+        "/account/password",
+        "/logout",
+    }:
+        log_security_event(
+            "password_change_required",
+            request,
+            user=user,
+            status_code=303 if method in {"GET", "HEAD"} else 403,
+        )
+        if method in {"GET", "HEAD"}:
+            return RedirectResponse(
+                url="/account/password",
+                status_code=303,
+            )
+        return PlainTextResponse(
+            "Forbidden",
+            status_code=403,
+        )
+
     if user["role"] in {"owner", "member"}:
         with get_db() as db:
             ensure_personal_workspace(db, int(user["id"]))
@@ -207,4 +228,5 @@ app.include_router(client_hunting.router)
 app.include_router(lead_research.router)
 app.include_router(relationship_manager.router)
 app.include_router(users.router)
+app.include_router(workspaces.router)
 app.include_router(pages.router)

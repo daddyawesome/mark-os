@@ -696,7 +696,8 @@ def test_relationship_home_renders_assigned_playbook_and_queues(
     assert response.status_code == 200
     assert "Junmar Home Playbook" in body
     assert "Approved outreach" in body
-    assert "do not mark a lead Contacted yet" in body
+    assert "Relationship boundary:" in body
+    assert "workspace owner" in body
 
 
 def test_internal_playbook_source_is_git_ignored():

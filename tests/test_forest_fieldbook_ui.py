@@ -55,9 +55,10 @@ def test_base_renders_read_only_fieldbook_workspace_context():
     assert "Personal workspace" in base
 
     context = base.split('<header\n            class="fieldbook-context"', 1)[1].split("</header>", 1)[0]
-    assert "<form" not in context
-    assert "<select" not in context
-    assert "organization_id" not in context
+    assert 'action="/workspace/select"' in context
+    assert 'name="organization_id"' in context
+    assert "current_user.role == 'owner'" in context
+    assert "authorized_workspaces|length > 1" in context
 
 
 def test_crm_metrics_use_sticky_note_fieldbook_classes():

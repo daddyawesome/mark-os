@@ -90,12 +90,29 @@ def new_user_page(
     request: Request,
     message: str | None = None,
     error: str | None = None,
+    preset: str | None = None,
 ):
+    normalized_preset = (preset or "").strip().casefold()
+    preset_values = {
+        "pendang-owner": {
+            "role": "relationship_manager",
+            "workspace_slug": "pendang",
+            "membership_role": "workspace_owner",
+            "label": "Pendang Workspace Owner / Managing Director",
+        },
+        "pendang-researcher": {
+            "role": "lead_sourcer",
+            "workspace_slug": "pendang",
+            "membership_role": "crm_contributor",
+            "label": "Pendang Lead Researcher",
+        },
+    }.get(normalized_preset)
     with get_db() as db:
         context = {
             **_shared_context(db, request),
             "message": message,
             "error": error,
+            "onboarding_preset": preset_values,
         }
     return templates.TemplateResponse(
         request=request,

@@ -4,7 +4,56 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.6B-6 — Workspace Switching UI and Pendang Launch Surface
+**Immediate next milestone:** Phase 6.6B-7 — Optimistic CRM Edit Protection
+
+<!-- PHASE_6_6B6_COMPLETION_START -->
+**6.6B-6 Status: ✅ COMPLETE — Workspace Switching UI and Pendang Launch Surface**
+
+Completed:
+- Added a server-validated `POST /workspace/select` action.
+- Only the global Owner may use the workspace switch action.
+- Mark sees a Forest Fieldbook workspace selector when more than one authorized
+  business workspace is available.
+- Single-workspace CRM staff do not receive a workspace selector and remain
+  locked to their authorized workspace.
+- Workspace switching accepts only the authenticated user's active membership
+  and rejects unauthorized organization IDs without changing session state.
+- Workspace switch redirects are restricted to safe local CRM destinations.
+- Added clear active-workspace role labels, including:
+  - `Pendang Administrator`
+  - `Pendang Workspace Owner / Managing Director`
+  - `Pendang Lead Researcher`
+  - `Pendang Relationship Manager`
+- Pendang CRM pages now clearly state that records and queues are isolated from
+  MARK Agency.
+- A Pendang `workspace_owner` Relationship Manager now lands directly in the
+  Pendang CRM instead of the Relationship Manager contributor landing page.
+- Updated Relationship Manager and CRM copy so Pendang workspace-owner
+  authority is represented accurately without implying global MARK-OS Owner
+  authority.
+- Added Owner onboarding presets for:
+  - Pendang Workspace Owner / Managing Director
+  - Pendang Lead Researcher
+- No production usernames or passwords are stored in source control.
+- Newly managed accounts now receive a temporary password state and must replace
+  that password at first sign-in.
+- Owner-issued password resets also become temporary passwords and require
+  replacement at the next sign-in.
+- Added authenticated self-service password change with current-password
+  verification, minimum password validation, password-reuse prevention, session
+  version increment, and preservation of only the newly refreshed session.
+- Users with a required password change cannot use otherwise-authorized MARK-OS
+  pages or write actions until the password is replaced.
+- Existing authorization denials still take precedence, preserving safe
+  forbidden/redirect behavior for routes the user was never authorized to use.
+
+**Next substep: 6.6B-7 — Optimistic CRM Edit Protection**
+- Add an additive lead row-version token.
+- Require organization ID + lead ID + expected row version on mutable CRM edits.
+- Reject stale edits without silently overwriting a newer staff change.
+- Preserve short SQLite transactions and the current workspace boundary.
+<!-- PHASE_6_6B6_COMPLETION_END -->
+
 
 <!-- PHASE_6_6B5_COMPLETION_START -->
 **6.6B-5 Status: ✅ COMPLETE — Pendang Staff Membership Authority and Revocation**
@@ -207,7 +256,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 505 passed after Phase 6.6B-5 Pendang membership authority and revocation
+**Last verified full-suite baseline:** 512 passed after Phase 6.6B-6 workspace switching and Pendang launch surface
 
 ---
 
@@ -3205,6 +3254,42 @@ backup.
 
 
 
+
+
+## 2026-08-07 — Make workspace identity visible and temporary credentials one-time
+
+**Decision:**
+
+- expose business workspace switching only to the global Owner;
+- keep workspace selection as a server-side membership-validated POST rather
+  than trusting a posted slug, organization ID, or client-side state;
+- show single-workspace staff their active workspace and effective title without
+  a switch control;
+- label Pendang workspace authority explicitly in the Forest Fieldbook UI so
+  `workspace_owner` is not confused with global MARK-OS Owner;
+- send a Pendang workspace-owner Relationship Manager directly to `/crm`;
+- add Owner-side Pendang account presets that fill role/workspace authority but
+  never contain a real username or password;
+- treat every managed-account creation and Owner password reset as a temporary
+  credential;
+- force temporary-password users through an authenticated password-change gate
+  before otherwise-authorized work;
+- verify the current password, require a different valid replacement, increment
+  `session_version`, and re-sign only the successful current session;
+- preserve existing authorization-denial behavior before applying the
+  temporary-password gate.
+
+**Reason:**
+
+- Mark must always know whether CRM actions target MARK Agency or Pendang;
+- Rey and Freddy should not have a workspace control when they have only one
+  authorized business workspace;
+- workspace-owner authority must be understandable without granting or
+  suggesting global Owner access;
+- source-controlled or reusable staff passwords would undermine the otherwise
+  revocable membership model;
+- password resets must revoke old sessions while still giving the intended user
+  a controlled first-login path.
 
 ## 2026-08-07 — Separate global identity from revocable workspace authority
 

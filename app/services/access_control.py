@@ -179,6 +179,8 @@ def is_personal_user(user: Mapping[str, Any] | None) -> bool:
 def landing_path_for_user(user: Mapping[str, Any]) -> str:
     if is_personal_user(user):
         return "/"
+    if is_workspace_owner_manager(user):
+        return "/crm"
     if is_relationship_manager(user):
         return "/relationship-manager"
     return "/crm"
@@ -217,6 +219,12 @@ def can_access_request(
 
     normalized_method = (method or "").upper()
     normalized_path = path or "/"
+
+    if (
+        normalized_path == "/account/password"
+        and normalized_method in {"GET", "HEAD", "POST"}
+    ):
+        return True
 
     if is_member(user):
         if normalized_method in {"GET", "HEAD"}:

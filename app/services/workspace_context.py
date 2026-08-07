@@ -230,6 +230,47 @@ def load_crm_actor_for_workspace(
     actor["current_workspace"] = dict(membership)
     return actor
 
+
+def workspace_display_role(user: Mapping[str, Any] | None) -> str:
+    """Return a clear UI label for the active workspace authority."""
+    if user is None:
+        return ""
+
+    global_role = str(user.get("role") or "").strip().casefold()
+    workspace = user.get("current_workspace")
+    if not isinstance(workspace, Mapping):
+        return global_role.replace("_", " ").title()
+
+    slug = str(workspace.get("slug") or "").strip().casefold()
+    membership_role = str(
+        workspace.get("membership_role") or ""
+    ).strip().casefold()
+
+    if slug == "pendang":
+        if global_role == "owner":
+            return "Pendang Administrator"
+        if (
+            global_role == "relationship_manager"
+            and membership_role == "workspace_owner"
+        ):
+            return "Pendang Workspace Owner / Managing Director"
+        if global_role == "lead_sourcer":
+            return "Pendang Lead Researcher"
+        if global_role == "relationship_manager":
+            return "Pendang Relationship Manager"
+
+    if slug == "mark-agency":
+        if global_role == "owner":
+            return "MARK Agency Administrator"
+        if global_role == "lead_sourcer":
+            return "MARK Agency Lead Researcher"
+        if global_role == "relationship_manager":
+            return "Business Development Collaborator / Relationship Manager"
+
+    if membership_role:
+        return membership_role.replace("_", " ").title()
+    return global_role.replace("_", " ").title()
+
 def request_current_workspace(request: Request) -> dict[str, Any] | None:
     workspace = getattr(request.state, "current_workspace", None)
     return workspace if isinstance(workspace, dict) else None

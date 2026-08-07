@@ -27,6 +27,30 @@
 <div class="notification is-danger is-light">{{ error }}</div>
 {% endif %}
 
+<div class="columns is-multiline mb-5">
+    <div class="column is-half">
+        <a class="mark-card p-4 is-block" href="/settings/users/new?preset=pendang-owner">
+            <p class="mark-kicker">Pendang launch preset</p>
+            <strong>Pendang Workspace Owner / Managing Director</strong>
+            <p class="mark-muted is-size-7 mt-2">Relationship Manager + Pendang workspace_owner. Never global Owner.</p>
+        </a>
+    </div>
+    <div class="column is-half">
+        <a class="mark-card p-4 is-block" href="/settings/users/new?preset=pendang-researcher">
+            <p class="mark-kicker">Pendang launch preset</p>
+            <strong>Pendang Lead Researcher</strong>
+            <p class="mark-muted is-size-7 mt-2">Lead Sourcer + Pendang CRM Contributor.</p>
+        </a>
+    </div>
+</div>
+{% if onboarding_preset %}
+<div class="notification is-mark">
+    Preset loaded: <strong>{{ onboarding_preset.label }}</strong>.
+    Enter the person's own username and a unique temporary password. MARK OS
+    will require them to replace that password on first sign-in.
+</div>
+{% endif %}
+
 <div class="columns is-centered">
     <div class="column is-7">
         <div class="mark-card p-5">
@@ -38,13 +62,13 @@
                     <label class="label" for="role">Account type</label>
                     <div class="select is-fullwidth">
                         <select id="role" name="role" required>
-                            <option value="member">
+                            <option value="member" {% if onboarding_preset and onboarding_preset.role == 'member' %}selected{% endif %}>
                                 Family Member — personal MARK OS
                             </option>
-                            <option value="lead_sourcer">
+                            <option value="lead_sourcer" {% if onboarding_preset and onboarding_preset.role == 'lead_sourcer' %}selected{% endif %}>
                                 Lead Sourcer — research CRM
                             </option>
-                            <option value="relationship_manager">
+                            <option value="relationship_manager" {% if onboarding_preset and onboarding_preset.role == 'relationship_manager' %}selected{% endif %}>
                                 Relationship Manager — playbook + CRM
                             </option>
                         </select>
@@ -58,8 +82,8 @@
                     <label class="label" for="workspace_slug">Business workspace</label>
                     <div class="select is-fullwidth">
                         <select id="workspace_slug" name="workspace_slug">
-                            <option value="mark-agency">MARK Agency</option>
-                            <option value="pendang">Pendang Research &amp; Analytics</option>
+                            <option value="mark-agency" {% if not onboarding_preset or onboarding_preset.workspace_slug == 'mark-agency' %}selected{% endif %}>MARK Agency</option>
+                            <option value="pendang" {% if onboarding_preset and onboarding_preset.workspace_slug == 'pendang' %}selected{% endif %}>Pendang Research &amp; Analytics</option>
                         </select>
                     </div>
                     <p class="help">Used only for CRM staff accounts.</p>
@@ -69,8 +93,8 @@
                     <label class="label" for="membership_role">Workspace authority</label>
                     <div class="select is-fullwidth">
                         <select id="membership_role" name="membership_role">
-                            <option value="crm_contributor">CRM Contributor</option>
-                            <option value="workspace_owner">Workspace Owner</option>
+                            <option value="crm_contributor" {% if not onboarding_preset or onboarding_preset.membership_role == 'crm_contributor' %}selected{% endif %}>CRM Contributor</option>
+                            <option value="workspace_owner" {% if onboarding_preset and onboarding_preset.membership_role == 'workspace_owner' %}selected{% endif %}>Workspace Owner</option>
                         </select>
                     </div>
                     <p class="help">Lead Researchers are always CRM Contributors. Workspace Owner is valid only for a Relationship Manager such as Pendang's Managing Director.</p>
@@ -115,7 +139,7 @@
                                required>
                     </div>
                     <p class="help">
-                        Use at least 10 characters and share it privately.
+                        Use at least 10 characters, make it unique, and share it privately. The user must replace it at first sign-in.
                     </p>
                 </div>
 

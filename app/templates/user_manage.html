@@ -35,6 +35,7 @@
             <div class="content mark-muted">
                 <p><strong>Role:</strong> {{ managed_user.role|replace('_', ' ')|title }}</p>
                 <p><strong>Status:</strong> {{ "Active" if managed_user.active else "Disabled" }}</p>
+                <p><strong>Password state:</strong> {{ "Temporary — change required" if managed_user.must_change_password else "Private password set" }}</p>
                 <p><strong>Last login:</strong> {{ managed_user.last_login_at or "Never" }}</p>
                 <p><strong>Created:</strong> {{ managed_user.created_at }}</p>
                 <p><strong>Active leads:</strong> {{ managed_user.active_lead_count }}</p>
@@ -115,8 +116,9 @@
             <p class="mark-kicker">Security</p>
             <h2 class="title is-4 mt-2">Reset password</h2>
             <p class="mark-muted mb-5">
-                The new password is never displayed again. All existing sessions
-                for this user are revoked after reset.
+                The temporary password is never displayed again. All existing
+                sessions are revoked, and the user must replace the temporary
+                password at the next sign-in.
             </p>
 
             <form method="post"
@@ -152,7 +154,7 @@
                 </div>
 
                 <button class="button is-mark is-fullwidth" type="submit">
-                    Reset password and revoke sessions
+                    Issue temporary password and revoke sessions
                 </button>
             </form>
         </div>

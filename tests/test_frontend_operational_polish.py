@@ -88,7 +88,8 @@ def test_crm_copy_is_shorter_and_operational():
         "app/templates/lead_detail.html"
     )
 
-    assert "CRM · Opportunity pipeline" in client
+    assert "Opportunity pipeline" in client
+    assert "current_workspace.name" in client
     assert "Review leads and move the pipeline." in client
     assert "Research leads and submit clean work." in client
 

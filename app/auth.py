@@ -14,7 +14,10 @@ from app.services.users import (
     get_active_user_by_id,
     has_active_users,
 )
-from app.services.workspace_context import resolve_workspace_session
+from app.services.workspace_context import (
+    resolve_workspace_session,
+    workspace_display_role,
+)
 
 
 SESSION_USER_ID_KEY = "mark_os_user_id"
@@ -127,6 +130,7 @@ def current_user(request: Request) -> dict[str, Any] | None:
 
     user["current_workspace"] = current_workspace
     user["authorized_workspaces"] = authorized
+    user["workspace_display_role"] = workspace_display_role(user)
     return user
 
 

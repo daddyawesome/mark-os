@@ -5,7 +5,7 @@ from typing import Any
 
 from app.db.family_workspace import ensure_personal_workspace
 from app.db.organizations import MEMBERSHIP_ROLES, organization_id_by_slug
-from app.services.passwords import hash_password
+from app.services.passwords import hash_password, verify_password
 
 
 MAX_USERNAME_LENGTH = 50
@@ -406,7 +406,7 @@ def create_managed_user(
                 must_change_password,
                 session_version
             )
-            VALUES (?, ?, ?, ?, 1, 0, 1)
+            VALUES (?, ?, ?, ?, 1, 1, 1)
             """,
             (
                 clean_username,
@@ -639,7 +639,7 @@ def reset_user_password(
         """
         UPDATE users
         SET password_hash = ?,
-            must_change_password = 0,
+            must_change_password = 1,
             session_version = session_version + 1,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
@@ -651,3 +651,54 @@ def reset_user_password(
     if managed is None:
         raise RuntimeError("Updated user could not be reloaded.")
     return managed
+
+def change_own_password(
+    db: sqlite3.Connection,
+    *,
+    user_id: int,
+    current_password: str,
+    password: str,
+    password_confirmation: str,
+) -> dict[str, Any]:
+    """Replace the authenticated user's password and revoke other sessions."""
+    safe_user_id = _positive_id(user_id, "User ID")
+    safe_password = _validated_password(password, password_confirmation)
+    row = db.execute(
+        """
+        SELECT id, password_hash
+        FROM users
+        WHERE id = ? AND active = 1
+        """,
+        (safe_user_id,),
+    ).fetchone()
+    if row is None:
+        raise ValueError("User not found.")
+    if not verify_password(current_password, row["password_hash"]):
+        raise ValueError("Current password is incorrect.")
+    if verify_password(safe_password, row["password_hash"]):
+        raise ValueError("Choose a new password that differs from the current password.")
+
+    db.execute(
+        """
+        UPDATE users
+        SET password_hash = ?,
+            must_change_password = 0,
+            session_version = session_version + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (hash_password(safe_password), safe_user_id),
+    )
+    updated = db.execute(
+        """
+        SELECT id, username, display_name, role, active,
+               must_change_password, session_version,
+               last_login_at, created_at, updated_at
+        FROM users
+        WHERE id = ?
+        """,
+        (safe_user_id,),
+    ).fetchone()
+    if updated is None:
+        raise RuntimeError("Updated user could not be reloaded.")
+    return dict(updated)
