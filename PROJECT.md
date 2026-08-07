@@ -2,9 +2,41 @@
 
 **Canonical project document**  
 **Repository:** `https://github.com/daddyawesome/mark-os`  
-**Reviewed against `main`:** 2026-08-06
+**Reviewed against `main`:** 2026-08-08
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.6B-8B — Production-Copy Migration Rehearsal
+**Immediate next milestone:** Deploy Phase 6.6C and finish Pendang real-user acceptance
+
+
+<!-- PHASE_6_6C_COMPLETION_START -->
+**6.6C Status: ✅ IMPLEMENTATION COMPLETE — Production Acceptance Required**
+
+Completed locally:
+- Added a dedicated `/pendang` company home.
+- Moved the Founder Plan from a static CRM block into organization-scoped,
+  database-backed company knowledge.
+- Added editable About / Company CV, services and pricing notes, historical
+  projects, case studies, warm relationships, manual content drafts, meeting
+  preparation, and shared company-document links.
+- Pendang CRM contributors can read company knowledge but cannot mutate it.
+- Global Owner and Pendang workspace-owner/admin authority can manage company
+  knowledge after database-backed membership revalidation.
+- Added optimistic `row_version` protection for company profile and knowledge
+  writes.
+- Added only generic Pendang service categories as seed data; no client history,
+  price claims, case studies, relationships, or credentials are fabricated.
+- Rey/Freddy-style Pendang users now resolve `/pendang` as their post-password
+  landing page; MARK Agency staff keep their prior landing behavior.
+- Full local test suite verification: **531 passed**.
+
+Required production acceptance:
+- deploy the additive migration through the existing Railway release process;
+- confirm `/health`;
+- have Rey and Freddy replace their temporary passwords;
+- verify both land on Pendang Home;
+- smoke-test Rey's company-content write authority and Freddy's read-only view;
+- complete the already-required real Pendang lead/review/next-action acceptance
+  gates before calling the Pendang launch operationally complete.
+<!-- PHASE_6_6C_COMPLETION_END -->
 
 <!-- PHASE_6_6B8A_COMPLETION_START -->
 **6.6B-8A Status: ✅ ACCEPTANCE HARNESS READY — Production-Copy Rehearsal Required**
@@ -324,7 +356,7 @@ Completed foundation:
 - Keep CRM workspace filtering, permissions, queues, and UI for later substeps.
 <!-- PHASE_6_6B1_COMPLETION_END -->
 
-**Immediate next milestone:** Phase 6.6B-2 — Lead Organization Migration
+**Immediate next milestone:** Deploy Phase 6.6C and finish Pendang real-user acceptance
 
 <!-- PHASE_6_6B1_COMPLETION_START -->
 **6.6B-1 Status: ✅ COMPLETE**
@@ -355,7 +387,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 522 passed after Phase 6.6B-8A acceptance/rehearsal harness
+**Last verified full-suite baseline:** 531 passed after Phase 6.6C Pendang Company Knowledge and Marketing
 
 ---
 
@@ -389,7 +421,7 @@ Use this file to understand:
 - the future agency, product-hardening, and AI plans.
 
 When the project changes, update this file instead of creating another
-standalone roadmap or handoff document.
+standalone roadmap, install guide, release runbook, or handoff document.
 
 ---
 
@@ -530,12 +562,14 @@ mark-os/
 │   ├── database.py
 │   └── main.py
 ├── data/
-├── docs/
 ├── tests/
+├── .agents/
+├── AGENTS.md
+├── PROJECT.md
+├── README.md
+├── THIRD_PARTY_NOTICES.md
 ├── .env.example
 ├── .gitignore
-├── INSTALL.md
-├── README.md
 ├── railway.json
 ├── requirements.txt
 └── run.ps1
@@ -1212,7 +1246,7 @@ timeline history.
 | Tested production backup and restore process | Phase 6.2 |
 | Due, overdue, waiting, and stale-lead command center | Phase 6.4 |
 | Production health and error alerts | Phase 6.5 |
-| Safe bulk preview, assignment, import, and export | Phase 6.6 (6.6C onward) |
+| Safe bulk preview, assignment, import, and export | Phase 6.6 (6.6D onward) |
 | Pendang CRM workspace and staff launch | Phase 6.6B |
 | Deterministic approved outreach templates | Phase 6.7 |
 | Research effort and webhook intake | Phase 6.8 |
@@ -1401,7 +1435,7 @@ agency requirement, so Backup and Disaster Recovery becomes Phase 6.2.
 | Phase 7.4 | Phase 6.7 | Outreach Templates and Approval Controls |
 | Phase 6.9 | Phase 6.8 | Lead-Sourcing Effort Tracking and Webhook Intake |
 | Phase 6.5 | Phase 6.9 | Discovery and Qualification |
-| Phase 6.6 | Phase 6.10 | Proposal Management |
+| Phase 6.6 | Active — 6.6A–6.6C implementation complete | Bulk preview, isolated Pendang CRM, and Pendang company knowledge; production acceptance and remaining bulk work next |
 | Phase 6.7 | Phase 6.11 | Client Onboarding and Delivery |
 | Phase 6.8 | Phase 6.12 | Retainers, Invoicing, and Profitability |
 | Phase 6.10 | Phase 6.13 | Delegated Outreach Permission |
@@ -1746,7 +1780,7 @@ correlation ID. Use View in Context only after identifying the safe event.
 
 ## Phase 6.6 — Bulk Lead Management and CRM Workspaces
 
-**Status:** Active — 6.6A complete; 6.6B is the immediate next milestone  
+**Status:** Active — 6.6A–6.6C implementation complete; production acceptance next
 **MoSCoW:** Should have soon
 
 ### Goal
@@ -1790,10 +1824,12 @@ Upload CSV
 
 - [x] 6.6A — Bulk lead import preview, row validation, and duplicate warnings
       without database writes
-- [ ] 6.6B — Pendang CRM workspace and staff launch
-- [ ] 6.6C — Selective row import with permission-scoped assignment
-- [ ] 6.6D — Bulk submission, CSV/JSON export, and approved-leads export
-- [ ] 6.6E — Downloadable CRM backup and phase verification
+- [x] 6.6B — Pendang CRM workspace foundation, staff authority, isolation,
+      optimistic edits, and release rehearsal harness
+- [x] 6.6C — Pendang Company Knowledge and Marketing workspace
+- [ ] 6.6D — Selective row import with permission-scoped assignment
+- [ ] 6.6E — Bulk submission, CSV/JSON export, and approved-leads export
+- [ ] 6.6F — Downloadable CRM backup and phase verification
 
 ### Phase 6.6B — Pendang CRM Workspace and Staff Launch
 
@@ -1949,6 +1985,32 @@ isolation from MARK Agency.
 - duplicate detection is scoped to the active organization;
 - relevant permission and isolation tests pass;
 - full test suite passes.
+
+
+### Phase 6.6C — Pendang Company Knowledge and Marketing
+
+**Status:** Implementation complete — production acceptance required
+
+Delivered inside the existing Pendang workspace:
+
+- dedicated `/pendang` company home and Pendang-specific shell navigation;
+- editable Founder Plan, About, and Company CV;
+- organization-scoped services/pricing, historical projects, case studies,
+  warm relationships, manual Content Studio drafts, meeting preparation, and
+  shared company-document links;
+- server-side active Pendang membership revalidation for every read/write;
+- read access for Pendang CRM contributors;
+- write authority only for global Owner / Pendang workspace-admin or
+  workspace-owner authority;
+- optimistic row-version protection for company profile and knowledge edits;
+- additive/idempotent SQLite tables, indexes, and safe Pendang seed content;
+- no AI publishing, external action, file-upload storage, or fabricated client
+  history introduced by this phase;
+- Pendang staff now land on `/pendang` after completing the required temporary
+  password change.
+
+Production acceptance still requires deploying the additive migration, checking
+`/health`, and completing the real Rey/Freddy login and role smoke tests.
 
 ## Phase 6.7 — Outreach Templates and Approval Controls
 
@@ -3250,7 +3312,7 @@ backup.
 ## Should have soon
 
 - Phase 6.6B Pendang CRM workspace and staff launch;
-- Phase 6.6 bulk selective import, assignment, export, and backup (6.6C onward);
+- Phase 6.6 bulk selective import, assignment, export, and backup (6.6D onward);
 - Phase 6.7 deterministic approved outreach templates;
 - Phase 6.8 effort tracking and authenticated webhook intake;
 - Phase 7.1 security and audit hardening after the immediate operational risks;
@@ -3323,7 +3385,7 @@ backup.
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
 | Phase 6.4 | Complete | Follow-up Command Center, role-scoped filters, Manila boundaries, and safe empty states |
 | Phase 6.5 | Complete | Structured errors, correlation IDs, database-aware health, backup and uptime alerts, 24-hour count, and Railway runbook |
-| Phase 6.6 | Active — 6.6A complete; 6.6B next | Bulk lead preview (6.6A complete); Pendang CRM workspace launch (6.6B next); remaining bulk import/export work (6.6C onward) |
+| Phase 6.6 | Active — 6.6A complete; 6.6B next | Bulk lead preview (6.6A complete); Pendang CRM workspace launch (6.6B next); remaining bulk import/export work (6.6D onward) |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
 | Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
 | Phase 6.9 | Trigger-based | Discovery and Qualification |
@@ -3355,6 +3417,72 @@ backup.
 
 
 
+
+
+
+
+## 2026-08-08 — Make Pendang company knowledge a workspace-owned surface
+
+**Decision:**
+
+- make `/pendang` the company home for authenticated users whose active business
+  workspace is Pendang;
+- keep MARK-OS as the underlying application, security boundary, and source of
+  operational truth;
+- store Founder Plan, About / Company CV, services, historical projects, case
+  studies, warm relationships, content drafts, meeting preparation, and document
+  references under the Pendang organization rather than as global records;
+- allow Pendang CRM contributors to read verified company knowledge while
+  reserving writes for Owner/workspace-owner or workspace-admin authority;
+- revalidate membership in the database for company-content operations and use
+  optimistic row versions for concurrent edits;
+- keep Content Studio manual in this phase and do not trigger AI generation,
+  publishing, outreach, or other external actions;
+- store document references/links only in this phase rather than introducing a
+  new file-upload subsystem;
+- do not seed invented prices, clients, historical projects, case studies, or
+  relationships.
+
+**Reason:**
+
+- Rey and Freddy need one shared company context immediately after onboarding;
+- company knowledge must follow the same organization isolation model as CRM
+  data instead of becoming a second Pendang application;
+- verified content can grow incrementally without weakening production safety or
+  creating another framework/runtime to maintain.
+
+## 2026-08-08 — Pull forward a read-only Pendang Founder Plan surface
+
+**Decision:**
+
+- add the already-drafted Pendang Founder Plan as a read-only onboarding and
+  alignment surface inside the Pendang CRM;
+- keep the editable/database-backed Founder Plan and the broader About,
+  Services, projects, case studies, documents, and Content Studio work in the
+  remaining Phase 6.6C scope;
+- show the Founder Plan only when the authenticated active workspace is
+  `pendang`;
+- use the established founder direction:
+  - Rey — Managing Director / Chief Statistical Officer;
+  - Mark — Co-Founder / Chief Technology & Data Officer;
+  - Freddy — Senior Statistical Consultant / Lead Researcher;
+  - focus on research/statistics, data/BI, data engineering/automation, and
+    practical AI;
+  - target researchers/universities, healthcare, NGOs, and SMEs;
+  - keep one operating history in MARK-OS;
+  - first objective: Leads → Clients → Projects → Payment → Referrals;
+- replace the visible `MARK OS Fieldbook` identity with Pendang-specific
+  branding while the active business workspace is Pendang;
+- retain MARK-OS as the underlying application and security boundary.
+
+**Reason:**
+
+- Rey and Freddy can see the company direction immediately after completing
+  their temporary-password change;
+- displaying existing founder guidance does not require a new company-content
+  database or weaken CRM workspace isolation;
+- Pendang should feel like its own business workspace rather than a MARK Agency
+  page with a different dataset.
 
 
 ## 2026-08-07 — Require production-copy rehearsal before Pendang onboarding
@@ -4077,41 +4205,525 @@ Reason:
 
 ---
 
-# 20. Documentation Consolidation Plan
+# 20. Documentation and Operations Runbooks
 
-After reviewing and committing this file, make it the canonical detailed
-documentation.
+## 20.1 Canonical documentation policy
 
-Recommended repository arrangement:
-
-```text
-README.md       # short public introduction with a link to PROJECT.md
-PROJECT.md      # all detailed project documentation
-```
-
-The old detailed files can then be removed after confirming that no unique
-information is missing.
-
-Suggested cleanup candidates:
+The repository uses two human-facing project documents:
 
 ```text
-INSTALL.md
-docs/AI_ARCHITECTURE.md
-docs/AI_ARCHITECTURE_V2.md
-docs/CODEX_CONTINUE_MARK_OS_PHASE_5.md
-docs/MARK_OS_COMPLETE_PROJECT_HANDOFF.md
-docs/PHASE_4_REVISED_DOD.md
-docs/PROJECT_ROADMAP.md
+README.md   # short public entry point and local quick start
+PROJECT.md  # canonical detailed project and operations guide
 ```
 
-Do not delete them before reviewing the `git diff` for `PROJECT.md`.
+Repository-specific coding-agent instructions remain separate because they are
+executable project constraints rather than duplicate product documentation:
 
-A minimal README should retain:
+```text
+AGENTS.md
+.agents/skills/README.md
+.agents/skills/mark-os-ui/SKILL.md
+.agents/skills/mark-os-ui/DESIGN.md
+.agents/skills/mark-os-htmx/SKILL.md
+```
 
-- one-paragraph product description;
-- test badge;
-- quick local-start commands;
-- link to `PROJECT.md`.
+`THIRD_PARTY_NOTICES.md` remains separate for attribution.
+
+Do not create new phase-specific install, roadmap, release-runbook, or handoff
+Markdown files. When durable project information changes, update `PROJECT.md`.
+Temporary release evidence belongs outside Git.
+
+## 20.2 Historical release verifiers that remain useful
+
+The old phase-specific installation documents are retired, but their verifier
+tools remain useful when reviewing legacy data or reproducing an older release
+boundary.
+
+### Family workspace verification
+
+```bash
+python tools/verify_m10_family_release.py
+```
+
+The verifier checks personal ownership, role boundaries, workspace integrity,
+and per-user uniqueness. Personal tables should report no unowned or orphaned
+records.
+
+### Phase 6.1 staff-workflow staging verification
+
+Never run migration rehearsal against the live Railway database. Use a verified
+snapshot or backup:
+
+```bash
+python tools/verify_phase_6_1_release.py \
+  --source-db /path/to/safe-snapshot.sqlite3 \
+  --run-tests
+```
+
+The verifier creates a staging copy, runs migrations and workflow canaries on
+the copy, checks integrity and foreign keys, and preserves the supplied source.
+
+### Relationship Manager / playbook verification
+
+Private sales playbooks remain outside Git. Import or update an approved local
+playbook through the existing importer:
+
+```bash
+python tools/import_playbook.py \
+  --file private_playbooks/JUNMAR_SALES_PLAYBOOK.md \
+  --slug junmar-sales-playbook \
+  --assign-username junmar
+```
+
+For a safe copied-database check:
+
+```bash
+python tools/verify_phase_6_1j_release.py \
+  --source-db /path/to/safe-snapshot.sqlite3 \
+  --output-dir "$HOME/mark-os-release-evidence"
+```
+
+Do not commit private playbook Markdown or generated release evidence.
+
+## 20.3 Standard release and rollback procedure
+
+Before a production deployment:
+
+```bash
+git status
+git log -1 --oneline
+python -m pytest -q
+```
+
+Confirm:
+
+```text
+working tree clean
+full suite passed
+database migration rehearsal passed when schema changed
+verified rollback backup exists
+Railway uses exactly one application instance while SQLite is production
+persistent-volume database path is confirmed
+```
+
+After deployment verify:
+
+```text
+/health returns HTTP 200
+Owner login works
+role-specific login and navigation work
+workspace isolation still holds
+one non-destructive CRM read/smoke check succeeds
+production logs show no new migration/startup failure
+```
+
+### Application-code rollback
+
+When the database remains healthy and a deployment has only an application or
+template defect:
+
+1. stop staff activity temporarily;
+2. record the failing deployment commit;
+3. redeploy the last known-good application commit;
+4. do not restore the database merely because application code was rolled back;
+5. verify `/health`, login, workspace selection, and CRM read access;
+6. preserve failed-state logs and evidence for diagnosis.
+
+### Database rollback
+
+Restore a database only for verified data corruption or a failed migration that
+changed production data incorrectly. Signals include a failed
+`PRAGMA quick_check`, foreign-key errors, or confirmed damaged records.
+
+Before replacing production data:
+
+1. stop application/staff writes;
+2. capture one final backup of the failed state;
+3. record its checksum and deployment commit;
+4. verify the selected recovery backup;
+5. restore into a **new filename**;
+6. inspect and smoke-test that restored database;
+7. switch `MARK_OS_DB_PATH` only after verification;
+8. retain both old and recovered databases until the incident is closed.
+
+## 20.4 Phase 6.2 backup and disaster recovery runbook
+
+MARK-OS production protection has three complementary layers:
+
+```text
+Railway volume snapshots
++ verified SQLite online backups
++ encrypted offsite copies
+```
+
+A backup is not proven until a restore into a new file succeeds.
+
+### Non-negotiable SQLite backup rules
+
+1. Never use plain `cp` on the live SQLite database while MARK-OS is running.
+2. Use SQLite's online backup API through `tools/backup_database.py`.
+3. Never restore directly over the configured live database file.
+4. Restore to a new filename, verify it, then switch `MARK_OS_DB_PATH` in a
+   controlled deployment.
+5. Keep at least one encrypted copy outside the Railway volume.
+6. Railway volume snapshots and logical SQLite backups complement each other.
+
+### Local backup and restore proof
+
+Create a backup:
+
+```bash
+python tools/backup_database.py
+```
+
+Find and verify the newest backup:
+
+```bash
+LATEST_BACKUP="$(ls -t data/backups/mark_os_*.sqlite3 | head -1)"
+echo "$LATEST_BACKUP"
+
+python tools/verify_database_backup.py \
+  --backup "$LATEST_BACKUP"
+```
+
+Restore into a new local database:
+
+```bash
+rm -f data/restore-test.sqlite3
+
+python tools/restore_database.py \
+  --backup "$LATEST_BACKUP" \
+  --destination data/restore-test.sqlite3
+```
+
+Start a temporary restored instance:
+
+```bash
+MARK_OS_DB_PATH="$PWD/data/restore-test.sqlite3" \
+uvicorn --env-file .env app.main:app \
+  --host 127.0.0.1 \
+  --port 8001
+```
+
+Verify `/health`, login, Users, CRM, workspace isolation, then stop the
+temporary instance.
+
+Automated release proof:
+
+```bash
+python tools/verify_phase_6_2_release.py \
+  --source-db data/mark_os.db \
+  --output-dir "$HOME/mark-os-release-evidence" \
+  --run-tests
+```
+
+Expected final status:
+
+```text
+Phase 6.2 verification PASSED
+```
+
+### Railway volume snapshot layer
+
+In Railway, keep the volume and database path aligned:
+
+```text
+RAILWAY_VOLUME_MOUNT_PATH=/app/data
+MARK_OS_DB_PATH=/app/data/mark_os.db
+MARK_OS_BACKUP_DIR=/app/data/backups
+```
+
+Create and retain a known-good manual volume snapshot and keep scheduled volume
+backups enabled. Volume snapshots are the preferred whole-volume rollback
+mechanism.
+
+### Railway verified SQLite online backup
+
+Link the CLI and open SSH:
+
+```bash
+railway login
+railway link
+railway service
+railway ssh
+```
+
+Inside Railway:
+
+```bash
+cd /app
+
+echo "$MARK_OS_DB_PATH"
+echo "$RAILWAY_VOLUME_MOUNT_PATH"
+
+python tools/backup_database.py \
+  --destination /app/data/backups \
+  --keep-last 14
+
+python tools/backup_status.py \
+  --directory /app/data/backups \
+  --max-age-hours 26
+```
+
+Copy the exact backup and manifest names printed by the command, then exit:
+
+```bash
+exit
+```
+
+Download both files:
+
+```bash
+mkdir -p "$HOME/mark-os-offsite/plaintext"
+
+railway service files download \
+  /app/data/backups/EXACT_BACKUP.sqlite3 \
+  "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3"
+
+railway service files download \
+  /app/data/backups/EXACT_BACKUP.sqlite3.json \
+  "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3.json"
+```
+
+Verify locally:
+
+```bash
+python tools/verify_database_backup.py \
+  --backup "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3"
+```
+
+The backup filename must continue to match the manifest.
+
+### Encrypted offsite copy
+
+Install GnuPG once on macOS:
+
+```bash
+brew install gnupg
+```
+
+Encrypt a verified downloaded backup:
+
+```bash
+mkdir -p "$HOME/mark-os-offsite/encrypted"
+
+python tools/encrypt_backup.py \
+  --backup "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3" \
+  --output "$HOME/mark-os-offsite/encrypted/EXACT_BACKUP.sqlite3.gpg"
+```
+
+Keep the `.gpg`, `.gpg.sha256`, and manifest in an offsite encrypted location.
+Never store the passphrase beside the backup.
+
+Test decryption before deleting plaintext:
+
+```bash
+gpg \
+  --output "$HOME/mark-os-offsite/restore-check.sqlite3" \
+  --decrypt "$HOME/mark-os-offsite/encrypted/EXACT_BACKUP.sqlite3.gpg"
+
+cp \
+  "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3.json" \
+  "$HOME/mark-os-offsite/restore-check.sqlite3.json"
+
+python tools/verify_database_backup.py \
+  --backup "$HOME/mark-os-offsite/restore-check.sqlite3"
+```
+
+If a temporary decrypted filename differs from the manifest filename, restore
+using the original filename in a temporary directory or follow the backup tool's
+manifest-validation rules. Do not weaken checksum verification merely to make a
+renamed file pass.
+
+### Production recovery from a logical SQLite backup
+
+Never overwrite `/app/data/mark_os.db` directly.
+
+On the Mac:
+
+```bash
+python tools/restore_database.py \
+  --backup "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3" \
+  --destination "$HOME/mark-os-offsite/mark_os_recovered.sqlite3"
+```
+
+Upload the recovered file into a separate Railway path:
+
+```bash
+railway service files upload \
+  "$HOME/mark-os-offsite/mark_os_recovered.sqlite3" \
+  /app/data/restores/mark_os_recovered.sqlite3
+```
+
+Change the Railway variable to the recovered path:
+
+```text
+MARK_OS_DB_PATH=/app/data/restores/mark_os_recovered.sqlite3
+```
+
+Redeploy and verify `/health`, users, CRM records, playbooks, and workspace
+isolation. Roll back by switching `MARK_OS_DB_PATH` to the previous verified
+file. Do not delete either database until the recovery decision is final.
+
+### Backup freshness and failure visibility
+
+Logical backup events are recorded under the configured backup directory.
+Check freshness and integrity:
+
+```bash
+python tools/backup_status.py \
+  --directory /app/data/backups \
+  --max-age-hours 26
+```
+
+A non-zero result means the backup is missing, stale, corrupt, or inconsistent
+with its manifest and must be investigated.
+
+Keep completion evidence outside Git:
+
+```text
+full pytest result
+verification JSON report
+Railway snapshot date/evidence
+downloaded SQLite backup + manifest
+encrypted offsite copy + checksum
+successful decrypt-and-restore test
+recovery target path
+rollback path
+```
+
+## 20.5 Google Drive offsite backup extension
+
+The Google Drive extension uses the existing verified SQLite backup service and
+`tools/backup_to_google_drive.py`.
+
+### Local rclone setup
+
+Install rclone:
+
+```bash
+brew install rclone
+rclone config
+```
+
+Recommended remote configuration:
+
+```text
+Remote name: gdrive
+Storage: drive
+Client ID: your own Google OAuth desktop client ID
+Client secret: your own Google OAuth client secret
+Scope: drive.file
+Service account: blank
+Browser authorization: yes
+Shared Drive: no
+```
+
+Create the backup folder with rclone so `drive.file` can access it:
+
+```bash
+rclone mkdir gdrive:MARK-OS-Backups
+rclone lsd gdrive:
+```
+
+Test locally:
+
+```bash
+python tools/backup_to_google_drive.py \
+  --source "$PWD/data/mark_os.db"
+```
+
+### Railway configuration
+
+The Railway runtime needs rclone available:
+
+```text
+RAILPACK_DEPLOY_APT_PACKAGES=rclone
+```
+
+Application variables:
+
+```text
+MARK_OS_GDRIVE_REMOTE=gdrive
+MARK_OS_GDRIVE_FOLDER=MARK-OS-Backups
+MARK_OS_GDRIVE_KEEP_LAST=14
+MARK_OS_BACKUP_PREFIX=mark_os
+```
+
+Transfer the values from `rclone config show gdrive` into sealed Railway
+variables:
+
+```text
+RCLONE_CONFIG_GDRIVE_TYPE=drive
+RCLONE_CONFIG_GDRIVE_CLIENT_ID=<client id>
+RCLONE_CONFIG_GDRIVE_CLIENT_SECRET=<client secret>
+RCLONE_CONFIG_GDRIVE_SCOPE=drive.file
+RCLONE_CONFIG_GDRIVE_TOKEN=<complete token JSON>
+```
+
+Never commit the rclone configuration, OAuth client secret, or token.
+
+### Railway manual test
+
+```bash
+railway ssh
+```
+
+Inside Railway:
+
+```bash
+cd /app
+rclone version
+rclone lsd gdrive:
+
+python tools/backup_to_google_drive.py \
+  --source /app/data/mark_os.db
+
+rclone lsl gdrive:MARK-OS-Backups
+```
+
+A successful run must verify the remote transfer and remove temporary Railway
+backup files.
+
+### Scheduling constraint
+
+The production SQLite volume belongs to the MARK-OS web service. Do not assume
+a separate cron service can directly read that mounted volume.
+
+The documented safe future automation pattern is:
+
+```text
+Railway cron service
+        |
+        | authenticated request
+        v
+MARK-OS web service protected backup endpoint
+        |
+        +-- reads /app/data/mark_os.db
+        +-- creates verified temporary backup
+        +-- uploads to Google Drive
+        +-- removes temporary files
+```
+
+Add such an endpoint only as a separate reviewed capability. The current manual
+Google Drive backup procedure does not require it.
+
+## 20.6 Documentation cleanup history
+
+The following legacy documents were consolidated into this section and removed
+from the repository after their durable information was preserved:
+
+```text
+M10_INSTALL.md
+PHASE_6_1J_INSTALL.md
+PHASE_6_1_HI_RELEASE_RUNBOOK.md
+PHASE_6_2_BACKUP_RECOVERY.md
+PHASE_6_2_GOOGLE_DRIVE.md
+```
+
+Historical installer packaging commands, obsolete expected test counts, and
+one-time branch/ZIP extraction instructions were intentionally not retained.
+Git history remains the source for those implementation-era details.
 
 ---
 

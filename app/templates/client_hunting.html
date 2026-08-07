@@ -110,7 +110,12 @@
     <strong>Pendang Research &amp; Analytics</strong> ·
     {{ current_user.workspace_display_role }}.
     This CRM view is isolated to Pendang records and queues.
+    <a class="button is-small is-light ml-3" href="/pendang">Open Pendang Home</a>
 </div>
+{% endif %}
+
+{% if current_workspace and current_workspace.slug == 'pendang' %}
+
 {% endif %}
 
 {% if

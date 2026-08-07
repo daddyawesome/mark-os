@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Pendang · Company Workspace{% endblock %}
+
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker mb-2">PENDANG · Company workspace</p>
+    <div class="columns is-vcentered is-variable is-5">
+        <div class="column">
+            <h1 class="title is-2 mb-2">Pendang Research &amp; Analytics</h1>
+            <p class="mark-muted mb-2">
+                Shared company direction, evidence, services, relationships,
+                content drafts, meeting preparation, and trusted document links.
+            </p>
+            <p class="mark-muted">
+                {{ current_user.workspace_display_role }} · Pendang records only.
+            </p>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-mark" href="/crm">Open Pendang CRM</a>
+        </div>
+    </div>
+</section>
+
+{% if notice %}
+<div class="notification is-mark mb-5">
+    {% if notice == 'company-profile-updated' %}Company profile updated.
+    {% elif notice == 'company-entry-added' %}Company entry added.
+    {% elif notice == 'company-entry-updated' %}Company entry updated.
+    {% elif notice == 'company-entry-archived' %}Company entry archived.
+    {% else %}Pendang company workspace updated.{% endif %}
+</div>
+{% endif %}
+{% if error %}
+<div class="notification is-danger is-light mb-5">{{ error }}</div>
+{% endif %}
+
+{% if not can_manage %}
+<div class="notification is-light mb-5">
+    Company knowledge is read-only for your Pendang role. Workspace owners and
+    administrators manage verified company content.
+</div>
+{% endif %}
+
+<section id="pendang-founder-plan" class="mark-card pendang-section p-5 mb-5">
+    <p class="mark-kicker mb-2">Direction</p>
+    <h2 class="title is-3 mb-2">Founder Plan</h2>
+    <p class="mark-muted mb-5">
+        The operating direction for turning opportunities into trusted client work.
+    </p>
+
+    {% if can_manage %}
+    <form method="post" action="/pendang/profile">
+        <input type="hidden" name="row_version" value="{{ company.profile.row_version }}">
+        <div class="field">
+            <label class="label" for="founder_plan">Founder Plan</label>
+            <div class="control">
+                <textarea class="textarea" id="founder_plan" name="founder_plan" rows="16" required>{{ company.profile.founder_plan }}</textarea>
+            </div>
+        </div>
+        <div class="field">
+            <label class="label" for="about_company">About Pendang</label>
+            <div class="control">
+                <textarea class="textarea" id="about_company" name="about_company" rows="7" placeholder="Verified company description only.">{{ company.profile.about_company }}</textarea>
+            </div>
+        </div>
+        <div class="field">
+            <label class="label" for="company_cv">Company CV</label>
+            <div class="control">
+                <textarea class="textarea" id="company_cv" name="company_cv" rows="9" placeholder="Capabilities, credentials, and verifiable experience.">{{ company.profile.company_cv }}</textarea>
+            </div>
+        </div>
+        <button class="button is-mark" type="submit">Save Founder Plan &amp; Company Profile</button>
+    </form>
+    {% else %}
+    <div class="content pendang-copy">{{ company.profile.founder_plan }}</div>
+    <hr>
+    <h3 class="title is-5 mb-2">About Pendang</h3>
+    {% if company.profile.about_company %}
+    <div class="content pendang-copy">{{ company.profile.about_company }}</div>
+    {% else %}
+    <p class="mark-muted">No verified About / Company CV summary has been recorded yet.</p>
+    {% endif %}
+    <h3 class="title is-5 mt-5 mb-2">Company CV</h3>
+    {% if company.profile.company_cv %}
+    <div class="content pendang-copy">{{ company.profile.company_cv }}</div>
+    {% else %}
+    <p class="mark-muted">No verified Company CV has been recorded yet.</p>
+    {% endif %}
+    {% endif %}
+</section>
+
+{% for section in sections %}
+<section id="pendang-{{ section.key }}" class="mark-card pendang-section p-5 mb-5">
+    <p class="mark-kicker mb-2">Company knowledge</p>
+    <h2 class="title is-3 mb-2">{{ section.title }}</h2>
+    <p class="mark-muted mb-5">{{ section.note }}</p>
+
+    {% set records = company.items_by_type.get(section.key, []) %}
+    {% if records %}
+        {% for item in records %}
+        <article class="notification is-light pendang-item">
+            <div class="is-flex is-justify-content-space-between is-align-items-flex-start is-flex-wrap-wrap mb-3">
+                <div>
+                    <p class="mark-kicker mb-1">{{ item.status|upper }}</p>
+                    <h3 class="title is-5 mb-1">{{ item.title }}</h3>
+                    {% if item.subtitle %}<p class="mark-muted">{{ item.subtitle }}</p>{% endif %}
+                </div>
+                {% if item.scheduled_for %}<span class="mark-chip">{{ item.scheduled_for }}</span>{% endif %}
+            </div>
+            {% if item.body %}<div class="content pendang-copy">{{ item.body }}</div>{% endif %}
+            {% if item.details %}
+            <p class="mark-panel-title mb-1">{{ section.details_label }}</p>
+            <div class="content pendang-copy">{{ item.details }}</div>
+            {% endif %}
+            {% if item.reference_url %}
+            <p><a href="{{ item.reference_url }}" target="_blank" rel="noreferrer">Open reference</a></p>
+            {% endif %}
+
+            {% if can_manage %}
+            <details class="mt-4">
+                <summary class="mark-panel-title">Edit entry</summary>
+                <form class="mt-4" method="post" action="/pendang/items/{{ item.id }}/edit">
+                    <input type="hidden" name="row_version" value="{{ item.row_version }}">
+                    <div class="field">
+                        <label class="label">Title</label>
+                        <input class="input" name="title" value="{{ item.title }}" maxlength="160" required>
+                    </div>
+                    <div class="field">
+                        <label class="label">Subtitle</label>
+                        <input class="input" name="subtitle" value="{{ item.subtitle }}" maxlength="240">
+                    </div>
+                    <div class="field">
+                        <label class="label">Body</label>
+                        <textarea class="textarea" name="body" rows="6">{{ item.body }}</textarea>
+                    </div>
+                    <div class="field">
+                        <label class="label">{{ section.details_label }}</label>
+                        <textarea class="textarea" name="details" rows="4">{{ item.details }}</textarea>
+                    </div>
+                    <div class="field">
+                        <label class="label">Reference URL</label>
+                        <input class="input" type="url" name="reference_url" value="{{ item.reference_url }}" placeholder="https://">
+                    </div>
+                    <div class="columns">
+                        <div class="column">
+                            <label class="label">Scheduled date</label>
+                            <input class="input" type="date" name="scheduled_for" value="{{ item.scheduled_for or '' }}">
+                        </div>
+                        <div class="column">
+                            <label class="label">Status</label>
+                            <div class="select is-fullwidth">
+                                <select name="status">
+                                    {% for option in item_statuses %}
+                                    <option value="{{ option }}" {% if option == item.status %}selected{% endif %}>{{ option|title }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="buttons">
+                        <button class="button is-mark" type="submit">Save entry</button>
+                    </div>
+                </form>
+                <form method="post" action="/pendang/items/{{ item.id }}/archive" onsubmit="return confirm('Archive this Pendang company entry?');">
+                    <input type="hidden" name="row_version" value="{{ item.row_version }}">
+                    <button class="button is-light" type="submit">Archive entry</button>
+                </form>
+            </details>
+            {% endif %}
+        </article>
+        {% endfor %}
+    {% else %}
+    <p class="mark-muted">{{ section.empty }}</p>
+    {% endif %}
+
+    {% if can_manage %}
+    <details class="mt-5">
+        <summary class="button is-light">Add {{ section.title }} entry</summary>
+        <form class="mt-4" method="post" action="/pendang/items">
+            <input type="hidden" name="item_type" value="{{ section.key }}">
+            <div class="field">
+                <label class="label">Title</label>
+                <input class="input" name="title" maxlength="160" required>
+            </div>
+            <div class="field">
+                <label class="label">Subtitle</label>
+                <input class="input" name="subtitle" maxlength="240">
+            </div>
+            <div class="field">
+                <label class="label">Body</label>
+                <textarea class="textarea" name="body" rows="6"></textarea>
+            </div>
+            <div class="field">
+                <label class="label">{{ section.details_label }}</label>
+                <textarea class="textarea" name="details" rows="4"></textarea>
+            </div>
+            <div class="field">
+                <label class="label">Reference URL</label>
+                <input class="input" type="url" name="reference_url" placeholder="https://">
+            </div>
+            <div class="columns">
+                <div class="column">
+                    <label class="label">Scheduled date</label>
+                    <input class="input" type="date" name="scheduled_for">
+                </div>
+                <div class="column">
+                    <label class="label">Status</label>
+                    <div class="select is-fullwidth">
+                        <select name="status">
+                            <option value="draft">Draft</option>
+                            <option value="active">Active</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <button class="button is-mark" type="submit">Add entry</button>
+        </form>
+    </details>
+    {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

@@ -176,11 +176,24 @@ def is_personal_user(user: Mapping[str, Any] | None) -> bool:
     return role_of(user) in {OWNER_ROLE, MEMBER_ROLE}
 
 
+def _active_workspace_slug(user: Mapping[str, Any] | None) -> str:
+    if user is None:
+        return ""
+    workspace = user.get("current_workspace")
+    if not isinstance(workspace, Mapping):
+        return ""
+    return str(workspace.get("slug") or "").strip().casefold()
+
+
 def landing_path_for_user(user: Mapping[str, Any]) -> str:
+    role = role_of(user)
+    if (
+        _active_workspace_slug(user) == "pendang"
+        and role in {OWNER_ROLE, LEAD_SOURCER_ROLE, RELATIONSHIP_MANAGER_ROLE}
+    ):
+        return "/pendang"
     if is_personal_user(user):
         return "/"
-    if is_workspace_owner_manager(user):
-        return "/crm"
     if is_relationship_manager(user):
         return "/relationship-manager"
     return "/crm"
@@ -209,16 +222,36 @@ def can_access_request(
     method: str,
     path: str,
 ) -> bool:
-    """Authorize the final M10 role surfaces.
-
-    Owners retain the complete application. Members receive only their private
-    personal OS. Lead sourcers keep the narrow CRM-only capability from M3-M7.
-    """
-    if is_owner(user):
-        return True
-
+    """Authorize personal, CRM, and Pendang company-workspace surfaces."""
     normalized_method = (method or "").upper()
     normalized_path = path or "/"
+
+    is_pendang_path = (
+        normalized_path == "/pendang"
+        or normalized_path.startswith("/pendang/")
+    )
+    if is_pendang_path:
+        if _active_workspace_slug(user) != "pendang":
+            return False
+        if normalized_method in {"GET", "HEAD"}:
+            return normalized_path == "/pendang" and role_of(user) in {
+                OWNER_ROLE,
+                LEAD_SOURCER_ROLE,
+                RELATIONSHIP_MANAGER_ROLE,
+            }
+        if normalized_method == "POST":
+            return (
+                role_of(user) in {OWNER_ROLE, RELATIONSHIP_MANAGER_ROLE}
+                and (
+                    is_owner(user)
+                    or workspace_membership_role_of(user)
+                    in {"workspace_admin", "workspace_owner"}
+                )
+            )
+        return False
+
+    if is_owner(user):
+        return True
 
     if (
         normalized_path == "/account/password"
@@ -314,14 +347,8 @@ def can_access_request(
             normalized_path in _LEAD_SOURCER_POST_PATHS
             or _LEAD_RESEARCH_EDIT_PATTERN.fullmatch(normalized_path) is not None
             or _LEAD_RESEARCH_SUBMIT_PATTERN.fullmatch(normalized_path) is not None
-            or _LEAD_ACTIVITY_CREATE_PATTERN.fullmatch(
-                normalized_path
-            )
-            is not None
-            or _LEAD_ACTIVITY_ACTION_PATTERN.fullmatch(
-                normalized_path
-            )
-            is not None
+            or _LEAD_ACTIVITY_CREATE_PATTERN.fullmatch(normalized_path) is not None
+            or _LEAD_ACTIVITY_ACTION_PATTERN.fullmatch(normalized_path) is not None
         )
 
     return False

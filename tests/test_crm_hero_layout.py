@@ -74,6 +74,6 @@ def test_crm_hero_css_prevents_word_collapse_and_is_cache_busted():
         assert rule in css
 
     assert (
-        "/static/css/mark-os-frontend.css?v=20260807-2"
+        "/static/css/mark-os-frontend.css?v=20260808-1"
         in base
     )

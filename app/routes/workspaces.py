@@ -38,6 +38,7 @@ def select_workspace(
         destination == "/crm"
         or destination.startswith("/crm/")
         or destination == "/relationship-manager"
+        or destination == "/pendang"
     ):
         destination = "/crm"
     return RedirectResponse(destination, status_code=303)
