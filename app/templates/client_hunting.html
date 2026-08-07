@@ -113,6 +113,93 @@
 </div>
 {% endif %}
 
+{% if current_workspace and current_workspace.slug == 'pendang' %}
+<section
+    id="pendang-founder-plan"
+    class="mark-card p-5 mb-5"
+    aria-labelledby="pendang-founder-plan-title"
+>
+    <p class="mark-kicker mb-2">Pendang Research &amp; Analytics</p>
+    <h2
+        id="pendang-founder-plan-title"
+        class="title is-3 mb-2"
+    >
+        Founder Plan
+    </h2>
+    <p class="mark-muted mb-5">
+        Shared direction for how Pendang builds opportunities into
+        trusted client work.
+    </p>
+
+    <div class="columns is-multiline">
+        <div class="column is-12-tablet is-6-desktop">
+            <div class="mark-card p-4">
+                <p class="mark-panel-title mb-3">Leadership</p>
+                <div class="content">
+                    <p>
+                        <strong>Rey</strong><br>
+                        Managing Director / Chief Statistical Officer
+                    </p>
+                    <p>
+                        <strong>Mark</strong><br>
+                        Co-Founder / Chief Technology &amp; Data Officer
+                    </p>
+                    <p>
+                        <strong>Freddy</strong><br>
+                        Senior Statistical Consultant / Lead Researcher
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="column is-12-tablet is-6-desktop">
+            <div class="mark-card p-4">
+                <p class="mark-panel-title mb-3">What we build around</p>
+                <div class="content">
+                    <ul>
+                        <li>Research &amp; statistics</li>
+                        <li>Data analysis &amp; BI</li>
+                        <li>Data engineering &amp; automation</li>
+                        <li>Practical AI where it creates real value</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="column is-12-tablet is-6-desktop">
+            <div class="mark-card p-4">
+                <p class="mark-panel-title mb-3">Who we can serve</p>
+                <div class="content">
+                    <ul>
+                        <li>Researchers &amp; universities</li>
+                        <li>Healthcare</li>
+                        <li>NGOs</li>
+                        <li>SMEs</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="column is-12-tablet is-6-desktop">
+            <div class="mark-card p-4">
+                <p class="mark-panel-title mb-3">Operating rule</p>
+                <p class="mb-4">
+                    Record leads, projects, tasks, decisions, revenue,
+                    and expenses in MARK-OS so Pendang keeps one
+                    operational history.
+                </p>
+                <p class="mark-panel-title mb-2">First objective</p>
+                <p>
+                    <strong>
+                        Leads → Clients → Projects → Payment → Referrals
+                    </strong>
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
 {% if
     current_user
     and current_user.role == 'lead_sourcer'

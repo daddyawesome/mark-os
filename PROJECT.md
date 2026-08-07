@@ -355,7 +355,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 522 passed after Phase 6.6B-8A acceptance/rehearsal harness
+**Last verified full-suite baseline:** 525 passed after Phase 6.6C-1 Pendang Founder Plan surface
 
 ---
 
@@ -3355,6 +3355,41 @@ backup.
 
 
 
+
+
+
+## 2026-08-08 — Pull forward a read-only Pendang Founder Plan surface
+
+**Decision:**
+
+- add the already-drafted Pendang Founder Plan as a read-only onboarding and
+  alignment surface inside the Pendang CRM;
+- keep the editable/database-backed Founder Plan and the broader About,
+  Services, projects, case studies, documents, and Content Studio work in the
+  remaining Phase 6.6C scope;
+- show the Founder Plan only when the authenticated active workspace is
+  `pendang`;
+- use the established founder direction:
+  - Rey — Managing Director / Chief Statistical Officer;
+  - Mark — Co-Founder / Chief Technology & Data Officer;
+  - Freddy — Senior Statistical Consultant / Lead Researcher;
+  - focus on research/statistics, data/BI, data engineering/automation, and
+    practical AI;
+  - target researchers/universities, healthcare, NGOs, and SMEs;
+  - keep one operating history in MARK-OS;
+  - first objective: Leads → Clients → Projects → Payment → Referrals;
+- replace the visible `MARK OS Fieldbook` identity with Pendang-specific
+  branding while the active business workspace is Pendang;
+- retain MARK-OS as the underlying application and security boundary.
+
+**Reason:**
+
+- Rey and Freddy can see the company direction immediately after completing
+  their temporary-password change;
+- displaying existing founder guidance does not require a new company-content
+  database or weaken CRM workspace isolation;
+- Pendang should feel like its own business workspace rather than a MARK Agency
+  page with a different dataset.
 
 
 ## 2026-08-07 — Require production-copy rehearsal before Pendang onboarding

@@ -23,6 +23,7 @@
 {% set current_workspace = request.state.current_workspace %}
 {% set authorized_workspaces = request.state.authorized_workspaces %}
 {% set is_business_workspace_path = request.url.path.startswith('/crm') or request.url.path.startswith('/relationship-manager') %}
+{% set is_pendang_workspace = is_business_workspace_path and current_workspace and current_workspace.slug == 'pendang' %}
 
 {% if current_user %}
 <button
@@ -53,8 +54,13 @@
     >
         <span class="mark-brand-orb">M</span>
         <span class="mark-sidebar-brand-copy">
+            {% if is_pendang_workspace %}
+            <strong>PENDANG</strong>
+            <small>Research &amp; Analytics</small>
+            {% else %}
             <strong>MARK OS</strong>
             <small>Forest fieldbook</small>
+            {% endif %}
         </span>
     </a>
 
@@ -216,7 +222,11 @@
         >
             <div class="fieldbook-context-main">
                 <span class="fieldbook-context-kicker">
+                    {% if is_pendang_workspace %}
+                    Pendang Research &amp; Analytics
+                    {% else %}
                     MARK OS Fieldbook
+                    {% endif %}
                 </span>
                 <strong class="fieldbook-context-title">
                     {% if is_business_workspace_path %}
