@@ -112,7 +112,8 @@ _LEAD_INDEX_DEFINITIONS = (
        ON leads(assigned_to_user_id, deleted_at, pipeline_status, id DESC)""",
     """CREATE UNIQUE INDEX idx_leads_quest_id ON leads(quest_id)""",
     """CREATE UNIQUE INDEX idx_leads_active_dedupe_key
-       ON leads(dedupe_key) WHERE deleted_at IS NULL""",
+       ON leads(organization_id, dedupe_key)
+       WHERE deleted_at IS NULL""",
     """CREATE UNIQUE INDEX idx_leads_request_key
        ON leads(request_key) WHERE request_key IS NOT NULL""",
     """CREATE INDEX idx_leads_research_queue
@@ -758,6 +759,75 @@ def migrate_organization(db: sqlite3.Connection) -> None:
             + ("ON" if foreign_keys_enabled else "OFF")
         )
 
+def migrate_workspace_dedupe_index(db: sqlite3.Connection) -> None:
+    """Upgrade only the legacy global active-dedupe index to workspace scope."""
+    if not table_exists(db, "leads"):
+        return
+    columns = set(column_names(db, "leads"))
+    if "organization_id" not in columns:
+        return
+
+    index = db.execute(
+        """
+        SELECT sql
+        FROM sqlite_master
+        WHERE type = 'index'
+          AND name = 'idx_leads_active_dedupe_key'
+        """
+    ).fetchone()
+    if index is None:
+        return
+
+    index_columns = [
+        row["name"]
+        for row in db.execute(
+            "PRAGMA index_info(idx_leads_active_dedupe_key)"
+        ).fetchall()
+    ]
+    normalized_sql = " ".join(str(index["sql"] or "").lower().split())
+    _, separator, predicate = normalized_sql.partition(" where ")
+
+    # Only auto-upgrade the exact pre-workspace index. Any other malformed
+    # variant is intentionally left for validate_indexes() to reject.
+    if (
+        index_columns != ["dedupe_key"]
+        or not separator
+        or predicate.strip().rstrip(";") != "deleted_at is null"
+    ):
+        return
+
+    owns_transaction = not db.in_transaction
+    if owns_transaction:
+        db.execute("BEGIN IMMEDIATE")
+    db.execute("SAVEPOINT crm_workspace_dedupe_index")
+    try:
+        db.execute("DROP INDEX idx_leads_active_dedupe_key")
+        db.execute(
+            """
+            CREATE UNIQUE INDEX idx_leads_active_dedupe_key
+            ON leads(organization_id, dedupe_key)
+            WHERE deleted_at IS NULL
+            """
+        )
+    except sqlite3.IntegrityError as exc:
+        db.execute("ROLLBACK TO SAVEPOINT crm_workspace_dedupe_index")
+        db.execute("RELEASE SAVEPOINT crm_workspace_dedupe_index")
+        if owns_transaction:
+            db.rollback()
+        raise RuntimeError(
+            "Cannot enable workspace-scoped CRM duplicate protection because "
+            "duplicate active leads already exist inside one organization"
+        ) from exc
+    except BaseException:
+        db.execute("ROLLBACK TO SAVEPOINT crm_workspace_dedupe_index")
+        db.execute("RELEASE SAVEPOINT crm_workspace_dedupe_index")
+        if owns_transaction:
+            db.rollback()
+        raise
+    else:
+        db.execute("RELEASE SAVEPOINT crm_workspace_dedupe_index")
+
+
 def create_unique_indexes(db: sqlite3.Connection) -> None:
     # Leads keep a single quest link, semantic duplicate key, and network retry
     # key. Soft-deleted leads release only their semantic dedupe key.
@@ -768,7 +838,7 @@ def create_unique_indexes(db: sqlite3.Connection) -> None:
             ON leads(quest_id);
 
             CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_active_dedupe_key
-            ON leads(dedupe_key)
+            ON leads(organization_id, dedupe_key)
             WHERE deleted_at IS NULL;
 
             CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_request_key
@@ -786,7 +856,10 @@ def create_unique_indexes(db: sqlite3.Connection) -> None:
 def validate_indexes(db: sqlite3.Connection) -> None:
     expected = {
         "idx_leads_quest_id": (True, ["quest_id"]),
-        "idx_leads_active_dedupe_key": (True, ["dedupe_key"]),
+        "idx_leads_active_dedupe_key": (
+            True,
+            ["organization_id", "dedupe_key"],
+        ),
         "idx_leads_request_key": (True, ["request_key"]),
         "idx_leads_pipeline_priority_activity": (
             False,

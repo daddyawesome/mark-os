@@ -85,6 +85,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     relationship_manager.migrate(db)
     relationship_manager.validate_schema(db)
     leads.migrate_organization(db)
+    leads.migrate_workspace_dedupe_index(db)
     leads.validate_schema(db, require_organization=True)
     lead_activities.validate_schema(db)
 

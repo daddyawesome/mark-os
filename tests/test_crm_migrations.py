@@ -50,7 +50,7 @@ EXPECTED_LEAD_INDEXES = {
     "idx_leads_active_dedupe_key": (
         True,
         True,
-        ["dedupe_key"],
+        ["organization_id", "dedupe_key"],
     ),
     "idx_leads_request_key": (
         True,

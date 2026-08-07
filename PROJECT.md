@@ -4,7 +4,40 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.6B — Pendang CRM Workspace and Staff Launch
+**Immediate next milestone:** Phase 6.6B-4B — Propagate Active Workspace Through CRM Workflows
+
+<!-- PHASE_6_6B4A_COMPLETION_START -->
+**6.6B-4A Status: ✅ COMPLETE — Core CRM Workspace Boundary**
+
+Completed:
+- Upgraded active semantic duplicate protection from global
+  `UNIQUE(dedupe_key) WHERE deleted_at IS NULL` to workspace-scoped
+  `UNIQUE(organization_id, dedupe_key) WHERE deleted_at IS NULL`.
+- Added an idempotent migration that upgrades only the exact legacy global
+  dedupe index and leaves malformed variants for schema validation to reject.
+- Core lead reads, quest lookups, lists, metrics, mutations, soft deletion,
+  semantic duplicate checks, and CSV preview/import now support explicit
+  `organization_id` scoping.
+- A request key remains globally unique for backward-compatible idempotency,
+  but a request-key collision in another workspace returns a generic error and
+  never returns or mutates the other workspace's lead.
+- Existing internal callers temporarily fall back to `mark-agency` only; this
+  compatibility path is transitional and must be removed after all runtime CRM
+  callers pass the authenticated active workspace in 6.6B-4B.
+- No route authorization, staff permission, research workflow, activity,
+  follow-up queue, or workspace-switch behavior was changed in this substep.
+- Added cross-workspace core-service, duplicate, CSV-preview, mutation, and
+  migration regression tests.
+
+**Next substep: 6.6B-4B — Propagate Active Workspace Through CRM Workflows**
+- Require the authenticated active organization in CRM routes.
+- Scope role-aware dashboards, work queues, follow-up queues, research,
+  activities, pipeline changes, Relationship Manager work, and direct URLs.
+- Remove the temporary MARK Agency fallback from runtime CRM paths.
+- Prove direct cross-workspace requests return the existing safe 404/403
+  behavior.
+<!-- PHASE_6_6B4A_COMPLETION_END -->
+
 
 <!-- PHASE_6_6B1_COMPLETION_START -->
 **6.6B-1 Status: ✅ COMPLETE**
@@ -64,7 +97,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 479 passed after Orbit-inspired Forest Fieldbook UI
+**Last verified full-suite baseline:** 484 passed after Phase 6.6B-4A core workspace boundary
 
 ---
 
@@ -3059,6 +3092,36 @@ backup.
 
 
 
+
+
+## 2026-08-07 — Make lead identity workspace-scoped before route enforcement
+
+**Decision:**
+
+- change active lead semantic uniqueness to
+  `(organization_id, dedupe_key) WHERE deleted_at IS NULL`;
+- keep existing request keys globally unique for backward-compatible retry
+  safety;
+- never return a lead from another workspace when a request key collides;
+- add organization-aware core lead service paths before changing every CRM
+  route and workflow;
+- temporarily map legacy callers that do not yet pass organization context to
+  MARK Agency only, never to a global/unscoped query;
+- migrate all runtime CRM callers to explicit authenticated workspace context
+  in Phase 6.6B-4B, then remove reliance on the compatibility fallback;
+- preserve linked quests, request fingerprints, soft deletion, existing IDs,
+  and existing CRM workflow behavior.
+
+**Reason:**
+
+- a global semantic duplicate rule incorrectly prevents the same company or
+  contact from existing independently in MARK Agency and Pendang;
+- separating the database/service identity boundary from route propagation
+  keeps the migration reviewable and reduces the risk of mixing permission,
+  workflow, and schema changes in one commit;
+- the temporary MARK Agency compatibility scope keeps legacy tests and current
+  MARK Agency behavior deterministic while ensuring the core service never
+  performs a global lead lookup.
 
 ## 2026-08-07 — Adopt the Orbit-inspired Forest Fieldbook visual system
 
