@@ -1,393 +1,43 @@
 # MARK-OS — Complete Project Guide and Roadmap
 
-**Canonical project document**  
-**Repository:** `https://github.com/daddyawesome/mark-os`  
+**Canonical project document**
+**Repository:** `https://github.com/daddyawesome/mark-os`
 **Reviewed against `main`:** 2026-08-08
-**Current active phase:** Phase 6 — Agency Operations and Production Safety  
+**Current active phase:** Phase 6 — Agency Operations and Production Safety
 **Immediate next milestone:** Deploy Phase 6.6C and finish Pendang real-user acceptance
-
-
-<!-- PHASE_6_6C_COMPLETION_START -->
-**6.6C Status: ✅ IMPLEMENTATION COMPLETE — Production Acceptance Required**
-
-Completed locally:
-- Added a dedicated `/pendang` company home.
-- Moved the Founder Plan from a static CRM block into organization-scoped,
-  database-backed company knowledge.
-- Added editable About / Company CV, services and pricing notes, historical
-  projects, case studies, warm relationships, manual content drafts, meeting
-  preparation, and shared company-document links.
-- Pendang CRM contributors can read company knowledge but cannot mutate it.
-- Global Owner and Pendang workspace-owner/admin authority can manage company
-  knowledge after database-backed membership revalidation.
-- Added optimistic `row_version` protection for company profile and knowledge
-  writes.
-- Added only generic Pendang service categories as seed data; no client history,
-  price claims, case studies, relationships, or credentials are fabricated.
-- Rey/Freddy-style Pendang users now resolve `/pendang` as their post-password
-  landing page; MARK Agency staff keep their prior landing behavior.
-- Full local test suite verification: **531 passed**.
-
-Required production acceptance:
-- deploy the additive migration through the existing Railway release process;
-- confirm `/health`;
-- have Rey and Freddy replace their temporary passwords;
-- verify both land on Pendang Home;
-- smoke-test Rey's company-content write authority and Freddy's read-only view;
-- complete the already-required real Pendang lead/review/next-action acceptance
-  gates before calling the Pendang launch operationally complete.
-<!-- PHASE_6_6C_COMPLETION_END -->
-
-<!-- PHASE_6_6B8A_COMPLETION_START -->
-**6.6B-8A Status: ✅ ACCEPTANCE HARNESS READY — Production-Copy Rehearsal Required**
-
-Completed:
-- Added `tools/verify_phase_6_6b_release.py`.
-- Added a bounded Phase 6.6B acceptance pytest gate covering:
-  - organization migrations;
-  - workspace-scoped lead identity;
-  - runtime CRM workspace isolation;
-  - Pendang membership authority;
-  - Pendang launch/workspace UI;
-  - optimistic edit protection;
-  - Follow-up Command Center acceptance;
-  - atomic Contacted transition;
-  - CSV import/preview behavior;
-  - Relationship Manager behavior;
-  - security acceptance;
-  - application/direct-route behavior.
-- The release verifier creates a verified SQLite **online backup** from the
-  supplied source database instead of copying only a live `.db` file.
-- The verifier restores that backup into a new isolated rehearsal database.
-- Current MARK-OS migrations run only against the restored rehearsal copy.
-- Rehearsal verifies:
-  - source/backup/final `PRAGMA quick_check`;
-  - `PRAGMA foreign_key_check`;
-  - backup manifest checksum and file size;
-  - preservation of existing lead business fields, IDs, quest links, activity
-    IDs/lead links, and protected row counts;
-  - `mark-agency` and `pendang` seed state;
-  - non-null lead `organization_id`;
-  - valid lead `row_version`;
-  - workspace-scoped active dedupe index;
-  - independently revocable membership `active` state;
-  - active global Owner `workspace_admin` membership in both core workspaces;
-  - file-backed WAL mode;
-  - non-zero SQLite busy timeout;
-  - application `/health` against the rehearsed database.
-- Rehearsal output is written under `.phase_6_6b_release/`, which is ignored by
-  Git.
-- The verifier report intentionally leaves production-only/manual release gates
-  unchecked rather than falsely marking them complete.
-
-**Required next gate: 6.6B-8B — Production-Copy Migration Rehearsal**
-- Obtain a safe verified copy/backup of the Railway production SQLite database.
-- Run:
-  `python tools/verify_phase_6_6b_release.py --source-db <SAFE_COPY> --run-tests --full-suite`
-- Keep the generated JSON report as release evidence outside Git.
-- Confirm Railway is using exactly one application instance while SQLite is the
-  production database.
-- Confirm the production persistent-volume DB path and rollback backup.
-- Do not onboard Rey or Freddy until this rehearsal passes.
-<!-- PHASE_6_6B8A_COMPLETION_END -->
-
-
-<!-- PHASE_6_6B7_COMPLETION_START -->
-**6.6B-7 Status: ✅ COMPLETE — Optimistic CRM Edit Protection**
-
-Completed:
-- Added additive `leads.row_version INTEGER NOT NULL DEFAULT 1` with
-  `CHECK(row_version >= 1)`.
-- Added an idempotent migration that preserves existing lead IDs, organization
-  links, quest links, ownership/research fields, timestamps, soft-delete state,
-  and business data.
-- Mutable lead writes now increment `row_version`.
-- Runtime CRM mutations carry the version that was rendered with the form.
-- Version-aware lead updates use all three boundaries:
-  - lead ID;
-  - organization ID;
-  - expected row version.
-- Stale full edits, pipeline changes, next-action updates, research edits,
-  research submissions, research review decisions, outreach approval,
-  Business Development Owner assignment, and archive actions are rejected
-  rather than silently overwriting newer work.
-- The audited first-Contacted transition remains atomic: if the lead version is
-  stale, its newly prepared activity and pipeline change roll back together.
-- Administrative membership/account changes that reassign or clear active CRM
-  ownership also increment affected lead versions so already-open forms become
-  stale.
-- All mutating lead forms now submit a hidden `row_version`.
-- Stale browser submissions return a clear Forest Fieldbook conflict message:
-  reload the latest lead and try again.
-- Existing direct service callers retain an optional compatibility path when no
-  expected version is supplied, while middleware-backed runtime forms enforce
-  the version token.
-- Lead activity rows remain append-first/audited records and are not overloaded
-  with the lead row-version token.
-
-**Next substep: 6.6B-8 — Workspace Isolation and Concurrency Acceptance**
-- Run the complete cross-workspace acceptance matrix.
-- Re-test direct URLs, dashboards, role queues, follow-up queues, research,
-  import preview, duplicate identity, membership revocation, and stale edits
-  together.
-- Rehearse the complete Phase 6.6B migration against a copy of the production
-  Railway SQLite database.
-- Verify online backup/restore evidence and the one-instance SQLite deployment
-  rule before real Pendang staff onboarding.
-<!-- PHASE_6_6B7_COMPLETION_END -->
-
-
-<!-- PHASE_6_6B6_COMPLETION_START -->
-**6.6B-6 Status: ✅ COMPLETE — Workspace Switching UI and Pendang Launch Surface**
-
-Completed:
-- Added a server-validated `POST /workspace/select` action.
-- Only the global Owner may use the workspace switch action.
-- Mark sees a Forest Fieldbook workspace selector when more than one authorized
-  business workspace is available.
-- Single-workspace CRM staff do not receive a workspace selector and remain
-  locked to their authorized workspace.
-- Workspace switching accepts only the authenticated user's active membership
-  and rejects unauthorized organization IDs without changing session state.
-- Workspace switch redirects are restricted to safe local CRM destinations.
-- Added clear active-workspace role labels, including:
-  - `Pendang Administrator`
-  - `Pendang Workspace Owner / Managing Director`
-  - `Pendang Lead Researcher`
-  - `Pendang Relationship Manager`
-- Pendang CRM pages now clearly state that records and queues are isolated from
-  MARK Agency.
-- A Pendang `workspace_owner` Relationship Manager now lands directly in the
-  Pendang CRM instead of the Relationship Manager contributor landing page.
-- Updated Relationship Manager and CRM copy so Pendang workspace-owner
-  authority is represented accurately without implying global MARK-OS Owner
-  authority.
-- Added Owner onboarding presets for:
-  - Pendang Workspace Owner / Managing Director
-  - Pendang Lead Researcher
-- No production usernames or passwords are stored in source control.
-- Newly managed accounts now receive a temporary password state and must replace
-  that password at first sign-in.
-- Owner-issued password resets also become temporary passwords and require
-  replacement at the next sign-in.
-- Added authenticated self-service password change with current-password
-  verification, minimum password validation, password-reuse prevention, session
-  version increment, and preservation of only the newly refreshed session.
-- Users with a required password change cannot use otherwise-authorized MARK-OS
-  pages or write actions until the password is replaced.
-- Existing authorization denials still take precedence, preserving safe
-  forbidden/redirect behavior for routes the user was never authorized to use.
-
-**Next substep: 6.6B-7 — Optimistic CRM Edit Protection**
-- Add an additive lead row-version token.
-- Require organization ID + lead ID + expected row version on mutable CRM edits.
-- Reject stale edits without silently overwriting a newer staff change.
-- Preserve short SQLite transactions and the current workspace boundary.
-<!-- PHASE_6_6B6_COMPLETION_END -->
-
-
-<!-- PHASE_6_6B5_COMPLETION_START -->
-**6.6B-5 Status: ✅ COMPLETE — Pendang Staff Membership Authority and Revocation**
-
-Completed:
-- Added independently revocable `active` state to
-  `organization_memberships` with an additive, idempotent SQLite migration.
-- Active workspace resolution, workspace selection, membership checks, CRM user
-  choices, and relationship-manager choices ignore revoked memberships.
-- Global Owner memberships remain active `workspace_admin` memberships in both
-  `mark-agency` and `pendang`.
-- Added database-backed effective CRM authority that combines:
-  - the stable global user role;
-  - the authenticated active workspace membership;
-  - the workspace membership role;
-  - the existing lead/research workflow state.
-- A global `relationship_manager` with active `workspace_owner` membership may
-  exercise existing workspace-owner CRM actions inside that workspace without
-  becoming global Owner.
-- Workspace-owner CRM authority now covers the existing review, outreach
-  approval, major pipeline, next-action, relationship assignment, CRM editing,
-  activity-audit, Won/Lost, and archive paths.
-- Workspace-owner authority does **not** grant personal/family workspace access,
-  global user administration, global settings, or private finance.
-- `lead_sourcer` accounts are constrained to `crm_contributor` workspace
-  membership and cannot be promoted to `workspace_owner`.
-- Lead Researcher approval, outreach approval, major pipeline, Won/Lost, and
-  archive restrictions remain enforced.
-- Lead creator, assignee, activity performer/responsible user, and Business
-  Development Owner references are validated against active membership in the
-  selected runtime workspace.
-- Owner user management can grant, change, restore, or revoke CRM workspace
-  membership.
-- Membership grant, role change, restore, or revocation increments the target
-  user's `session_version`, making permission changes effective for existing
-  sessions immediately.
-- Revoking workspace membership safely reassigns active `assigned_to_user_id`
-  work in that workspace to the global Owner and clears active Business
-  Development Owner assignment while preserving creator/research/history
-  attribution.
-- A revoked membership is not silently recreated by legacy MARK Agency startup
-  compatibility seeding.
-- The supported Pendang role model is now:
-  - Mark: global `owner`; `workspace_admin` in MARK Agency and Pendang.
-  - Rey model: global `relationship_manager`; Pendang `workspace_owner`;
-    never global Owner.
-  - Freddy model: global `lead_sourcer`; Pendang `crm_contributor`.
-- No Rey/Freddy production usernames, passwords, or accounts are seeded by this
-  migration. Real credential onboarding remains an explicit launch action.
-
-**Next substep: 6.6B-6 — Workspace Switching UI and Pendang Launch Surface**
-- Add Mark's authenticated workspace selector.
-- Keep single-workspace staff locked to their authorized workspace with no
-  selector.
-- Add Pendang-specific staff labels and launch-facing CRM context.
-- Make Pendang owner/research queues obvious in the Forest Fieldbook UI.
-- Prepare the controlled Rey/Freddy account onboarding flow without putting
-  credentials in source control.
-<!-- PHASE_6_6B5_COMPLETION_END -->
-
-
-<!-- PHASE_6_6B4B_COMPLETION_START -->
-**6.6B-4B Status: ✅ COMPLETE — Active Workspace Through CRM Workflows**
-
-Completed:
-- Every runtime CRM data route now resolves the authenticated active workspace
-  before reading or mutating CRM data.
-- CRM dashboard lists and Owner metrics are organization-scoped.
-- Role-aware Lead Researcher and Relationship Manager queues are
-  organization-scoped and require membership when an explicit workspace is
-  supplied.
-- Follow-up Command Center records, counts, and filter options are
-  organization-scoped.
-- Direct lead URLs load by both lead ID and active organization, preserving the
-  existing safe `404` behavior for foreign workspace records.
-- Manual lead creation, CSV preview, and CSV import pass the authenticated
-  active organization into the core lead service.
-- Lead research edit, submission, Owner review, and outreach approval now carry
-  organization context through route and workflow services.
-- Lead activity reads, writes, corrections, soft deletion, attribution-user
-  choices, and Contacted activity creation are organization-scoped.
-- Pipeline changes, Owner full edits, next-action changes, and Business
-  Development Owner assignment are organization-scoped.
-- Relationship Manager dashboards and assignment choices are restricted to the
-  active workspace.
-- Existing active Lead Researcher and Relationship Manager accounts with no
-  organization membership are backfilled idempotently into `mark-agency`.
-  Accounts that already have an explicit workspace membership are not changed.
-- New CRM staff creation supports an explicit workspace slug while retaining
-  `mark-agency` as the compatibility default for the existing Owner UI.
-- Missing authenticated workspace context fails closed on runtime CRM entry and
-  data routes.
-- Existing global role permissions are unchanged. This substep does **not**
-  grant Rey Pendang `workspace_owner` authority or Freddy's final Pendang
-  contributor permissions.
-
-**Next substep: 6.6B-5 — Pendang Staff Membership Authority and Revocation**
-- Add the final independently revocable membership state required by the
-  Phase 6.6B specification.
-- Provision/prepare Rey as global `relationship_manager` plus Pendang
-  `workspace_owner`, never global Owner.
-- Provision/prepare Freddy as global `lead_sourcer` plus Pendang
-  `crm_contributor`.
-- Resolve effective CRM authority from global role + active membership role +
-  workflow state.
-- Allow Rey's Pendang owner actions while keeping MARK Agency, private,
-  family, and global administration inaccessible.
-- Keep Freddy restricted to Pendang research/contributor actions.
-<!-- PHASE_6_6B4B_COMPLETION_END -->
-
-
-<!-- PHASE_6_6B4A_COMPLETION_START -->
-**6.6B-4A Status: ✅ COMPLETE — Core CRM Workspace Boundary**
-
-Completed:
-- Upgraded active semantic duplicate protection from global
-  `UNIQUE(dedupe_key) WHERE deleted_at IS NULL` to workspace-scoped
-  `UNIQUE(organization_id, dedupe_key) WHERE deleted_at IS NULL`.
-- Added an idempotent migration that upgrades only the exact legacy global
-  dedupe index and leaves malformed variants for schema validation to reject.
-- Core lead reads, quest lookups, lists, metrics, mutations, soft deletion,
-  semantic duplicate checks, and CSV preview/import now support explicit
-  `organization_id` scoping.
-- A request key remains globally unique for backward-compatible idempotency,
-  but a request-key collision in another workspace returns a generic error and
-  never returns or mutates the other workspace's lead.
-- Existing internal callers temporarily fall back to `mark-agency` only; this
-  compatibility path is transitional and must be removed after all runtime CRM
-  callers pass the authenticated active workspace in 6.6B-4B.
-- No route authorization, staff permission, research workflow, activity,
-  follow-up queue, or workspace-switch behavior was changed in this substep.
-- Added cross-workspace core-service, duplicate, CSV-preview, mutation, and
-  migration regression tests.
-
-**Next substep: 6.6B-4B — Propagate Active Workspace Through CRM Workflows**
-- Require the authenticated active organization in CRM routes.
-- Scope role-aware dashboards, work queues, follow-up queues, research,
-  activities, pipeline changes, Relationship Manager work, and direct URLs.
-- Remove the temporary MARK Agency fallback from runtime CRM paths.
-- Prove direct cross-workspace requests return the existing safe 404/403
-  behavior.
-<!-- PHASE_6_6B4A_COMPLETION_END -->
-
-
-<!-- PHASE_6_6B1_COMPLETION_START -->
-**6.6B-1 Status: ✅ COMPLETE**
-
-Completed foundation:
-- Added `organizations`.
-- Added `organization_memberships`.
-- Seeded `mark-agency` / `MARK Agency` idempotently.
-- Seeded `pendang` / `Pendang Research & Analytics` idempotently.
-- Added database-level unique organization slug protection.
-- Added `UNIQUE(user_id, organization_id)` membership protection.
-- Added workspace membership role constraint for:
-  - `workspace_admin`
-  - `workspace_owner`
-  - `crm_contributor`
-- Preserved existing global `users.role`; global roles and workspace membership roles remain separate.
-- No Mark/Rey/Freddy memberships were seeded in this substep.
-- No lead, CRM route, permission, queue, import, or workspace-switching behavior was changed.
-- `PRAGMA foreign_key_check` verified clean.
-- Full test suite verification: **469 passed**.
-
-**Next substep: 6.6B-2 — Lead Organization Migration**
-- Add `organization_id` to leads.
-- Safely backfill every existing lead to `mark-agency`.
-- Preserve lead IDs, relationships, ownership/research fields, timestamps, optimistic edit fields, and soft-delete state.
-- Keep CRM workspace filtering, permissions, queues, and UI for later substeps.
-<!-- PHASE_6_6B1_COMPLETION_END -->
-
-**Immediate next milestone:** Deploy Phase 6.6C and finish Pendang real-user acceptance
-
-<!-- PHASE_6_6B1_COMPLETION_START -->
-**6.6B-1 Status: ✅ COMPLETE**
-
-Completed foundation:
-- Added `organizations`.
-- Added `organization_memberships`.
-- Seeded `mark-agency` / `MARK Agency` idempotently.
-- Seeded `pendang` / `Pendang Research & Analytics` idempotently.
-- Added database-level unique organization slug protection.
-- Added `UNIQUE(user_id, organization_id)` membership protection.
-- Added workspace membership role constraint for:
-  - `workspace_admin`
-  - `workspace_owner`
-  - `crm_contributor`
-- Preserved existing global `users.role`; global roles and workspace membership roles remain separate.
-- No Mark/Rey/Freddy memberships were seeded in this substep.
-- No lead, CRM route, permission, queue, import, or workspace-switching behavior was changed.
-- `PRAGMA foreign_key_check` verified clean.
-- Full test suite verification: **469 passed**.
-
-**Next substep: 6.6B-2 — Lead Organization Migration**
-- Add `organization_id` to leads.
-- Safely backfill every existing lead to `mark-agency`.
-- Preserve lead IDs, relationships, ownership/research fields, timestamps, optimistic edit fields, and soft-delete state.
-- Keep CRM workspace filtering, permissions, queues, and UI for later substeps.
-<!-- PHASE_6_6B1_COMPLETION_END -->
-
-**Production deployment:** Railway  
-**Primary database:** SQLite on a persistent Railway volume  
+**Production deployment:** Railway
+**Primary database:** SQLite on a persistent Railway volume
 **Last verified full-suite baseline:** 531 passed after Phase 6.6C Pendang Company Knowledge and Marketing
+
+## Current status: Phase 6.6
+
+Phase 6.6 (Bulk Lead Management and CRM Workspaces) is implemented in
+substeps 6.6A through 6.6C. All are locally complete and test-verified;
+production acceptance is the remaining gate.
+
+| Substep | What it added | Status |
+|---|---|---|
+| 6.6A | Bulk lead CSV preview | ✅ Complete |
+| 6.6B-1 | `organizations` / `organization_memberships` tables, seeded `mark-agency` and `pendang` workspaces | ✅ Complete |
+| 6.6B-4A | Workspace-scoped lead dedupe and core CRM service boundary | ✅ Complete |
+| 6.6B-4B | Active workspace propagated through every runtime CRM route | ✅ Complete |
+| 6.6B-5 | Revocable Pendang staff membership authority | ✅ Complete |
+| 6.6B-6 | Workspace switching UI, Pendang launch surface, forced password rotation | ✅ Complete |
+| 6.6B-7 | Optimistic `row_version` edit protection on leads | ✅ Complete |
+| 6.6B-8A | Release-verification harness (`tools/verify_phase_6_6b_release.py`) with rehearsal backup/restore | ✅ Complete |
+| 6.6B-8B | Production-copy migration rehearsal | ⏳ Required before Rey/Freddy onboarding |
+| 6.6C | `/pendang` company home: organization-scoped company knowledge, services/pricing, case studies, content drafts | ✅ Implementation complete locally — production acceptance required |
+
+**Outstanding before Pendang is operationally complete:**
+- Run `tools/verify_phase_6_6b_release.py` against a real Railway production-DB copy (6.6B-8B).
+- Deploy the 6.6C migration through the standard Railway release process; confirm `/health`.
+- Rey and Freddy replace their temporary passwords and land on `/pendang`.
+- Smoke-test Rey's company-content write authority and Freddy's read-only view.
+- Complete real Pendang lead/review/next-action acceptance gates.
+
+Full substep-by-substep implementation notes for 6.6B-1 through 6.6B-8A live in
+the [Decision Log](#19-decision-log) and git history; they are intentionally
+not repeated here now that each substep is complete and superseded by the next.
 
 ---
 
@@ -396,17 +46,6 @@ Completed foundation:
 This file is the single source of project documentation for MARK-OS.
 
 It consolidates and supersedes the detailed content previously spread across:
-
-```text
-README.md
-INSTALL.md
-docs/AI_ARCHITECTURE.md
-docs/AI_ARCHITECTURE_V2.md
-docs/CODEX_CONTINUE_MARK_OS_PHASE_5.md
-docs/MARK_OS_COMPLETE_PROJECT_HANDOFF.md
-docs/PHASE_4_REVISED_DOD.md
-docs/PROJECT_ROADMAP.md
-```
 
 Use this file to understand:
 
@@ -3401,25 +3040,10 @@ backup.
 
 # 19. Decision Log
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Entries are kept in full for roughly the current and prior phase substep, since
+that is the period an active contributor needs to reason about. Older entries
+that a later decision explicitly supersedes are condensed to one line; see the
+git history for full original text if needed.
 
 ## 2026-08-08 — Make Pendang company knowledge a workspace-owned surface
 
@@ -4085,64 +3709,16 @@ Reason:
 - old Phase 5 numbering conflicts with new priorities;
 - one source reduces confusion.
 
-## 2026-08-05 — Make brother usability the first priority
+## 2026-08-05 — Prioritize agency operations and settle phase numbering — Condensed
 
-Decision:
-
-- park Product Hardening temporarily;
-- make Agency CRM Operations the new Phase 6;
-- make Staff Workflow and Approval Phase 6.1.
-
-Reason:
-
-- existing multi-user foundations are present;
-- the brother workflow is not operationally complete;
-- collaboration errors can damage outreach;
-- this work creates immediate business value.
-
-## 2026-08-05 — Renumber future phases
-
-Decision:
-
-```text
-Phase 6 = Agency Operations and Production Safety
-Phase 7 = Product Hardening and Growth
-Phase 8 = Budget-Safe AI Continuation
-Phase 9 = Affordable Ambient Assistant
-```
-
-The detailed Phase 6 milestones were later reordered by execution priority;
-the current mapping is maintained in Section 12.
-
-Reason:
-
-- keep completed Phase 5 history intact;
-- separate operational agency work from optional AI work;
-- place production safety beside the agency workflows it protects;
-- keep one chronological roadmap without overlapping active phase numbers.
-
-## 2026-08-05 — Add effort tracking, staging, and observability
-
-Decision at the time:
-
-- introduce effort tracking and webhook intake;
-- introduce staging and rollback work;
-- introduce observability and error monitoring.
-
-Current numbering after reprioritization:
-
-```text
-Phase 6.5  Observability and Error Monitoring
-Phase 6.8  Lead-Sourcing Effort Tracking and Webhook Intake
-Phase 7.6  Formal Staging Environment and Rollback
-```
-
-Reason:
-
-- delivery-cost tracking does not measure pre-client research effort;
-- webhook intake removes repetitive CSV work without requiring AI;
-- permission and schema changes need a repeatable staging and rollback path;
-- production failures must be visible before staff report them.
+Across several 2026-08-05 decisions, Phase 6 was retargeted from "Product
+Hardening" to "Agency Operations and Production Safety" (brother/staff
+usability was not yet operationally complete and created immediate business
+risk), Phases 7–9 were renumbered to Product Hardening, Budget-Safe AI, and
+Affordable Ambient Assistant respectively, and effort tracking/staging/
+observability work was distributed into Phases 6.5, 6.8, and 7.6. These
+decisions were superseded by the 2026-08-05 "Complete Phase 6.1J" reprioritization
+below; the current authoritative phase numbering is maintained in Section 12.
 
 ## 2026-08-05 — Add delegated outreach permission phase
 
@@ -4191,17 +3767,9 @@ Reason:
 
 ## 2026-08-05 — Park backup work — Superseded
 
-Decision:
-
-- this decision is superseded by the completion of Phase 6.1J;
-- backup work is now Phase 6.2 and is the active milestone;
-- any useful prior backup code may still be reused after review.
-
-Reason:
-
-- the staff workflow blocker has been resolved;
-- production now contains more valuable operational data;
-- backup and verified restore are therefore the immediate priority.
+Superseded by the completion of Phase 6.1J: backup work became Phase 6.2 and
+the active milestone once the staff-workflow blocker was resolved and
+production held more valuable operational data.
 
 ---
 
