@@ -78,6 +78,7 @@ CREATE TABLE {table_name} (
     next_action TEXT NOT NULL CHECK(length(trim(next_action)) > 0),
     next_action_due_date TEXT,
     notes TEXT NOT NULL DEFAULT '',
+    row_version INTEGER NOT NULL DEFAULT 1 CHECK(row_version >= 1),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TEXT,
@@ -170,6 +171,7 @@ CREATE TABLE IF NOT EXISTS leads (
     next_action TEXT NOT NULL CHECK(length(trim(next_action)) > 0),
     next_action_due_date TEXT,
     notes TEXT NOT NULL DEFAULT '',
+    row_version INTEGER NOT NULL DEFAULT 1 CHECK(row_version >= 1),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TEXT,
@@ -206,6 +208,7 @@ def validate_schema(
     allow_pending_request_fingerprint: bool = False,
     require_ownership: bool = True,
     require_organization: bool = False,
+    require_row_version: bool = False,
 ) -> None:
     """Reject partial or weakened lead schemas without rewriting lead data."""
     required_columns = {
@@ -234,6 +237,8 @@ def validate_schema(
     }
     if require_organization:
         required_columns.add("organization_id")
+    if require_row_version:
+        required_columns.add("row_version")
     required_not_null = {
         "quest_id",
         "request_fingerprint",
@@ -254,6 +259,8 @@ def validate_schema(
     }
     if require_organization:
         required_not_null.add("organization_id")
+    if require_row_version:
+        required_not_null.add("row_version")
     must_remain_nullable = {
         "request_key",
         "created_by_user_id",
@@ -270,6 +277,8 @@ def validate_schema(
         "created_at": "CURRENT_TIMESTAMP",
         "updated_at": "CURRENT_TIMESTAMP",
     }
+    if require_row_version:
+        required_defaults["row_version"] = "1"
     if not require_request_fingerprint:
         required_columns.remove("request_fingerprint")
         required_not_null.remove("request_fingerprint")
@@ -320,6 +329,8 @@ def validate_schema(
     integer_columns = {"id", "quest_id"}
     if require_organization:
         integer_columns.add("organization_id")
+    if require_row_version:
+        integer_columns.add("row_version")
     if require_ownership:
         integer_columns.update(
             {"created_by_user_id", "assigned_to_user_id"}
@@ -342,6 +353,7 @@ def validate_schema(
         "organization_id",
         "created_by_user_id",
         "assigned_to_user_id",
+        "row_version",
     }
     wrong_text_types = {
         name
@@ -378,6 +390,8 @@ def validate_schema(
     ]
     if require_request_fingerprint:
         required_checks.append("check(length(trim(request_fingerprint)) > 0)")
+    if require_row_version:
+        required_checks.append("check(row_version >= 1)")
     if any(fragment not in normalized_sql for fragment in required_checks):
         raise RuntimeError("Incompatible leads schema; required constraints are missing")
 
@@ -758,6 +772,33 @@ def migrate_organization(db: sqlite3.Connection) -> None:
             "PRAGMA foreign_keys = "
             + ("ON" if foreign_keys_enabled else "OFF")
         )
+
+def migrate_row_version(db: sqlite3.Connection) -> None:
+    """Add the optimistic-edit token without rebuilding existing lead rows."""
+    if not table_exists(db, "leads"):
+        return
+
+    columns = set(column_names(db, "leads"))
+    require_organization = "organization_id" in columns
+    if "row_version" not in columns:
+        validate_schema(
+            db,
+            require_organization=require_organization,
+            require_row_version=False,
+        )
+        ensure_column(
+            db,
+            "leads",
+            "row_version",
+            "INTEGER NOT NULL DEFAULT 1 CHECK(row_version >= 1)",
+        )
+
+    validate_schema(
+        db,
+        require_organization=require_organization,
+        require_row_version=True,
+    )
+
 
 def migrate_workspace_dedupe_index(db: sqlite3.Connection) -> None:
     """Upgrade only the legacy global active-dedupe index to workspace scope."""

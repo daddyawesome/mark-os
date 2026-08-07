@@ -11,6 +11,7 @@
     {% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
     <p class="mb-5">Type <strong>DELETE</strong> exactly to confirm.</p>
     <form method="post" action="/crm/leads/{{ lead.id }}/delete">
+        <input type="hidden" name="row_version" value="{{ lead.row_version }}">
         <div class="field">
             <label class="label" for="confirmation">Confirmation</label>
             <input class="input" id="confirmation" name="confirmation" type="text" required autocomplete="off" placeholder="DELETE">

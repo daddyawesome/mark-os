@@ -87,8 +87,13 @@ def initialize_database(db: sqlite3.Connection) -> None:
     relationship_manager.migrate(db)
     relationship_manager.validate_schema(db)
     leads.migrate_organization(db)
+    leads.migrate_row_version(db)
     leads.migrate_workspace_dedupe_index(db)
-    leads.validate_schema(db, require_organization=True)
+    leads.validate_schema(
+        db,
+        require_organization=True,
+        require_row_version=True,
+    )
     lead_activities.validate_schema(db)
 
     # Safe additive migrations for already-live SQLite databases.

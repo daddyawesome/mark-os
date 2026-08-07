@@ -12,7 +12,7 @@ from app.services.access_control import (
     is_relationship_manager,
 )
 from app.services.lead_research_permissions import LeadPermissionError
-from app.services.leads import get_lead, update_lead_next_action
+from app.services.leads import get_lead, require_lead_version, update_lead_next_action
 from app.services.workspace_context import load_crm_actor_for_workspace
 from app.services.playbooks import (
     get_primary_playbook_for_user,
@@ -103,6 +103,7 @@ def update_next_action_for_actor(
     next_action: str,
     next_action_due_date: str | None = None,
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     safe_organization_id = _organization_id(db, organization_id)
     actor = _actor_for_workspace(db, actor, organization_id)
@@ -121,6 +122,7 @@ def update_next_action_for_actor(
         next_action=next_action,
         next_action_due_date=next_action_due_date,
         organization_id=safe_organization_id,
+        expected_row_version=expected_row_version,
     )
 
 
@@ -154,6 +156,7 @@ def assign_relationship_manager(
     actor: Record,
     relationship_manager_user_id: int | None,
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
     safe_organization_id = _organization_id(db, organization_id)
@@ -169,6 +172,7 @@ def assign_relationship_manager(
     )
     if lead is None:
         raise ValueError("Lead not found.")
+    safe_expected = require_lead_version(lead, expected_row_version)
 
     manager_id = None
     manager_name = "Unassigned"
@@ -200,17 +204,35 @@ def assign_relationship_manager(
     if lead["business_development_owner_user_id"] == manager_id:
         return lead
 
-    db.execute(
+    cursor = db.execute(
         """
         UPDATE leads
         SET business_development_owner_user_id = ?,
+            row_version = row_version + 1,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
           AND organization_id = ?
           AND deleted_at IS NULL
+          AND (? IS NULL OR row_version = ?)
         """,
-        (manager_id, safe_lead_id, safe_organization_id),
+        (
+            manager_id,
+            safe_lead_id,
+            safe_organization_id,
+            safe_expected,
+            safe_expected,
+        ),
     )
+    if cursor.rowcount != 1:
+        reloaded = get_lead(
+            db,
+            safe_lead_id,
+            organization_id=safe_organization_id,
+        )
+        if reloaded is not None:
+            require_lead_version(reloaded, safe_expected)
+        raise ValueError("Lead not found.")
+
     db.execute(
         """
         INSERT INTO quest_updates (

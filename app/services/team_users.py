@@ -189,7 +189,9 @@ def set_workspace_membership(
         db.execute(
             """
             UPDATE leads
-            SET assigned_to_user_id = ?, updated_at = CURRENT_TIMESTAMP
+            SET assigned_to_user_id = ?,
+                row_version = row_version + 1,
+                updated_at = CURRENT_TIMESTAMP
             WHERE organization_id = ?
               AND assigned_to_user_id = ?
               AND deleted_at IS NULL
@@ -200,6 +202,7 @@ def set_workspace_membership(
             """
             UPDATE leads
             SET business_development_owner_user_id = NULL,
+                row_version = row_version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE organization_id = ?
               AND business_development_owner_user_id = ?
@@ -597,6 +600,7 @@ def set_user_active(
             """
             UPDATE leads
             SET assigned_to_user_id = ?,
+                row_version = row_version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE assigned_to_user_id = ?
             """,
@@ -606,6 +610,7 @@ def set_user_active(
             """
             UPDATE leads
             SET business_development_owner_user_id = NULL,
+                row_version = row_version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE business_development_owner_user_id = ?
             """,

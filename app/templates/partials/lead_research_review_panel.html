@@ -20,6 +20,7 @@
         method="post"
         action="/crm/leads/{{ lead.id }}/research/review"
     >
+        <input type="hidden" name="row_version" value="{{ lead.row_version }}">
         <div class="field">
             <label
                 class="label"

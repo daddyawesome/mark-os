@@ -577,6 +577,13 @@ def test_crm_create_edit_pipeline_next_action_and_delete_routes_persist(
     assert b"Client: Northstar Analytics" in today_body
     assert b"CRM QUEST" in today_body
 
+    with database.get_db() as db:
+        edit_version = int(
+            db.execute("SELECT row_version FROM leads WHERE id = 1").fetchone()[
+                "row_version"
+            ]
+        )
+
     edit_status, edit_headers, _ = _post_form(
         "/crm/leads/1/edit",
         {
@@ -588,19 +595,38 @@ def test_crm_create_edit_pipeline_next_action_and_delete_routes_persist(
             "next_action": "Draft a one-page audit offer",
             "next_action_due_date": "2026-08-06",
             "notes": "Qualified after reviewing the company site.",
+            "row_version": str(edit_version),
         },
         cookie=cookie,
     )
+    with database.get_db() as db:
+        pipeline_version = int(
+            db.execute("SELECT row_version FROM leads WHERE id = 1").fetchone()[
+                "row_version"
+            ]
+        )
+
     pipeline_status, pipeline_headers, _ = _post_form(
         "/crm/leads/1/pipeline",
-        {"pipeline_status": "replied"},
+        {
+            "pipeline_status": "replied",
+            "row_version": str(pipeline_version),
+        },
         cookie=cookie,
     )
+    with database.get_db() as db:
+        next_action_version = int(
+            db.execute("SELECT row_version FROM leads WHERE id = 1").fetchone()[
+                "row_version"
+            ]
+        )
+
     next_action_status, next_action_headers, _ = _post_form(
         "/crm/leads/1/next-action",
         {
             "next_action": "Book a discovery call",
             "next_action_due_date": "2026-08-08",
+            "row_version": str(next_action_version),
         },
         cookie=cookie,
     )
@@ -630,7 +656,8 @@ def test_crm_create_edit_pipeline_next_action_and_delete_routes_persist(
         lead_before_delete = db.execute(
             """
             SELECT company, contact_person, pipeline_status, priority,
-                   next_action, next_action_due_date, quest_id, deleted_at
+                   next_action, next_action_due_date, quest_id, deleted_at,
+                   row_version
             FROM leads WHERE id = 1
             """
         ).fetchone()
@@ -641,7 +668,7 @@ def test_crm_create_edit_pipeline_next_action_and_delete_routes_persist(
         ).fetchone()
 
     assert lead_count == 1
-    assert tuple(lead_before_delete) == (
+    assert tuple(lead_before_delete)[:8] == (
         "Northstar Data Studio",
         "Ada Santos",
         "replied",
@@ -676,7 +703,10 @@ def test_crm_create_edit_pipeline_next_action_and_delete_routes_persist(
 
     delete_status, delete_headers, _ = _post_form(
         "/crm/leads/1/delete",
-        {"confirmation": "DELETE"},
+        {
+            "confirmation": "DELETE",
+            "row_version": str(lead_before_delete["row_version"]),
+        },
         cookie=cookie,
     )
     assert (delete_status, _header_values(delete_headers, b"location")) == (

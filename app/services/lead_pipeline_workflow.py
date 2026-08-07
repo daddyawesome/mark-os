@@ -17,6 +17,7 @@ from app.services.lead_research_permissions import (
 )
 from app.services.leads import (
     get_lead,
+    require_lead_version,
     update_lead,
     update_lead_pipeline,
 )
@@ -294,8 +295,9 @@ def approve_outreach(
     *,
     actor: Record,
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
-    """Record Owner approval before first outreach."""
+    """Record workspace-owner approval before first outreach."""
     actor = _actor_for_workspace(db, actor, organization_id)
     actor_id = _actor_id(actor)
 
@@ -309,6 +311,7 @@ def approve_outreach(
             organization_id=organization_id,
         )
         safe_organization_id = int(current["organization_id"])
+        safe_expected = require_lead_version(current, expected_row_version)
 
         if not can_approve_outreach(actor, current):
             raise LeadPermissionError(
@@ -330,6 +333,7 @@ def approve_outreach(
             SET
                 outreach_approved_by_user_id = ?,
                 outreach_approved_at = CURRENT_TIMESTAMP,
+                row_version = row_version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
               AND organization_id = ?
@@ -337,8 +341,15 @@ def approve_outreach(
               AND research_status = 'approved'
               AND outreach_approved_by_user_id IS NULL
               AND outreach_approved_at IS NULL
+              AND (? IS NULL OR row_version = ?)
             """,
-            (actor_id, lead_id, safe_organization_id),
+            (
+                actor_id,
+                lead_id,
+                safe_organization_id,
+                safe_expected,
+                safe_expected,
+            ),
         )
 
         if cursor.rowcount != 1:
@@ -347,6 +358,11 @@ def approve_outreach(
                 lead_id,
                 organization_id=safe_organization_id,
             )
+            if (
+                safe_expected is not None
+                and int(reloaded["row_version"]) != safe_expected
+            ):
+                require_lead_version(reloaded, safe_expected)
             if (
                 reloaded[
                     "outreach_approved_by_user_id"
@@ -416,8 +432,9 @@ def change_pipeline_stage(
     contact_response_status: str | None = None,
     contact_next_follow_up_date: str | None = None,
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
-    """Apply an Owner-authorized transition inside one workspace."""
+    """Apply an owner-authorized transition inside one workspace."""
     actor = _actor_for_workspace(db, actor, organization_id)
     actor_id = _actor_id(actor)
     with _workflow_write(
@@ -430,6 +447,7 @@ def change_pipeline_stage(
             organization_id=organization_id,
         )
         safe_organization_id = int(current["organization_id"])
+        require_lead_version(current, expected_row_version)
         target_status = require_pipeline_change(
             actor,
             current,
@@ -474,6 +492,7 @@ def change_pipeline_stage(
             lead_id,
             pipeline_status=target_status,
             organization_id=safe_organization_id,
+            expected_row_version=expected_row_version,
         )
 
 def update_owner_lead(
@@ -494,8 +513,9 @@ def update_owner_lead(
     next_action_due_date: str | None = None,
     notes: str = "",
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
-    """Protect full Owner edits inside one CRM workspace."""
+    """Protect full owner-authority edits inside one CRM workspace."""
     actor = _actor_for_workspace(db, actor, organization_id)
     _actor_id(actor)
 
@@ -509,6 +529,7 @@ def update_owner_lead(
             organization_id=organization_id,
         )
         safe_organization_id = int(current["organization_id"])
+        require_lead_version(current, expected_row_version)
         target_status = require_pipeline_change(
             actor,
             current,
@@ -547,4 +568,5 @@ def update_owner_lead(
             next_action_due_date=next_action_due_date,
             notes=notes,
             organization_id=safe_organization_id,
+            expected_row_version=expected_row_version,
         )

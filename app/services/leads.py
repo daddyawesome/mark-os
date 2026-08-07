@@ -52,6 +52,10 @@ MAX_NOTES_LENGTH = 5_000
 _UNSET = object()
 
 
+class LeadEditConflictError(ValueError):
+    """Raised when a CRM mutation uses an out-of-date lead version."""
+
+
 @dataclass(frozen=True)
 class LeadCreateResult:
     lead: sqlite3.Row
@@ -67,6 +71,27 @@ def _positive_id(value: int, field_name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError(f"{field_name} must be a positive integer")
     return value
+
+
+def _expected_row_version(value: int | None) -> int | None:
+    if value is None:
+        return None
+    return _positive_id(value, "Expected row version")
+
+
+def require_lead_version(
+    lead: sqlite3.Row,
+    expected_row_version: int | None,
+) -> int | None:
+    """Validate an optional optimistic-edit token against one loaded lead."""
+    safe_expected = _expected_row_version(expected_row_version)
+    if safe_expected is None:
+        return None
+    if int(lead["row_version"]) != safe_expected:
+        raise LeadEditConflictError(
+            "This lead changed after it was loaded. Reload and try again."
+        )
+    return safe_expected
 
 
 def _resolve_organization_id(
@@ -986,7 +1011,9 @@ def _persist_lead_update(
     values: dict[str, str | None],
     event_type: str = "crm_updated",
     event_note: str | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
+    safe_expected = require_lead_version(current, expected_row_version)
     changed = _changed_fields(current, values)
     if not changed:
         return current
@@ -1000,10 +1027,12 @@ def _persist_lead_update(
                 source = ?, source_url = ?, problem_opportunity = ?,
                 why_mark_fits = ?, pipeline_status = ?, priority = ?,
                 next_action = ?, next_action_due_date = ?, notes = ?,
+                row_version = row_version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
               AND organization_id = ?
               AND deleted_at IS NULL
+              AND (? IS NULL OR row_version = ?)
             """,
             (
                 values["dedupe_key"],
@@ -1021,9 +1050,20 @@ def _persist_lead_update(
                 values["notes"],
                 current["id"],
                 organization_id,
+                safe_expected,
+                safe_expected,
             ),
         )
         if cursor.rowcount != 1:
+            reloaded = get_lead(
+                db,
+                current["id"],
+                organization_id=organization_id,
+            )
+            if reloaded is not None and safe_expected is not None:
+                raise LeadEditConflictError(
+                    "This lead changed after it was loaded. Reload and try again."
+                )
             raise ValueError("Lead not found")
         _sync_quest(db, quest_id=current["quest_id"], values=values)
         _, progress = PIPELINE_QUEST_STATE[str(values["pipeline_status"])]
@@ -1070,6 +1110,7 @@ def update_lead(
     next_action_due_date: str | None | object = _UNSET,
     notes: str | None = None,
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
     safe_organization_id = _resolve_organization_id(db, organization_id)
@@ -1094,7 +1135,12 @@ def update_lead(
             next_action_due_date=next_action_due_date,
             notes=notes,
         )
-        return _persist_lead_update(db, current=current, values=values)
+        return _persist_lead_update(
+            db,
+            current=current,
+            values=values,
+            expected_row_version=expected_row_version,
+        )
 
 
 def update_lead_pipeline(
@@ -1103,6 +1149,7 @@ def update_lead_pipeline(
     *,
     pipeline_status: str,
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
     safe_organization_id = _resolve_organization_id(db, organization_id)
@@ -1113,6 +1160,7 @@ def update_lead_pipeline(
             safe_lead_id,
             organization_id=safe_organization_id,
         )
+        require_lead_version(current, expected_row_version)
         if current["pipeline_status"] == clean_status:
             return current
         values = _values_from_update(
@@ -1139,6 +1187,7 @@ def update_lead_pipeline(
                 f"CRM pipeline changed from {current['pipeline_status']} to "
                 f"{clean_status}."
             ),
+            expected_row_version=expected_row_version,
         )
 
 
@@ -1149,6 +1198,7 @@ def update_lead_next_action(
     next_action: str,
     next_action_due_date: str | None = None,
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
     safe_organization_id = _resolve_organization_id(db, organization_id)
@@ -1158,6 +1208,7 @@ def update_lead_next_action(
             safe_lead_id,
             organization_id=safe_organization_id,
         )
+        require_lead_version(current, expected_row_version)
         values = _values_from_update(
             current,
             company=None,
@@ -1184,6 +1235,7 @@ def update_lead_next_action(
             values=values,
             event_type="crm_next_action",
             event_note=f"CRM next action set to: {values['next_action']}{due_note}.",
+            expected_row_version=expected_row_version,
         )
 
 
@@ -1194,6 +1246,7 @@ def delete_lead(
     confirmed: bool = False,
     actor: dict | sqlite3.Row | None = None,
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     if confirmed is not True:
         raise ValueError("Lead deletion requires confirmation")
@@ -1207,6 +1260,7 @@ def delete_lead(
             include_deleted=True,
             organization_id=safe_organization_id,
         )
+        safe_expected = require_lead_version(lead, expected_row_version)
         if actor is not None:
             from app.services.lead_research_permissions import (
                 LeadPermissionError,
@@ -1230,20 +1284,33 @@ def delete_lead(
         cursor = db.execute(
             """
             UPDATE leads
-            SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            SET deleted_at = CURRENT_TIMESTAMP,
+                row_version = row_version + 1,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
               AND organization_id = ?
               AND deleted_at IS NULL
+              AND (? IS NULL OR row_version = ?)
             """,
-            (safe_lead_id, safe_organization_id),
+            (
+                safe_lead_id,
+                safe_organization_id,
+                safe_expected,
+                safe_expected,
+            ),
         )
         if cursor.rowcount != 1:
-            return _require_lead(
+            reloaded = _require_lead(
                 db,
                 safe_lead_id,
                 include_deleted=True,
                 organization_id=safe_organization_id,
             )
+            if safe_expected is not None and int(reloaded["row_version"]) != safe_expected:
+                raise LeadEditConflictError(
+                    "This lead changed after it was loaded. Reload and try again."
+                )
+            return reloaded
         db.execute(
             """
             UPDATE tasks

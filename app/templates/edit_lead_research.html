@@ -44,6 +44,7 @@ Research {{ lead.company }} · Client Hunting · MARK OS
         method="post"
         action="/crm/leads/{{ lead.id }}/research/edit"
     >
+        <input type="hidden" name="row_version" value="{{ lead.row_version }}">
         <div class="columns is-multiline">
             <div class="column is-half">
                 <div class="field">

@@ -10,7 +10,7 @@ from app.services.lead_research_permissions import (
     LeadPermissionError,
     require_edit_fields,
 )
-from app.services.leads import get_lead, update_lead
+from app.services.leads import get_lead, require_lead_version, update_lead
 from app.services.workspace_context import load_crm_actor_for_workspace
 
 
@@ -91,6 +91,7 @@ def update_research_details(
     next_action_due_date: str | None = None,
     notes: str = "",
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     """Save research fields for an authorized actor in one workspace."""
     actor = _actor_for_workspace(db, actor, organization_id)
@@ -101,6 +102,7 @@ def update_research_details(
         organization_id=organization_id,
     )
     safe_organization_id = int(current["organization_id"])
+    require_lead_version(current, expected_row_version)
 
     require_edit_fields(
         actor,
@@ -135,6 +137,7 @@ def update_research_details(
             ),
             notes=notes,
             organization_id=safe_organization_id,
+            expected_row_version=expected_row_version,
         )
 
         previous_status = str(
@@ -163,10 +166,12 @@ def update_research_details(
                     THEN NULL
                     ELSE submitted_for_review_at
                 END,
+                row_version = row_version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
               AND organization_id = ?
               AND deleted_at IS NULL
+              AND row_version = ?
             """,
             (
                 actor_id,
@@ -174,6 +179,7 @@ def update_research_details(
                 previous_status,
                 lead_id,
                 safe_organization_id,
+                int(updated["row_version"]),
             ),
         )
         if cursor.rowcount != 1:
@@ -242,8 +248,9 @@ def submit_research_for_review(
     *,
     actor: Record,
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
-    """Place eligible lead research in the Owner review queue."""
+    """Place eligible lead research in the workspace-owner review queue."""
     from app.services.lead_research_permissions import (
         can_submit_for_review,
     )
@@ -256,6 +263,7 @@ def submit_research_for_review(
         organization_id=organization_id,
     )
     safe_organization_id = int(current["organization_id"])
+    safe_expected = require_lead_version(current, expected_row_version)
 
     if not can_submit_for_review(actor, current):
         raise LeadPermissionError(
@@ -290,20 +298,30 @@ def submit_research_for_review(
                 reviewed_at = NULL,
                 outreach_approved_by_user_id = NULL,
                 outreach_approved_at = NULL,
+                row_version = row_version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
               AND organization_id = ?
               AND deleted_at IS NULL
               AND research_status = ?
+              AND (? IS NULL OR row_version = ?)
             """,
             (
                 actor_id,
                 lead_id,
                 safe_organization_id,
                 previous_status,
+                safe_expected,
+                safe_expected,
             ),
         )
         if cursor.rowcount != 1:
+            reloaded = _require_active_lead(
+                db,
+                lead_id,
+                organization_id=safe_organization_id,
+            )
+            require_lead_version(reloaded, safe_expected)
             raise LeadPermissionError(
                 "The lead changed before submission. "
                 "Reload and try again."
@@ -440,8 +458,9 @@ def review_research(
     decision: str,
     review_notes: str = "",
     organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
-    """Apply an Owner-only decision to submitted lead research."""
+    """Apply a workspace-owner decision to submitted lead research."""
     from app.services.lead_research_permissions import (
         can_review_research,
     )
@@ -454,6 +473,7 @@ def review_research(
         organization_id=organization_id,
     )
     safe_organization_id = int(current["organization_id"])
+    safe_expected = require_lead_version(current, expected_row_version)
 
     normalized_decision = str(
         decision or ""
@@ -511,6 +531,7 @@ def review_research(
                 review_notes = ?,
                 outreach_approved_by_user_id = NULL,
                 outreach_approved_at = NULL,
+                row_version = row_version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
               AND organization_id = ?
@@ -518,6 +539,7 @@ def review_research(
               AND research_status = (
                   'ready_for_review'
               )
+              AND (? IS NULL OR row_version = ?)
             """,
             (
                 normalized_decision,
@@ -525,9 +547,17 @@ def review_research(
                 normalized_notes,
                 lead_id,
                 safe_organization_id,
+                safe_expected,
+                safe_expected,
             ),
         )
         if cursor.rowcount != 1:
+            reloaded = _require_active_lead(
+                db,
+                lead_id,
+                organization_id=safe_organization_id,
+            )
+            require_lead_version(reloaded, safe_expected)
             raise LeadPermissionError(
                 "The lead changed before the review "
                 "decision could be saved."

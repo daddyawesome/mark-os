@@ -27,6 +27,7 @@ LEAD_COLUMNS = [
     "next_action",
     "next_action_due_date",
     "notes",
+    "row_version",
     "created_at",
     "updated_at",
     "deleted_at",
@@ -419,6 +420,8 @@ def test_fresh_database_has_exact_crm_schema_constraints_indexes_and_fk(
     assert columns["job_title"][4] == "''"
     assert columns["source_url"][4] == "''"
     assert columns["notes"][4] == "''"
+    assert columns["row_version"][3] == 1
+    assert columns["row_version"][4] == "1"
     assert columns["pipeline_status"][4] == "'new'"
     assert columns["priority"][4] == "'medium'"
     assert columns["created_at"][4] == "CURRENT_TIMESTAMP"

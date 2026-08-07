@@ -27,6 +27,7 @@
     action="/crm/leads/{{ lead.id }}/research/submit"
     style="display: inline;"
 >
+    <input type="hidden" name="row_version" value="{{ lead.row_version }}">
     <button
         class="button is-mark"
         type="submit"
@@ -103,6 +104,7 @@
             <p class="mark-kicker">Quick update</p>
             <h2 class="title is-4">Pipeline</h2>
             <form method="post" action="/crm/leads/{{ lead.id }}/pipeline">
+                <input type="hidden" name="row_version" value="{{ lead.row_version }}">
                 <div class="field">
                     <label class="label" for="pipeline_status">Pipeline status</label>
                     <div class="select is-fullwidth">
@@ -128,6 +130,7 @@
             <p class="mark-kicker">Next move</p>
             <h2 class="title is-4">Next action</h2>
             <form method="post" action="/crm/leads/{{ lead.id }}/next-action">
+                <input type="hidden" name="row_version" value="{{ lead.row_version }}">
                 <div class="field">
                     <label class="label" for="next_action">Next action</label>
                     <input class="input" id="next_action" name="next_action" type="text" required value="{{ lead.next_action }}">
@@ -146,6 +149,7 @@
             <p class="mark-kicker">Business Development</p>
             <h2 class="title is-4">Assign a relationship owner.</h2>
             <form method="post" action="/crm/leads/{{ lead.id }}/relationship-owner">
+                <input type="hidden" name="row_version" value="{{ lead.row_version }}">
                 <div class="field">
                     <label class="label" for="relationship_manager_user_id">Relationship Manager</label>
                     <div class="select is-fullwidth">

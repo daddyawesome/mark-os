@@ -28,6 +28,7 @@
         method="post"
         action="/crm/leads/{{ lead.id }}/outreach/approve"
     >
+        <input type="hidden" name="row_version" value="{{ lead.row_version }}">
         <button
             class="button is-success"
             type="submit"

@@ -72,6 +72,7 @@ from app.services.relationship_manager import (
 from app.services.leads import (
     PIPELINE_STATUSES,
     PRIORITIES,
+    LeadEditConflictError,
     create_lead as create_lead_record,
     delete_lead as delete_lead_record,
     get_crm_dashboard_metrics,
@@ -120,6 +121,7 @@ ERROR_MESSAGES = {
     "review_notes_required": 'Review notes are required when requesting changes or rejecting.',
     "invalid_review": 'The research review decision could not be saved.',
     "pipeline_rule": "That pipeline move is not allowed. Contacted requires approved research, outreach approval, and a complete contact audit; Proposal requires Meeting; Won requires Proposal.",
+    "stale": "This lead changed in another session. Reload the latest version and try again.",
 }
 METRIC_DEFINITIONS = (
     ("Total leads", "total_leads"),
@@ -165,6 +167,25 @@ def _optional_positive_form_id(
             f"{field_name} must be a positive integer."
         )
     return parsed
+
+def _expected_row_version(value: object) -> int | None:
+    """Require HTTP form versions while tolerating legacy direct route calls."""
+    if not isinstance(value, (str, int)) or isinstance(value, bool):
+        # Direct unit tests invoke route functions without FastAPI dependency
+        # injection, leaving the Form() object in place. Runtime HTTP requests
+        # never receive that object.
+        return None
+    clean = str(value).strip()
+    if not clean:
+        raise ValueError("Lead row version is required")
+    try:
+        parsed = int(clean)
+    except ValueError as exc:
+        raise ValueError("Lead row version must be an integer") from exc
+    if parsed <= 0:
+        raise ValueError("Lead row version must be positive")
+    return parsed
+
 
 def _request_organization_id(
     db,
@@ -1010,6 +1031,7 @@ def edit_lead(
     priority: str = Form(default="medium"),
     next_action_due_date: str = Form(default=""),
     notes: str = Form(default=""),
+    row_version: str = Form(default=""),
 ):
     with get_db() as db:
         organization_id = _request_organization_id(db, request)
@@ -1032,6 +1054,12 @@ def edit_lead(
                 next_action_due_date=next_action_due_date or None,
                 notes=notes,
                 organization_id=organization_id,
+                expected_row_version=_expected_row_version(row_version),
+            )
+        except LeadEditConflictError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}/edit?error=stale",
+                status_code=303,
             )
         except LeadPermissionError:
             return RedirectResponse(
@@ -1062,6 +1090,7 @@ def update_pipeline(
     contact_responsible_user_id: str = Form(default=""),
     contact_response_status: str = Form(default=""),
     contact_next_follow_up_date: str = Form(default=""),
+    row_version: str = Form(default=""),
 ):
     with get_db() as db:
         organization_id = _request_organization_id(db, request)
@@ -1098,6 +1127,12 @@ def update_pipeline(
                     _optional_form_text(contact_next_follow_up_date) or None
                 ),
                 organization_id=organization_id,
+                expected_row_version=_expected_row_version(row_version),
+            )
+        except LeadEditConflictError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=stale",
+                status_code=303,
             )
         except LeadActivityPermissionError:
             return RedirectResponse(
@@ -1130,6 +1165,7 @@ def update_next_action(
     lead_id: int,
     next_action: str = Form(...),
     next_action_due_date: str = Form(default=""),
+    row_version: str = Form(default=""),
 ):
     with get_db() as db:
         organization_id = _request_organization_id(db, request)
@@ -1142,6 +1178,12 @@ def update_next_action(
                 next_action=next_action,
                 next_action_due_date=next_action_due_date or None,
                 organization_id=organization_id,
+                expected_row_version=_expected_row_version(row_version),
+            )
+        except LeadEditConflictError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=stale",
+                status_code=303,
             )
         except LeadPermissionError:
             return RedirectResponse(
@@ -1164,6 +1206,7 @@ def update_relationship_owner(
     request: Request,
     lead_id: int,
     relationship_manager_user_id: str = Form(default=""),
+    row_version: str = Form(default=""),
 ):
     manager_id = None
     if relationship_manager_user_id.strip():
@@ -1185,6 +1228,12 @@ def update_relationship_owner(
                 actor=request.state.current_user,
                 relationship_manager_user_id=manager_id,
                 organization_id=organization_id,
+                expected_row_version=_expected_row_version(row_version),
+            )
+        except LeadEditConflictError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=stale",
+                status_code=303,
             )
         except LeadPermissionError:
             return RedirectResponse(
@@ -1221,6 +1270,7 @@ def delete_lead(
     request: Request,
     lead_id: int,
     confirmation: str = Form(default=""),
+    row_version: str = Form(default=""),
 ):
     with get_db() as db:
         lead = _lead_or_404(db, lead_id, request)
@@ -1235,12 +1285,24 @@ def delete_lead(
                 },
                 status_code=400,
             )
-        delete_lead_record(
-            db,
-            lead_id,
-            confirmed=True,
-            actor=request.state.current_user,
-            organization_id=_request_organization_id(db, request),
-        )
+        try:
+            delete_lead_record(
+                db,
+                lead_id,
+                confirmed=True,
+                actor=request.state.current_user,
+                organization_id=_request_organization_id(db, request),
+                expected_row_version=_expected_row_version(row_version),
+            )
+        except LeadEditConflictError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=stale",
+                status_code=303,
+            )
+        except ValueError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=invalid",
+                status_code=303,
+            )
 
     return RedirectResponse(url="/crm?notice=deleted", status_code=303)

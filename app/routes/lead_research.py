@@ -20,11 +20,26 @@ from app.services.lead_research_permissions import (
 from app.services.lead_research_workflow import (
     update_research_details,
 )
-from app.services.leads import get_lead
+from app.services.leads import LeadEditConflictError, get_lead
 from app.services.workspace_context import require_request_organization_id
 
 
 router = APIRouter(prefix="/crm")
+
+
+def _expected_row_version(value: object) -> int | None:
+    if not isinstance(value, (str, int)) or isinstance(value, bool):
+        return None
+    clean = str(value).strip()
+    if not clean:
+        raise ValueError("Lead row version is required")
+    try:
+        parsed = int(clean)
+    except ValueError as exc:
+        raise ValueError("Lead row version must be an integer") from exc
+    if parsed <= 0:
+        raise ValueError("Lead row version must be positive")
+    return parsed
 
 
 def _request_organization_id(
@@ -93,11 +108,13 @@ def edit_lead_research_page(
                 request.state.current_user
             ),
             "error": (
-                "The research could not be saved. "
-                "Check the required fields."
-                if request.query_params.get("error")
-                == "invalid"
-                else None
+                "This lead changed in another session. Reload the latest version and try again."
+                if request.query_params.get("error") == "stale"
+                else (
+                    "The research could not be saved. Check the required fields."
+                    if request.query_params.get("error") == "invalid"
+                    else None
+                )
             ),
         },
     )
@@ -119,6 +136,7 @@ def edit_lead_research(
     source_url: str = Form(default=""),
     next_action_due_date: str = Form(default=""),
     notes: str = Form(default=""),
+    row_version: str = Form(default=""),
 ):
     with get_db() as db:
         organization_id = _request_organization_id(db, request)
@@ -148,6 +166,15 @@ def edit_lead_research(
                 ),
                 notes=notes,
                 organization_id=organization_id,
+                expected_row_version=_expected_row_version(row_version),
+            )
+        except LeadEditConflictError:
+            return RedirectResponse(
+                url=(
+                    f"/crm/leads/{lead_id}/"
+                    "research/edit?error=stale"
+                ),
+                status_code=303,
             )
         except LeadPermissionError:
             raise HTTPException(
@@ -178,6 +205,7 @@ def edit_lead_research(
 def submit_lead_research_for_review(
     request: Request,
     lead_id: int,
+    row_version: str = Form(default=""),
 ):
     from app.services.lead_research_permissions import (
         can_submit_for_review,
@@ -211,11 +239,22 @@ def submit_lead_research_for_review(
                 lead_id,
                 actor=request.state.current_user,
                 organization_id=organization_id,
+                expected_row_version=_expected_row_version(row_version),
+            )
+        except LeadEditConflictError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=stale",
+                status_code=303,
             )
         except LeadPermissionError:
             raise HTTPException(
                 status_code=404,
                 detail="Lead not found",
+            )
+        except ValueError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=invalid",
+                status_code=303,
             )
 
     return RedirectResponse(
@@ -274,6 +313,7 @@ def review_lead_research(
     lead_id: int,
     decision: str = Form(...),
     review_notes: str = Form(default=""),
+    row_version: str = Form(default=""),
 ):
     from app.services.lead_research_permissions import (
         can_review_research,
@@ -309,6 +349,12 @@ def review_lead_research(
                 decision=decision,
                 review_notes=review_notes,
                 organization_id=organization_id,
+                expected_row_version=_expected_row_version(row_version),
+            )
+        except LeadEditConflictError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=stale",
+                status_code=303,
             )
         except LeadPermissionError:
             raise HTTPException(
@@ -352,6 +398,7 @@ def review_lead_research(
 def approve_lead_outreach(
     request: Request,
     lead_id: int,
+    row_version: str = Form(default=""),
 ):
     from app.services.lead_pipeline_workflow import (
         approve_outreach,
@@ -385,11 +432,22 @@ def approve_lead_outreach(
                 lead_id,
                 actor=request.state.current_user,
                 organization_id=organization_id,
+                expected_row_version=_expected_row_version(row_version),
+            )
+        except LeadEditConflictError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=stale",
+                status_code=303,
             )
         except LeadPermissionError:
             raise HTTPException(
                 status_code=404,
                 detail="Lead not found",
+            )
+        except ValueError:
+            return RedirectResponse(
+                url=f"/crm/leads/{lead_id}?error=invalid",
+                status_code=303,
             )
 
     return RedirectResponse(

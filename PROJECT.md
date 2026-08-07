@@ -4,7 +4,52 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.6B-7 — Optimistic CRM Edit Protection
+**Immediate next milestone:** Phase 6.6B-8 — Workspace Isolation and Concurrency Acceptance
+
+<!-- PHASE_6_6B7_COMPLETION_START -->
+**6.6B-7 Status: ✅ COMPLETE — Optimistic CRM Edit Protection**
+
+Completed:
+- Added additive `leads.row_version INTEGER NOT NULL DEFAULT 1` with
+  `CHECK(row_version >= 1)`.
+- Added an idempotent migration that preserves existing lead IDs, organization
+  links, quest links, ownership/research fields, timestamps, soft-delete state,
+  and business data.
+- Mutable lead writes now increment `row_version`.
+- Runtime CRM mutations carry the version that was rendered with the form.
+- Version-aware lead updates use all three boundaries:
+  - lead ID;
+  - organization ID;
+  - expected row version.
+- Stale full edits, pipeline changes, next-action updates, research edits,
+  research submissions, research review decisions, outreach approval,
+  Business Development Owner assignment, and archive actions are rejected
+  rather than silently overwriting newer work.
+- The audited first-Contacted transition remains atomic: if the lead version is
+  stale, its newly prepared activity and pipeline change roll back together.
+- Administrative membership/account changes that reassign or clear active CRM
+  ownership also increment affected lead versions so already-open forms become
+  stale.
+- All mutating lead forms now submit a hidden `row_version`.
+- Stale browser submissions return a clear Forest Fieldbook conflict message:
+  reload the latest lead and try again.
+- Existing direct service callers retain an optional compatibility path when no
+  expected version is supplied, while middleware-backed runtime forms enforce
+  the version token.
+- Lead activity rows remain append-first/audited records and are not overloaded
+  with the lead row-version token.
+
+**Next substep: 6.6B-8 — Workspace Isolation and Concurrency Acceptance**
+- Run the complete cross-workspace acceptance matrix.
+- Re-test direct URLs, dashboards, role queues, follow-up queues, research,
+  import preview, duplicate identity, membership revocation, and stale edits
+  together.
+- Rehearse the complete Phase 6.6B migration against a copy of the production
+  Railway SQLite database.
+- Verify online backup/restore evidence and the one-instance SQLite deployment
+  rule before real Pendang staff onboarding.
+<!-- PHASE_6_6B7_COMPLETION_END -->
+
 
 <!-- PHASE_6_6B6_COMPLETION_START -->
 **6.6B-6 Status: ✅ COMPLETE — Workspace Switching UI and Pendang Launch Surface**
@@ -256,7 +301,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 512 passed after Phase 6.6B-6 workspace switching and Pendang launch surface
+**Last verified full-suite baseline:** 519 passed after Phase 6.6B-7 optimistic CRM edit protection
 
 ---
 
@@ -3255,6 +3300,38 @@ backup.
 
 
 
+
+
+## 2026-08-07 — Reject stale CRM lead writes with an explicit row version
+
+**Decision:**
+
+- add `row_version INTEGER NOT NULL DEFAULT 1 CHECK(row_version >= 1)` to the
+  lead record;
+- increment the version on every application write that changes mutable lead
+  state or active lead ownership;
+- render the current version into every mutable lead form;
+- require runtime writes to match lead ID + active organization ID + expected
+  row version;
+- return a specific stale-edit message instead of treating a concurrent change
+  as a generic validation failure;
+- keep the Contacted activity and pipeline transition inside the existing
+  atomic savepoint so a stale pipeline write cannot leave an orphan contact
+  activity;
+- let administrative reassignment/revocation advance the version even though
+  those operations are authoritative rather than browser edits;
+- keep append-first `lead_activities` audit records on their own correction
+  model rather than coupling them to the lead version.
+
+**Reason:**
+
+- Mark, Rey, and Freddy may open the same Pendang record at different times;
+- SQLite serializes writes but does not by itself prevent a later stale form
+  from overwriting a newer committed value;
+- organization scoping prevents cross-workspace access, while `row_version`
+  separately prevents lost updates inside the same workspace;
+- an additive integer token is deterministic, cheap, SQLite-friendly, and easy
+  to test without introducing another framework or database.
 
 ## 2026-08-07 — Make workspace identity visible and temporary credentials one-time
 

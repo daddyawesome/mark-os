@@ -8,6 +8,7 @@
 
     <form method="post" action="/crm/leads/{{ lead.id }}/pipeline">
         <input type="hidden" name="pipeline_status" value="contacted">
+        <input type="hidden" name="row_version" value="{{ lead.row_version }}">
 
         <div class="field">
             <label class="label" for="contact_activity_type">Activity type</label>
