@@ -5,6 +5,63 @@
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
 **Immediate next milestone:** Phase 6.6B — Pendang CRM Workspace and Staff Launch
+
+<!-- PHASE_6_6B1_COMPLETION_START -->
+**6.6B-1 Status: ✅ COMPLETE**
+
+Completed foundation:
+- Added `organizations`.
+- Added `organization_memberships`.
+- Seeded `mark-agency` / `MARK Agency` idempotently.
+- Seeded `pendang` / `Pendang Research & Analytics` idempotently.
+- Added database-level unique organization slug protection.
+- Added `UNIQUE(user_id, organization_id)` membership protection.
+- Added workspace membership role constraint for:
+  - `workspace_admin`
+  - `workspace_owner`
+  - `crm_contributor`
+- Preserved existing global `users.role`; global roles and workspace membership roles remain separate.
+- No Mark/Rey/Freddy memberships were seeded in this substep.
+- No lead, CRM route, permission, queue, import, or workspace-switching behavior was changed.
+- `PRAGMA foreign_key_check` verified clean.
+- Full test suite verification: **469 passed**.
+
+**Next substep: 6.6B-2 — Lead Organization Migration**
+- Add `organization_id` to leads.
+- Safely backfill every existing lead to `mark-agency`.
+- Preserve lead IDs, relationships, ownership/research fields, timestamps, optimistic edit fields, and soft-delete state.
+- Keep CRM workspace filtering, permissions, queues, and UI for later substeps.
+<!-- PHASE_6_6B1_COMPLETION_END -->
+
+**Immediate next milestone:** Phase 6.6B-2 — Lead Organization Migration
+
+<!-- PHASE_6_6B1_COMPLETION_START -->
+**6.6B-1 Status: ✅ COMPLETE**
+
+Completed foundation:
+- Added `organizations`.
+- Added `organization_memberships`.
+- Seeded `mark-agency` / `MARK Agency` idempotently.
+- Seeded `pendang` / `Pendang Research & Analytics` idempotently.
+- Added database-level unique organization slug protection.
+- Added `UNIQUE(user_id, organization_id)` membership protection.
+- Added workspace membership role constraint for:
+  - `workspace_admin`
+  - `workspace_owner`
+  - `crm_contributor`
+- Preserved existing global `users.role`; global roles and workspace membership roles remain separate.
+- No Mark/Rey/Freddy memberships were seeded in this substep.
+- No lead, CRM route, permission, queue, import, or workspace-switching behavior was changed.
+- `PRAGMA foreign_key_check` verified clean.
+- Full test suite verification: **469 passed**.
+
+**Next substep: 6.6B-2 — Lead Organization Migration**
+- Add `organization_id` to leads.
+- Safely backfill every existing lead to `mark-agency`.
+- Preserve lead IDs, relationships, ownership/research fields, timestamps, optimistic edit fields, and soft-delete state.
+- Keep CRM workspace filtering, permissions, queues, and UI for later substeps.
+<!-- PHASE_6_6B1_COMPLETION_END -->
+
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
 **Last verified full-suite baseline:** 460 passed after Phase 6.6A bulk import preview
