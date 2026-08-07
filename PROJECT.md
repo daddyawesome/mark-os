@@ -2,9 +2,41 @@
 
 **Canonical project document**  
 **Repository:** `https://github.com/daddyawesome/mark-os`  
-**Reviewed against `main`:** 2026-08-06
+**Reviewed against `main`:** 2026-08-08
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.6B-8B — Production-Copy Migration Rehearsal
+**Immediate next milestone:** Deploy Phase 6.6C and finish Pendang real-user acceptance
+
+
+<!-- PHASE_6_6C_COMPLETION_START -->
+**6.6C Status: ✅ IMPLEMENTATION COMPLETE — Production Acceptance Required**
+
+Completed locally:
+- Added a dedicated `/pendang` company home.
+- Moved the Founder Plan from a static CRM block into organization-scoped,
+  database-backed company knowledge.
+- Added editable About / Company CV, services and pricing notes, historical
+  projects, case studies, warm relationships, manual content drafts, meeting
+  preparation, and shared company-document links.
+- Pendang CRM contributors can read company knowledge but cannot mutate it.
+- Global Owner and Pendang workspace-owner/admin authority can manage company
+  knowledge after database-backed membership revalidation.
+- Added optimistic `row_version` protection for company profile and knowledge
+  writes.
+- Added only generic Pendang service categories as seed data; no client history,
+  price claims, case studies, relationships, or credentials are fabricated.
+- Rey/Freddy-style Pendang users now resolve `/pendang` as their post-password
+  landing page; MARK Agency staff keep their prior landing behavior.
+- Full local test suite verification: **531 passed**.
+
+Required production acceptance:
+- deploy the additive migration through the existing Railway release process;
+- confirm `/health`;
+- have Rey and Freddy replace their temporary passwords;
+- verify both land on Pendang Home;
+- smoke-test Rey's company-content write authority and Freddy's read-only view;
+- complete the already-required real Pendang lead/review/next-action acceptance
+  gates before calling the Pendang launch operationally complete.
+<!-- PHASE_6_6C_COMPLETION_END -->
 
 <!-- PHASE_6_6B8A_COMPLETION_START -->
 **6.6B-8A Status: ✅ ACCEPTANCE HARNESS READY — Production-Copy Rehearsal Required**
@@ -324,7 +356,7 @@ Completed foundation:
 - Keep CRM workspace filtering, permissions, queues, and UI for later substeps.
 <!-- PHASE_6_6B1_COMPLETION_END -->
 
-**Immediate next milestone:** Phase 6.6B-2 — Lead Organization Migration
+**Immediate next milestone:** Deploy Phase 6.6C and finish Pendang real-user acceptance
 
 <!-- PHASE_6_6B1_COMPLETION_START -->
 **6.6B-1 Status: ✅ COMPLETE**
@@ -355,7 +387,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 525 passed after Phase 6.6C-1 Pendang Founder Plan surface
+**Last verified full-suite baseline:** 531 passed after Phase 6.6C Pendang Company Knowledge and Marketing
 
 ---
 
@@ -1212,7 +1244,7 @@ timeline history.
 | Tested production backup and restore process | Phase 6.2 |
 | Due, overdue, waiting, and stale-lead command center | Phase 6.4 |
 | Production health and error alerts | Phase 6.5 |
-| Safe bulk preview, assignment, import, and export | Phase 6.6 (6.6C onward) |
+| Safe bulk preview, assignment, import, and export | Phase 6.6 (6.6D onward) |
 | Pendang CRM workspace and staff launch | Phase 6.6B |
 | Deterministic approved outreach templates | Phase 6.7 |
 | Research effort and webhook intake | Phase 6.8 |
@@ -1401,7 +1433,7 @@ agency requirement, so Backup and Disaster Recovery becomes Phase 6.2.
 | Phase 7.4 | Phase 6.7 | Outreach Templates and Approval Controls |
 | Phase 6.9 | Phase 6.8 | Lead-Sourcing Effort Tracking and Webhook Intake |
 | Phase 6.5 | Phase 6.9 | Discovery and Qualification |
-| Phase 6.6 | Phase 6.10 | Proposal Management |
+| Phase 6.6 | Active — 6.6A–6.6C implementation complete | Bulk preview, isolated Pendang CRM, and Pendang company knowledge; production acceptance and remaining bulk work next |
 | Phase 6.7 | Phase 6.11 | Client Onboarding and Delivery |
 | Phase 6.8 | Phase 6.12 | Retainers, Invoicing, and Profitability |
 | Phase 6.10 | Phase 6.13 | Delegated Outreach Permission |
@@ -1746,7 +1778,7 @@ correlation ID. Use View in Context only after identifying the safe event.
 
 ## Phase 6.6 — Bulk Lead Management and CRM Workspaces
 
-**Status:** Active — 6.6A complete; 6.6B is the immediate next milestone  
+**Status:** Active — 6.6A–6.6C implementation complete; production acceptance next
 **MoSCoW:** Should have soon
 
 ### Goal
@@ -1790,10 +1822,12 @@ Upload CSV
 
 - [x] 6.6A — Bulk lead import preview, row validation, and duplicate warnings
       without database writes
-- [ ] 6.6B — Pendang CRM workspace and staff launch
-- [ ] 6.6C — Selective row import with permission-scoped assignment
-- [ ] 6.6D — Bulk submission, CSV/JSON export, and approved-leads export
-- [ ] 6.6E — Downloadable CRM backup and phase verification
+- [x] 6.6B — Pendang CRM workspace foundation, staff authority, isolation,
+      optimistic edits, and release rehearsal harness
+- [x] 6.6C — Pendang Company Knowledge and Marketing workspace
+- [ ] 6.6D — Selective row import with permission-scoped assignment
+- [ ] 6.6E — Bulk submission, CSV/JSON export, and approved-leads export
+- [ ] 6.6F — Downloadable CRM backup and phase verification
 
 ### Phase 6.6B — Pendang CRM Workspace and Staff Launch
 
@@ -1949,6 +1983,32 @@ isolation from MARK Agency.
 - duplicate detection is scoped to the active organization;
 - relevant permission and isolation tests pass;
 - full test suite passes.
+
+
+### Phase 6.6C — Pendang Company Knowledge and Marketing
+
+**Status:** Implementation complete — production acceptance required
+
+Delivered inside the existing Pendang workspace:
+
+- dedicated `/pendang` company home and Pendang-specific shell navigation;
+- editable Founder Plan, About, and Company CV;
+- organization-scoped services/pricing, historical projects, case studies,
+  warm relationships, manual Content Studio drafts, meeting preparation, and
+  shared company-document links;
+- server-side active Pendang membership revalidation for every read/write;
+- read access for Pendang CRM contributors;
+- write authority only for global Owner / Pendang workspace-admin or
+  workspace-owner authority;
+- optimistic row-version protection for company profile and knowledge edits;
+- additive/idempotent SQLite tables, indexes, and safe Pendang seed content;
+- no AI publishing, external action, file-upload storage, or fabricated client
+  history introduced by this phase;
+- Pendang staff now land on `/pendang` after completing the required temporary
+  password change.
+
+Production acceptance still requires deploying the additive migration, checking
+`/health`, and completing the real Rey/Freddy login and role smoke tests.
 
 ## Phase 6.7 — Outreach Templates and Approval Controls
 
@@ -3250,7 +3310,7 @@ backup.
 ## Should have soon
 
 - Phase 6.6B Pendang CRM workspace and staff launch;
-- Phase 6.6 bulk selective import, assignment, export, and backup (6.6C onward);
+- Phase 6.6 bulk selective import, assignment, export, and backup (6.6D onward);
 - Phase 6.7 deterministic approved outreach templates;
 - Phase 6.8 effort tracking and authenticated webhook intake;
 - Phase 7.1 security and audit hardening after the immediate operational risks;
@@ -3323,7 +3383,7 @@ backup.
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
 | Phase 6.4 | Complete | Follow-up Command Center, role-scoped filters, Manila boundaries, and safe empty states |
 | Phase 6.5 | Complete | Structured errors, correlation IDs, database-aware health, backup and uptime alerts, 24-hour count, and Railway runbook |
-| Phase 6.6 | Active — 6.6A complete; 6.6B next | Bulk lead preview (6.6A complete); Pendang CRM workspace launch (6.6B next); remaining bulk import/export work (6.6C onward) |
+| Phase 6.6 | Active — 6.6A complete; 6.6B next | Bulk lead preview (6.6A complete); Pendang CRM workspace launch (6.6B next); remaining bulk import/export work (6.6D onward) |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
 | Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
 | Phase 6.9 | Trigger-based | Discovery and Qualification |
@@ -3357,6 +3417,37 @@ backup.
 
 
 
+
+
+## 2026-08-08 — Make Pendang company knowledge a workspace-owned surface
+
+**Decision:**
+
+- make `/pendang` the company home for authenticated users whose active business
+  workspace is Pendang;
+- keep MARK-OS as the underlying application, security boundary, and source of
+  operational truth;
+- store Founder Plan, About / Company CV, services, historical projects, case
+  studies, warm relationships, content drafts, meeting preparation, and document
+  references under the Pendang organization rather than as global records;
+- allow Pendang CRM contributors to read verified company knowledge while
+  reserving writes for Owner/workspace-owner or workspace-admin authority;
+- revalidate membership in the database for company-content operations and use
+  optimistic row versions for concurrent edits;
+- keep Content Studio manual in this phase and do not trigger AI generation,
+  publishing, outreach, or other external actions;
+- store document references/links only in this phase rather than introducing a
+  new file-upload subsystem;
+- do not seed invented prices, clients, historical projects, case studies, or
+  relationships.
+
+**Reason:**
+
+- Rey and Freddy need one shared company context immediately after onboarding;
+- company knowledge must follow the same organization isolation model as CRM
+  data instead of becoming a second Pendang application;
+- verified content can grow incrementally without weakening production safety or
+  creating another framework/runtime to maintain.
 
 ## 2026-08-08 — Pull forward a read-only Pendang Founder Plan surface
 

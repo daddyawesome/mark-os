@@ -82,8 +82,8 @@ def test_workspace_display_labels_match_pendang_launch_roles():
         == "Pendang Workspace Owner / Managing Director"
     )
     assert workspace_display_role(freddy) == "Pendang Lead Researcher"
-    assert landing_path_for_user(rey) == "/crm"
-    assert landing_path_for_user(freddy) == "/crm"
+    assert landing_path_for_user(rey) == "/pendang"
+    assert landing_path_for_user(freddy) == "/pendang"
 
 
 def test_owner_workspace_switch_route_selects_only_authorized_workspace(

@@ -19,7 +19,7 @@ def test_operational_ui_css_is_loaded_and_cache_busted():
     )
 
     assert (
-        "/static/css/mark-os-frontend.css?v=20260807-2"
+        "/static/css/mark-os-frontend.css?v=20260808-1"
         in base
     )
     assert (
@@ -52,7 +52,7 @@ def test_login_uses_shared_design_system_and_generic_copy():
     login = _read("app/templates/login.html")
 
     assert (
-        "/static/css/mark-os-frontend.css?v=20260807-2"
+        "/static/css/mark-os-frontend.css?v=20260808-1"
         in login
     )
     assert "<style>" not in login

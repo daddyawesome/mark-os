@@ -13,7 +13,7 @@
     >
     <link
         rel="stylesheet"
-        href="/static/css/mark-os-frontend.css?v=20260807-2"
+        href="/static/css/mark-os-frontend.css?v=20260808-1"
     >
     <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 </head>
@@ -22,8 +22,9 @@
 {% set current_user = request.state.current_user %}
 {% set current_workspace = request.state.current_workspace %}
 {% set authorized_workspaces = request.state.authorized_workspaces %}
-{% set is_business_workspace_path = request.url.path.startswith('/crm') or request.url.path.startswith('/relationship-manager') %}
+{% set is_business_workspace_path = request.url.path.startswith('/crm') or request.url.path.startswith('/relationship-manager') or request.url.path.startswith('/pendang') %}
 {% set is_pendang_workspace = is_business_workspace_path and current_workspace and current_workspace.slug == 'pendang' %}
+{% set sidebar_home = '/pendang' if is_pendang_workspace else ('/' if current_user and current_user.role in ['owner', 'member'] else ('/relationship-manager' if current_user and current_user.role == 'relationship_manager' else '/crm')) %}
 
 {% if current_user %}
 <button
@@ -50,7 +51,7 @@
 >
     <a
         class="mark-sidebar-brand"
-        href="{{ '/' if current_user.role in ['owner', 'member'] else ('/relationship-manager' if current_user.role == 'relationship_manager' else '/crm') }}"
+        href="{{ sidebar_home }}"
     >
         <span class="mark-brand-orb">M</span>
         <span class="mark-sidebar-brand-copy">
@@ -119,6 +120,14 @@
             </a>
             {% endif %}
 
+            {% if is_pendang_workspace %}
+            <a
+                class="mark-sidebar-link {% if request.url.path == '/pendang' %}is-active{% endif %}"
+                href="/pendang"
+            >
+                <span>Pendang Home</span>
+            </a>
+            {% endif %}
             <a
                 class="mark-sidebar-link {% if request.url.path.startswith('/crm') and not request.url.path.startswith('/crm/follow-ups') %}is-active{% endif %}"
                 href="/crm"

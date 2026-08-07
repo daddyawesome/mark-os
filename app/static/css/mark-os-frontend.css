@@ -1592,3 +1592,17 @@ code { color: var(--field-pine-deep); border: 1px solid rgba(45, 75, 55, 0.25); 
     .mark-sidebar-link,
     .mark-sidebar-summary { transform: none !important; }
 }
+
+/* Phase 6.6C Pendang company workspace */
+.pendang-copy {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.pendang-section {
+    scroll-margin-top: 1rem;
+}
+
+.pendang-item + .pendang-item {
+    margin-top: 0.75rem;
+}

@@ -13,6 +13,7 @@ from app.db import (
     leads,
     memory,
     organizations,
+    pendang_company,
     playbooks,
     quests,
     relationship_manager,
@@ -29,6 +30,7 @@ SCHEMA_SQL = "\n".join(
     (
         users.SCHEMA_SQL,
         organizations.SCHEMA_SQL,
+        pendang_company.SCHEMA_SQL,
         playbooks.SCHEMA_SQL,
         goals.SCHEMA_SQL,
         checkins.SCHEMA_SQL,
@@ -48,6 +50,7 @@ INDEX_SQL = "\n".join(
     (
         users.INDEX_SQL,
         organizations.INDEX_SQL,
+        pendang_company.INDEX_SQL,
         playbooks.INDEX_SQL,
         checkins.INDEX_SQL,
         memory.INDEX_SQL,
@@ -81,6 +84,8 @@ def initialize_database(db: sqlite3.Connection) -> None:
     organizations.ensure_owner_workspace_memberships(db)
     organizations.ensure_legacy_crm_workspace_memberships(db)
     organizations.validate_schema(db)
+    pendang_company.seed(db)
+    pendang_company.validate_schema(db)
     playbooks.validate_schema(db)
     lead_research.migrate(db)
     lead_research.validate_schema(db)

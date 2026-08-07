@@ -25,6 +25,7 @@ from app.routes import (
     lead_research,
     goals,
     pages,
+    pendang,
     quests,
     relationship_manager,
     users,
@@ -229,4 +230,5 @@ app.include_router(lead_research.router)
 app.include_router(relationship_manager.router)
 app.include_router(users.router)
 app.include_router(workspaces.router)
+app.include_router(pendang.router)
 app.include_router(pages.router)
