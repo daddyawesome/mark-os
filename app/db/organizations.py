@@ -106,3 +106,51 @@ def ensure_owner_workspace_memberships(db: sqlite3.Connection) -> None:
           AND membership_role <> 'workspace_admin'
         """
     )
+
+def organization_id_by_slug(
+    db: sqlite3.Connection,
+    slug: str,
+) -> int:
+    clean_slug = str(slug or "").strip()
+    if not clean_slug:
+        raise ValueError("Organization slug is required.")
+    row = db.execute(
+        "SELECT id FROM organizations WHERE slug = ? COLLATE NOCASE",
+        (clean_slug,),
+    ).fetchone()
+    if row is None:
+        raise ValueError("Organization not found.")
+    return int(row["id"])
+
+
+def ensure_legacy_crm_workspace_memberships(
+    db: sqlite3.Connection,
+) -> None:
+    """Place only still-unscoped legacy CRM staff in MARK Agency.
+
+    Future Pendang accounts are created with an explicit membership and are
+    therefore excluded by the NOT EXISTS guard.
+    """
+    db.execute(
+        """
+        INSERT OR IGNORE INTO organization_memberships (
+            user_id,
+            organization_id,
+            membership_role
+        )
+        SELECT
+            u.id,
+            o.id,
+            'crm_contributor'
+        FROM users AS u
+        JOIN organizations AS o
+          ON o.slug = 'mark-agency' COLLATE NOCASE
+        WHERE u.active = 1
+          AND u.role IN ('lead_sourcer', 'relationship_manager')
+          AND NOT EXISTS (
+              SELECT 1
+              FROM organization_memberships AS existing
+              WHERE existing.user_id = u.id
+          )
+        """
+    )

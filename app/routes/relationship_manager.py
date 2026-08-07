@@ -9,6 +9,7 @@ from app.services.access_control import is_relationship_manager
 from app.services.relationship_manager import (
     load_relationship_manager_dashboard,
 )
+from app.services.workspace_context import require_request_organization_id
 
 
 router = APIRouter()
@@ -27,9 +28,20 @@ def relationship_manager_home(request: Request):
         )
 
     with get_db() as db:
+        try:
+            organization_id = require_request_organization_id(
+                request,
+                db=db,
+            )
+        except (PermissionError, RuntimeError, ValueError):
+            return RedirectResponse(
+                url="/crm?error=forbidden",
+                status_code=303,
+            )
         dashboard = load_relationship_manager_dashboard(
             db,
             user,
+            organization_id=organization_id,
         )
         context = {
             "current_user": user,

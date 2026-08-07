@@ -20,6 +20,7 @@ from app.services.leads import (
     update_lead,
     update_lead_pipeline,
 )
+from app.services.workspace_context import require_workspace_membership
 
 
 Record = Mapping[str, Any]
@@ -73,11 +74,36 @@ def _actor_id(actor: Record | None) -> int:
     return value
 
 
+def _require_actor_workspace(
+    db: sqlite3.Connection,
+    actor: Record,
+    organization_id: int | None,
+) -> None:
+    if organization_id is None:
+        return
+    try:
+        require_workspace_membership(
+            db,
+            _actor_id(actor),
+            organization_id,
+        )
+    except PermissionError as exc:
+        raise LeadPermissionError(
+            "You are not allowed to access this CRM workspace."
+        ) from exc
+
+
 def _require_active_lead(
     db: sqlite3.Connection,
     lead_id: int,
+    *,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    lead = get_lead(db, lead_id)
+    lead = get_lead(
+        db,
+        lead_id,
+        organization_id=organization_id,
+    )
     if lead is None:
         raise ValueError("Lead not found")
     return lead
@@ -201,6 +227,7 @@ def _append_contact_activity(
     contact_responsible_user_id: int | None,
     contact_response_status: str | None,
     contact_next_follow_up_date: str | None,
+    organization_id: int,
 ) -> sqlite3.Row:
     activity_type = _required_contact_text(
         contact_activity_type,
@@ -259,21 +286,29 @@ def _append_contact_activity(
         responsible_user_id=responsible_user_id,
         response_status=response_status,
         next_follow_up_date=next_follow_up_date,
+        organization_id=organization_id,
     )
 def approve_outreach(
     db: sqlite3.Connection,
     lead_id: int,
     *,
     actor: Record,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
     """Record Owner approval before first outreach."""
     actor_id = _actor_id(actor)
+    _require_actor_workspace(db, actor, organization_id)
 
     with _workflow_write(
         db,
         "lead_outreach_approval",
     ):
-        current = _require_active_lead(db, lead_id)
+        current = _require_active_lead(
+            db,
+            lead_id,
+            organization_id=organization_id,
+        )
+        safe_organization_id = int(current["organization_id"])
 
         if not can_approve_outreach(actor, current):
             raise LeadPermissionError(
@@ -297,18 +332,20 @@ def approve_outreach(
                 outreach_approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
+              AND organization_id = ?
               AND deleted_at IS NULL
               AND research_status = 'approved'
               AND outreach_approved_by_user_id IS NULL
               AND outreach_approved_at IS NULL
             """,
-            (actor_id, lead_id),
+            (actor_id, lead_id, safe_organization_id),
         )
 
         if cursor.rowcount != 1:
             reloaded = _require_active_lead(
                 db,
                 lead_id,
+                organization_id=safe_organization_id,
             )
             if (
                 reloaded[
@@ -351,7 +388,11 @@ def approve_outreach(
             ),
         )
 
-    approved = get_lead(db, lead_id)
+    approved = get_lead(
+        db,
+        lead_id,
+        organization_id=safe_organization_id,
+    )
     if approved is None:
         raise RuntimeError(
             "Outreach-approved lead could not be "
@@ -374,14 +415,21 @@ def change_pipeline_stage(
     contact_responsible_user_id: int | None = None,
     contact_response_status: str | None = None,
     contact_next_follow_up_date: str | None = None,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    """Apply an Owner-authorized and audit-safe pipeline transition."""
+    """Apply an Owner-authorized transition inside one workspace."""
     actor_id = _actor_id(actor)
+    _require_actor_workspace(db, actor, organization_id)
     with _workflow_write(
         db,
         "lead_pipeline_transition",
     ):
-        current = _require_active_lead(db, lead_id)
+        current = _require_active_lead(
+            db,
+            lead_id,
+            organization_id=organization_id,
+        )
+        safe_organization_id = int(current["organization_id"])
         target_status = require_pipeline_change(
             actor,
             current,
@@ -418,12 +466,14 @@ def change_pipeline_stage(
                 contact_next_follow_up_date=(
                     contact_next_follow_up_date
                 ),
+                organization_id=safe_organization_id,
             )
 
         return update_lead_pipeline(
             db,
             lead_id,
             pipeline_status=target_status,
+            organization_id=safe_organization_id,
         )
 
 def update_owner_lead(
@@ -443,15 +493,22 @@ def update_owner_lead(
     source_url: str = "",
     next_action_due_date: str | None = None,
     notes: str = "",
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    """Protect pipeline changes made through the full Owner edit form."""
+    """Protect full Owner edits inside one CRM workspace."""
     _actor_id(actor)
+    _require_actor_workspace(db, actor, organization_id)
 
     with _workflow_write(
         db,
         "lead_owner_full_edit",
     ):
-        current = _require_active_lead(db, lead_id)
+        current = _require_active_lead(
+            db,
+            lead_id,
+            organization_id=organization_id,
+        )
+        safe_organization_id = int(current["organization_id"])
         target_status = require_pipeline_change(
             actor,
             current,
@@ -489,4 +546,5 @@ def update_owner_lead(
             next_action=next_action,
             next_action_due_date=next_action_due_date,
             notes=notes,
+            organization_id=safe_organization_id,
         )

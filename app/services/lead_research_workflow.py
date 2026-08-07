@@ -4,12 +4,14 @@ import sqlite3
 from collections.abc import Mapping
 from typing import Any
 
+from app.db.organizations import organization_id_by_slug
 from app.services.lead_research_permissions import (
     SOURCER_RESEARCH_EDIT_FIELDS,
     LeadPermissionError,
     require_edit_fields,
 )
 from app.services.leads import get_lead, update_lead
+from app.services.workspace_context import require_workspace_membership
 
 
 Record = Mapping[str, Any]
@@ -38,11 +40,36 @@ def _actor_id(actor: Record | None) -> int:
     return value
 
 
+def _require_actor_workspace(
+    db: sqlite3.Connection,
+    actor: Record,
+    organization_id: int | None,
+) -> None:
+    if organization_id is None:
+        return
+    try:
+        require_workspace_membership(
+            db,
+            _actor_id(actor),
+            organization_id,
+        )
+    except PermissionError as exc:
+        raise LeadPermissionError(
+            "You are not allowed to access this CRM workspace."
+        ) from exc
+
+
 def _require_active_lead(
     db: sqlite3.Connection,
     lead_id: int,
+    *,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    lead = get_lead(db, lead_id)
+    lead = get_lead(
+        db,
+        lead_id,
+        organization_id=organization_id,
+    )
     if lead is None:
         raise ValueError("Lead not found")
     return lead
@@ -63,10 +90,17 @@ def update_research_details(
     source_url: str = "",
     next_action_due_date: str | None = None,
     notes: str = "",
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    """Save only research fields for an authorized CRM actor."""
+    """Save research fields for an authorized actor in one workspace."""
     actor_id = _actor_id(actor)
-    current = _require_active_lead(db, lead_id)
+    _require_actor_workspace(db, actor, organization_id)
+    current = _require_active_lead(
+        db,
+        lead_id,
+        organization_id=organization_id,
+    )
+    safe_organization_id = int(current["organization_id"])
 
     require_edit_fields(
         actor,
@@ -100,6 +134,7 @@ def update_research_details(
                 else None
             ),
             notes=notes,
+            organization_id=safe_organization_id,
         )
 
         previous_status = str(
@@ -130,6 +165,7 @@ def update_research_details(
                 END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
+              AND organization_id = ?
               AND deleted_at IS NULL
             """,
             (
@@ -137,6 +173,7 @@ def update_research_details(
                 next_status,
                 previous_status,
                 lead_id,
+                safe_organization_id,
             ),
         )
         if cursor.rowcount != 1:
@@ -187,7 +224,11 @@ def update_research_details(
             "lead_research_edit"
         )
 
-    result = get_lead(db, lead_id)
+    result = get_lead(
+        db,
+        lead_id,
+        organization_id=safe_organization_id,
+    )
     if result is None:
         raise RuntimeError(
             "Updated lead could not be reloaded"
@@ -200,6 +241,7 @@ def submit_research_for_review(
     lead_id: int,
     *,
     actor: Record,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
     """Place eligible lead research in the Owner review queue."""
     from app.services.lead_research_permissions import (
@@ -207,7 +249,13 @@ def submit_research_for_review(
     )
 
     actor_id = _actor_id(actor)
-    current = _require_active_lead(db, lead_id)
+    _require_actor_workspace(db, actor, organization_id)
+    current = _require_active_lead(
+        db,
+        lead_id,
+        organization_id=organization_id,
+    )
+    safe_organization_id = int(current["organization_id"])
 
     if not can_submit_for_review(actor, current):
         raise LeadPermissionError(
@@ -244,12 +292,14 @@ def submit_research_for_review(
                 outreach_approved_at = NULL,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
+              AND organization_id = ?
               AND deleted_at IS NULL
               AND research_status = ?
             """,
             (
                 actor_id,
                 lead_id,
+                safe_organization_id,
                 previous_status,
             ),
         )
@@ -304,7 +354,11 @@ def submit_research_for_review(
             "lead_research_submit"
         )
 
-    result = get_lead(db, lead_id)
+    result = get_lead(
+        db,
+        lead_id,
+        organization_id=safe_organization_id,
+    )
     if result is None:
         raise RuntimeError(
             "Submitted lead could not be reloaded"
@@ -314,8 +368,17 @@ def submit_research_for_review(
 
 def list_research_review_queue(
     db: sqlite3.Connection,
+    *,
+    organization_id: int | None = None,
 ) -> list[sqlite3.Row]:
-    """Return active leads waiting for an Owner research decision."""
+    """Return review-ready leads inside one CRM workspace."""
+    safe_organization_id = (
+        organization_id_by_slug(db, "mark-agency")
+        if organization_id is None
+        else int(organization_id)
+    )
+    if safe_organization_id <= 0:
+        raise ValueError("Organization ID must be a positive integer.")
     return db.execute(
         """
         SELECT
@@ -333,7 +396,8 @@ def list_research_review_queue(
             ON assignee.id = l.assigned_to_user_id
         LEFT JOIN users AS researcher
             ON researcher.id = l.researched_by_user_id
-        WHERE l.deleted_at IS NULL
+        WHERE l.organization_id = ?
+          AND l.deleted_at IS NULL
           AND l.research_status = 'ready_for_review'
         ORDER BY
             COALESCE(
@@ -346,7 +410,8 @@ def list_research_review_queue(
                 ELSE 2
             END,
             l.id ASC
-        """
+        """,
+        (safe_organization_id,),
     ).fetchall()
 
 
@@ -374,6 +439,7 @@ def review_research(
     actor: Record,
     decision: str,
     review_notes: str = "",
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
     """Apply an Owner-only decision to submitted lead research."""
     from app.services.lead_research_permissions import (
@@ -381,7 +447,13 @@ def review_research(
     )
 
     actor_id = _actor_id(actor)
-    current = _require_active_lead(db, lead_id)
+    _require_actor_workspace(db, actor, organization_id)
+    current = _require_active_lead(
+        db,
+        lead_id,
+        organization_id=organization_id,
+    )
+    safe_organization_id = int(current["organization_id"])
 
     normalized_decision = str(
         decision or ""
@@ -441,6 +513,7 @@ def review_research(
                 outreach_approved_at = NULL,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
+              AND organization_id = ?
               AND deleted_at IS NULL
               AND research_status = (
                   'ready_for_review'
@@ -451,6 +524,7 @@ def review_research(
                 actor_id,
                 normalized_notes,
                 lead_id,
+                safe_organization_id,
             ),
         )
         if cursor.rowcount != 1:
@@ -515,7 +589,11 @@ def review_research(
             "lead_research_review"
         )
 
-    result = get_lead(db, lead_id)
+    result = get_lead(
+        db,
+        lead_id,
+        organization_id=safe_organization_id,
+    )
     if result is None:
         raise RuntimeError(
             "Reviewed lead could not be reloaded"

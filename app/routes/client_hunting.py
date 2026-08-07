@@ -61,6 +61,7 @@ from app.services.follow_up_command_center import (
     build_follow_up_command_center,
 )
 from app.services.team_users import get_primary_owner_id
+from app.services.workspace_context import require_request_organization_id
 from app.services.relationship_manager import (
     assign_relationship_manager,
     can_update_relationship_next_action,
@@ -164,9 +165,27 @@ def _optional_positive_form_id(
         )
     return parsed
 
+def _request_organization_id(
+    db,
+    request: Request,
+) -> int:
+    try:
+        return require_request_organization_id(
+            request,
+            db=db,
+        )
+    except (PermissionError, RuntimeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=403,
+            detail="An authorized CRM workspace is required",
+        ) from exc
+
+
 def _activity_form_context(
     db,
     user,
+    *,
+    organization_id: int,
 ) -> dict:
     can_create = is_owner(user) or is_lead_sourcer(user)
     activity_types = (
@@ -202,7 +221,11 @@ def _activity_form_context(
             else ()
         ),
         "activity_users": (
-            list_active_activity_users(db, actor=user)
+            list_active_activity_users(
+                db,
+                actor=user,
+                organization_id=organization_id,
+            )
             if can_create
             else []
         ),
@@ -246,12 +269,14 @@ def _activity_for_lead_or_404(
     lead_id: int,
     activity_id: int,
     user,
+    organization_id: int,
 ):
     try:
         activity = get_activity_record(
             db,
             activity_id,
             actor=user,
+            organization_id=organization_id,
         )
     except LeadActivityNotFoundError as exc:
         raise HTTPException(
@@ -269,30 +294,25 @@ def _activity_for_lead_or_404(
 def _lead_or_404(
     db,
     lead_id: int,
-    request: Request | None = None,
+    request: Request,
 ):
-    lead = get_lead(db, lead_id)
-    if lead is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Lead not found",
-        )
-
-    if (
-        request is not None
-        and not can_view_lead(
-            request.state.current_user,
-            lead,
-        )
+    organization_id = _request_organization_id(db, request)
+    lead = get_lead(
+        db,
+        lead_id,
+        organization_id=organization_id,
+    )
+    if lead is None or not can_view_lead(
+        request.state.current_user,
+        lead,
     ):
-        # Do not reveal whether another user's lead
-        # exists.
+        # Do not reveal whether another workspace or user's lead exists.
         raise HTTPException(
             status_code=404,
             detail="Lead not found",
         )
-
     return lead
+
 
 def _shared_context(db, request: Request) -> dict:
     user = request.state.current_user
@@ -333,14 +353,19 @@ def crm_dashboard(request: Request):
     user = request.state.current_user
 
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         dashboard = build_role_aware_crm_dashboard(
             db,
             user,
+            organization_id=organization_id,
         )
         metric_cards = dashboard["metric_cards"]
 
         if is_owner(user):
-            metrics = get_crm_dashboard_metrics(db)
+            metrics = get_crm_dashboard_metrics(
+                db,
+                organization_id=organization_id,
+            )
             metric_cards = [
                 {
                     "label": label,
@@ -384,10 +409,12 @@ def follow_up_command_center_page(
 ):
     user = request.state.current_user
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         try:
             command_center = build_follow_up_command_center(
                 db,
                 user,
+                organization_id=organization_id,
                 assignee_id=assignee_id,
                 researcher_id=researcher_id,
                 business_development_owner_id=(
@@ -423,6 +450,7 @@ def follow_up_command_center_page(
 @router.get("/leads/new", response_class=HTMLResponse)
 def new_lead_page(request: Request):
     with get_db() as db:
+        _request_organization_id(db, request)
         context = _add_leads_context(db, request)
     return templates.TemplateResponse(
         request=request,
@@ -432,7 +460,9 @@ def new_lead_page(request: Request):
 
 
 @router.get("/leads/import/template")
-def download_lead_csv_template():
+def download_lead_csv_template(request: Request):
+    with get_db() as db:
+        _request_organization_id(db, request)
     return Response(
         content=lead_csv_template_bytes(),
         media_type="text/csv; charset=utf-8",
@@ -471,11 +501,13 @@ async def preview_leads_csv(
         await csv_file.close()
 
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         if import_error is None:
             try:
                 import_preview = preview_leads_from_csv(
                     db,
                     content,
+                    organization_id=organization_id,
                     pipeline_status_override=(
                         "new"
                         if (
@@ -531,6 +563,7 @@ async def import_leads_csv(
         await csv_file.close()
 
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         owner_id = (
             request.state.current_user["id"]
             if is_owner(request.state.current_user)
@@ -563,6 +596,7 @@ async def import_leads_csv(
                         )
                         else None
                     ),
+                    organization_id=organization_id,
                 )
             except LeadCsvImportError as exc:
                 import_error = str(exc)
@@ -600,6 +634,7 @@ def create_lead(
     request_key: str = Form(default=""),
 ):
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         owner_id = (
             request.state.current_user["id"]
             if is_owner(request.state.current_user)
@@ -645,6 +680,7 @@ def create_lead(
                     )
                     else None
                 ),
+                organization_id=organization_id,
             )
         except ValueError:
             return RedirectResponse(
@@ -662,6 +698,7 @@ def create_lead(
 def lead_detail(request: Request, lead_id: int):
     user = request.state.current_user
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         lead = _lead_or_404(db, lead_id, request)
         show_deleted = (
             is_owner(user)
@@ -673,6 +710,7 @@ def lead_detail(request: Request, lead_id: int):
                 lead_id,
                 actor=user,
                 include_deleted=show_deleted,
+                organization_id=organization_id,
             )
         except LeadActivityNotFoundError as exc:
             raise HTTPException(
@@ -713,7 +751,10 @@ def lead_detail(request: Request, lead_id: int):
                 )
             ),
             "relationship_managers": (
-                list_active_relationship_managers(db)
+                list_active_relationship_managers(
+                    db,
+                    organization_id=organization_id,
+                )
                 if is_owner(user)
                 else []
             ),
@@ -725,7 +766,11 @@ def lead_detail(request: Request, lead_id: int):
                 ERROR_MESSAGES,
                 request.query_params.get("error"),
             ),
-            **_activity_form_context(db, user),
+            **_activity_form_context(
+                db,
+                user,
+                organization_id=organization_id,
+            ),
             **_shared_context(db, request),
         }
     return templates.TemplateResponse(
@@ -751,6 +796,7 @@ def create_lead_activity(
 ):
     user = request.state.current_user
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         _lead_or_404(db, lead_id, request)
         try:
             create_activity_record(
@@ -774,6 +820,7 @@ def create_lead_activity(
                 next_follow_up_date=(
                     next_follow_up_date.strip() or None
                 ),
+                organization_id=organization_id,
             )
         except LeadActivityNotFoundError as exc:
             raise HTTPException(
@@ -816,12 +863,14 @@ def correct_lead_activity(
 ):
     user = request.state.current_user
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         _lead_or_404(db, lead_id, request)
         _activity_for_lead_or_404(
             db,
             lead_id=lead_id,
             activity_id=activity_id,
             user=user,
+            organization_id=organization_id,
         )
         try:
             correct_activity_record(
@@ -846,6 +895,7 @@ def correct_lead_activity(
                 next_follow_up_date=(
                     next_follow_up_date.strip() or None
                 ),
+                organization_id=organization_id,
             )
         except LeadActivityNotFoundError as exc:
             raise HTTPException(
@@ -879,12 +929,14 @@ def delete_lead_activity(
 ):
     user = request.state.current_user
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         _lead_or_404(db, lead_id, request)
         _activity_for_lead_or_404(
             db,
             lead_id=lead_id,
             activity_id=activity_id,
             user=user,
+            organization_id=organization_id,
         )
         try:
             soft_delete_activity_record(
@@ -892,6 +944,7 @@ def delete_lead_activity(
                 activity_id,
                 actor=user,
                 correction_reason=correction_reason,
+                organization_id=organization_id,
             )
         except LeadActivityNotFoundError as exc:
             raise HTTPException(
@@ -916,7 +969,7 @@ def delete_lead_activity(
 @router.get("/leads/{lead_id}/edit", response_class=HTMLResponse)
 def edit_lead_page(request: Request, lead_id: int):
     with get_db() as db:
-        lead = _lead_or_404(db, lead_id)
+        lead = _lead_or_404(db, lead_id, request)
         context = {
             "lead": lead,
             "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
@@ -947,7 +1000,8 @@ def edit_lead(
     notes: str = Form(default=""),
 ):
     with get_db() as db:
-        _lead_or_404(db, lead_id)
+        organization_id = _request_organization_id(db, request)
+        _lead_or_404(db, lead_id, request)
         try:
             update_owner_lead(
                 db,
@@ -965,6 +1019,7 @@ def edit_lead(
                 next_action=next_action,
                 next_action_due_date=next_action_due_date or None,
                 notes=notes,
+                organization_id=organization_id,
             )
         except LeadPermissionError:
             return RedirectResponse(
@@ -997,7 +1052,8 @@ def update_pipeline(
     contact_next_follow_up_date: str = Form(default=""),
 ):
     with get_db() as db:
-        _lead_or_404(db, lead_id)
+        organization_id = _request_organization_id(db, request)
+        _lead_or_404(db, lead_id, request)
         try:
             change_pipeline_stage(
                 db,
@@ -1029,6 +1085,7 @@ def update_pipeline(
                 contact_next_follow_up_date=(
                     _optional_form_text(contact_next_follow_up_date) or None
                 ),
+                organization_id=organization_id,
             )
         except LeadActivityPermissionError:
             return RedirectResponse(
@@ -1063,6 +1120,7 @@ def update_next_action(
     next_action_due_date: str = Form(default=""),
 ):
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         _lead_or_404(db, lead_id, request)
         try:
             update_next_action_for_actor(
@@ -1071,6 +1129,7 @@ def update_next_action(
                 actor=request.state.current_user,
                 next_action=next_action,
                 next_action_due_date=next_action_due_date or None,
+                organization_id=organization_id,
             )
         except LeadPermissionError:
             return RedirectResponse(
@@ -1105,13 +1164,15 @@ def update_relationship_owner(
             )
 
     with get_db() as db:
-        _lead_or_404(db, lead_id)
+        organization_id = _request_organization_id(db, request)
+        _lead_or_404(db, lead_id, request)
         try:
             assign_relationship_manager(
                 db,
                 lead_id,
                 actor=request.state.current_user,
                 relationship_manager_user_id=manager_id,
+                organization_id=organization_id,
             )
         except LeadPermissionError:
             return RedirectResponse(
@@ -1133,7 +1194,7 @@ def update_relationship_owner(
 @router.get("/leads/{lead_id}/delete", response_class=HTMLResponse)
 def delete_lead_page(request: Request, lead_id: int):
     with get_db() as db:
-        lead = _lead_or_404(db, lead_id)
+        lead = _lead_or_404(db, lead_id, request)
         context = {"lead": lead, "error": None, **_shared_context(db, request)}
 
     return templates.TemplateResponse(
@@ -1150,7 +1211,7 @@ def delete_lead(
     confirmation: str = Form(default=""),
 ):
     with get_db() as db:
-        lead = _lead_or_404(db, lead_id)
+        lead = _lead_or_404(db, lead_id, request)
         if confirmation != "DELETE":
             return templates.TemplateResponse(
                 request=request,
@@ -1162,6 +1223,11 @@ def delete_lead(
                 },
                 status_code=400,
             )
-        delete_lead_record(db, lead_id, confirmed=True)
+        delete_lead_record(
+            db,
+            lead_id,
+            confirmed=True,
+            organization_id=_request_organization_id(db, request),
+        )
 
     return RedirectResponse(url="/crm?notice=deleted", status_code=303)

@@ -4,7 +4,57 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.6B-4B — Propagate Active Workspace Through CRM Workflows
+**Immediate next milestone:** Phase 6.6B-5 — Pendang Staff Membership Authority and Revocation
+
+<!-- PHASE_6_6B4B_COMPLETION_START -->
+**6.6B-4B Status: ✅ COMPLETE — Active Workspace Through CRM Workflows**
+
+Completed:
+- Every runtime CRM data route now resolves the authenticated active workspace
+  before reading or mutating CRM data.
+- CRM dashboard lists and Owner metrics are organization-scoped.
+- Role-aware Lead Researcher and Relationship Manager queues are
+  organization-scoped and require membership when an explicit workspace is
+  supplied.
+- Follow-up Command Center records, counts, and filter options are
+  organization-scoped.
+- Direct lead URLs load by both lead ID and active organization, preserving the
+  existing safe `404` behavior for foreign workspace records.
+- Manual lead creation, CSV preview, and CSV import pass the authenticated
+  active organization into the core lead service.
+- Lead research edit, submission, Owner review, and outreach approval now carry
+  organization context through route and workflow services.
+- Lead activity reads, writes, corrections, soft deletion, attribution-user
+  choices, and Contacted activity creation are organization-scoped.
+- Pipeline changes, Owner full edits, next-action changes, and Business
+  Development Owner assignment are organization-scoped.
+- Relationship Manager dashboards and assignment choices are restricted to the
+  active workspace.
+- Existing active Lead Researcher and Relationship Manager accounts with no
+  organization membership are backfilled idempotently into `mark-agency`.
+  Accounts that already have an explicit workspace membership are not changed.
+- New CRM staff creation supports an explicit workspace slug while retaining
+  `mark-agency` as the compatibility default for the existing Owner UI.
+- Missing authenticated workspace context fails closed on runtime CRM entry and
+  data routes.
+- Existing global role permissions are unchanged. This substep does **not**
+  grant Rey Pendang `workspace_owner` authority or Freddy's final Pendang
+  contributor permissions.
+
+**Next substep: 6.6B-5 — Pendang Staff Membership Authority and Revocation**
+- Add the final independently revocable membership state required by the
+  Phase 6.6B specification.
+- Provision/prepare Rey as global `relationship_manager` plus Pendang
+  `workspace_owner`, never global Owner.
+- Provision/prepare Freddy as global `lead_sourcer` plus Pendang
+  `crm_contributor`.
+- Resolve effective CRM authority from global role + active membership role +
+  workflow state.
+- Allow Rey's Pendang owner actions while keeping MARK Agency, private,
+  family, and global administration inaccessible.
+- Keep Freddy restricted to Pendang research/contributor actions.
+<!-- PHASE_6_6B4B_COMPLETION_END -->
+
 
 <!-- PHASE_6_6B4A_COMPLETION_START -->
 **6.6B-4A Status: ✅ COMPLETE — Core CRM Workspace Boundary**
@@ -97,7 +147,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 484 passed after Phase 6.6B-4A core workspace boundary
+**Last verified full-suite baseline:** 495 passed after Phase 6.6B-4B workspace workflow isolation
 
 ---
 
@@ -3093,6 +3143,44 @@ backup.
 
 
 
+
+
+## 2026-08-07 — Enforce the authenticated workspace through CRM workflows
+
+**Decision:**
+
+- treat `request.state.current_workspace`, resolved from the signed session and
+  current organization membership, as the runtime CRM organization boundary;
+- require a resolved workspace on CRM dashboard, lead intake, import, lead
+  detail, research, activity, follow-up, pipeline, next-action, and relationship
+  management paths;
+- pass the resolved organization ID into CRM services rather than loading a lead
+  globally and filtering afterward;
+- make cross-workspace lead URLs return the same safe not-found behavior as an
+  inaccessible lead;
+- require explicit organization membership in role-aware queues and
+  actor-sensitive workflow services whenever runtime organization context is
+  supplied;
+- keep a MARK Agency compatibility fallback only for older direct service/unit
+  callers that do not yet pass organization context; real middleware-backed CRM
+  requests always pass an explicit workspace;
+- backfill only legacy active CRM staff who have **no** organization membership
+  into MARK Agency, leaving explicitly scoped accounts unchanged;
+- let staff-creation services accept an explicit workspace while keeping the
+  existing Owner UI's default behavior compatible with MARK Agency;
+- do not expand global role permissions in this step.
+
+**Reason:**
+
+- organization-scoped lead identity is insufficient if dashboards, queues,
+  research workflows, activities, or direct URLs can still query globally;
+- signed-session workspace resolution plus service-level organization predicates
+  creates defense in depth against forged IDs and accidental cross-business
+  access;
+- a narrow legacy membership backfill preserves existing MARK Agency staff
+  access without silently adding Pendang access;
+- separating isolation from Rey/Freddy authority keeps permission expansion
+  reviewable as its own milestone.
 
 ## 2026-08-07 — Make lead identity workspace-scoped before route enforcement
 

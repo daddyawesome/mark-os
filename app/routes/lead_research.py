@@ -21,9 +21,26 @@ from app.services.lead_research_workflow import (
     update_research_details,
 )
 from app.services.leads import get_lead
+from app.services.workspace_context import require_request_organization_id
 
 
 router = APIRouter(prefix="/crm")
+
+
+def _request_organization_id(
+    db,
+    request: Request,
+) -> int:
+    try:
+        return require_request_organization_id(
+            request,
+            db=db,
+        )
+    except (PermissionError, RuntimeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=403,
+            detail="An authorized CRM workspace is required",
+        ) from exc
 
 
 def _editable_lead_or_404(
@@ -31,7 +48,11 @@ def _editable_lead_or_404(
     lead_id: int,
     request: Request,
 ):
-    lead = get_lead(db, lead_id)
+    lead = get_lead(
+        db,
+        lead_id,
+        organization_id=_request_organization_id(db, request),
+    )
     if (
         lead is None
         or not can_edit_research(
@@ -100,6 +121,7 @@ def edit_lead_research(
     notes: str = Form(default=""),
 ):
     with get_db() as db:
+        organization_id = _request_organization_id(db, request)
         _editable_lead_or_404(
             db,
             lead_id,
@@ -125,6 +147,7 @@ def edit_lead_research(
                     next_action_due_date or None
                 ),
                 notes=notes,
+                organization_id=organization_id,
             )
         except LeadPermissionError:
             raise HTTPException(
@@ -164,7 +187,12 @@ def submit_lead_research_for_review(
     )
 
     with get_db() as db:
-        lead = get_lead(db, lead_id)
+        organization_id = _request_organization_id(db, request)
+        lead = get_lead(
+            db,
+            lead_id,
+            organization_id=organization_id,
+        )
         if (
             lead is None
             or not can_submit_for_review(
@@ -182,6 +210,7 @@ def submit_lead_research_for_review(
                 db,
                 lead_id,
                 actor=request.state.current_user,
+                organization_id=organization_id,
             )
         except LeadPermissionError:
             raise HTTPException(
@@ -219,7 +248,11 @@ def research_review_queue(
         )
 
     with get_db() as db:
-        leads = list_research_review_queue(db)
+        organization_id = _request_organization_id(db, request)
+        leads = list_research_review_queue(
+            db,
+            organization_id=organization_id,
+        )
 
     return templates.TemplateResponse(
         request=request,
@@ -250,7 +283,12 @@ def review_lead_research(
     )
 
     with get_db() as db:
-        lead = get_lead(db, lead_id)
+        organization_id = _request_organization_id(db, request)
+        lead = get_lead(
+            db,
+            lead_id,
+            organization_id=organization_id,
+        )
         if (
             lead is None
             or not can_review_research(
@@ -270,6 +308,7 @@ def review_lead_research(
                 actor=request.state.current_user,
                 decision=decision,
                 review_notes=review_notes,
+                organization_id=organization_id,
             )
         except LeadPermissionError:
             raise HTTPException(
@@ -322,7 +361,12 @@ def approve_lead_outreach(
     )
 
     with get_db() as db:
-        lead = get_lead(db, lead_id)
+        organization_id = _request_organization_id(db, request)
+        lead = get_lead(
+            db,
+            lead_id,
+            organization_id=organization_id,
+        )
         if (
             lead is None
             or not can_approve_outreach(
@@ -340,6 +384,7 @@ def approve_lead_outreach(
                 db,
                 lead_id,
                 actor=request.state.current_user,
+                organization_id=organization_id,
             )
         except LeadPermissionError:
             raise HTTPException(
@@ -354,4 +399,3 @@ def approve_lead_outreach(
         ),
         status_code=303,
     )
-

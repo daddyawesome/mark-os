@@ -532,6 +532,7 @@ def build_follow_up_command_center(
     db: sqlite3.Connection,
     actor: Record | None,
     *,
+    organization_id: int | None = None,
     today: date | None = None,
     now_utc: datetime | None = None,
     assignee_id: int | None = None,
@@ -572,6 +573,7 @@ def build_follow_up_command_center(
         for row in list_visible_leads(
             db,
             database_actor,
+            organization_id=organization_id,
         )
     ]
     options = _filter_options(visible_leads)

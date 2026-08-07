@@ -5,12 +5,14 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
+from app.db.organizations import organization_id_by_slug
 from app.services.access_control import (
     is_owner,
     is_relationship_manager,
 )
 from app.services.lead_research_permissions import LeadPermissionError
 from app.services.leads import get_lead, update_lead_next_action
+from app.services.workspace_context import require_workspace_membership
 from app.services.playbooks import (
     get_primary_playbook_for_user,
     render_markdown_safely,
@@ -38,6 +40,34 @@ def _positive_id(value: int, field_name: str) -> int:
 def _actor_id(actor: Record | None) -> int:
     value = _value(actor, "id")
     return _positive_id(value, "Actor ID")
+
+
+def _organization_id(
+    db: sqlite3.Connection,
+    organization_id: int | None,
+) -> int:
+    if organization_id is None:
+        return organization_id_by_slug(db, "mark-agency")
+    return _positive_id(organization_id, "Organization ID")
+
+
+def _require_actor_workspace(
+    db: sqlite3.Connection,
+    actor: Record,
+    organization_id: int | None,
+) -> None:
+    if organization_id is None:
+        return
+    try:
+        require_workspace_membership(
+            db,
+            _actor_id(actor),
+            organization_id,
+        )
+    except PermissionError as exc:
+        raise LeadPermissionError(
+            "You are not allowed to access this CRM workspace."
+        ) from exc
 
 
 def relationship_manager_matches_lead(
@@ -69,8 +99,15 @@ def update_next_action_for_actor(
     actor: Record,
     next_action: str,
     next_action_due_date: str | None = None,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    lead = get_lead(db, _positive_id(lead_id, "Lead ID"))
+    safe_organization_id = _organization_id(db, organization_id)
+    _require_actor_workspace(db, actor, organization_id)
+    lead = get_lead(
+        db,
+        _positive_id(lead_id, "Lead ID"),
+        organization_id=safe_organization_id,
+    )
     if not can_update_relationship_next_action(actor, lead):
         raise LeadPermissionError(
             "You are not allowed to update this lead's next action."
@@ -80,20 +117,28 @@ def update_next_action_for_actor(
         lead_id,
         next_action=next_action,
         next_action_due_date=next_action_due_date,
+        organization_id=safe_organization_id,
     )
 
 
 def list_active_relationship_managers(
     db: sqlite3.Connection,
+    *,
+    organization_id: int | None = None,
 ) -> list[dict[str, Any]]:
+    safe_organization_id = _organization_id(db, organization_id)
     rows = db.execute(
         """
         SELECT id, username, display_name
         FROM users
+        JOIN organization_memberships AS membership
+          ON membership.user_id = users.id
+         AND membership.organization_id = ?
         WHERE role = 'relationship_manager'
           AND active = 1
         ORDER BY display_name COLLATE NOCASE, id
-        """
+        """,
+        (safe_organization_id,),
     ).fetchall()
     return [dict(row) for row in rows]
 
@@ -104,6 +149,7 @@ def assign_relationship_manager(
     *,
     actor: Record,
     relationship_manager_user_id: int | None,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
     if not is_owner(actor):
         raise LeadPermissionError(
@@ -111,7 +157,13 @@ def assign_relationship_manager(
         )
 
     safe_lead_id = _positive_id(lead_id, "Lead ID")
-    lead = get_lead(db, safe_lead_id)
+    safe_organization_id = _organization_id(db, organization_id)
+    _require_actor_workspace(db, actor, organization_id)
+    lead = get_lead(
+        db,
+        safe_lead_id,
+        organization_id=safe_organization_id,
+    )
     if lead is None:
         raise ValueError("Lead not found.")
 
@@ -126,11 +178,14 @@ def assign_relationship_manager(
             """
             SELECT id, display_name
             FROM users
-            WHERE id = ?
-              AND role = 'relationship_manager'
-              AND active = 1
+            JOIN organization_memberships AS membership
+              ON membership.user_id = users.id
+             AND membership.organization_id = ?
+            WHERE users.id = ?
+              AND users.role = 'relationship_manager'
+              AND users.active = 1
             """,
-            (manager_id,),
+            (safe_organization_id, manager_id),
         ).fetchone()
         if manager is None:
             raise ValueError(
@@ -146,9 +201,11 @@ def assign_relationship_manager(
         UPDATE leads
         SET business_development_owner_user_id = ?,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ? AND deleted_at IS NULL
+        WHERE id = ?
+          AND organization_id = ?
+          AND deleted_at IS NULL
         """,
-        (manager_id, safe_lead_id),
+        (manager_id, safe_lead_id, safe_organization_id),
     )
     db.execute(
         """
@@ -174,7 +231,11 @@ def assign_relationship_manager(
         ),
     )
 
-    updated = get_lead(db, safe_lead_id)
+    updated = get_lead(
+        db,
+        safe_lead_id,
+        organization_id=safe_organization_id,
+    )
     if updated is None:
         raise RuntimeError("Assigned lead could not be reloaded.")
     return updated
@@ -202,7 +263,8 @@ def _relationship_lead_select() -> str:
 
 def _relationship_visibility_sql() -> str:
     return """
-        l.deleted_at IS NULL
+        l.organization_id = ?
+        AND l.deleted_at IS NULL
         AND (
             l.business_development_owner_user_id = ?
             OR l.created_by_user_id = ?
@@ -215,6 +277,7 @@ def _lead_rows(
     user_id: int,
     extra_condition: str,
     *,
+    organization_id: int,
     limit: int = 8,
 ) -> list[dict[str, Any]]:
     rows = db.execute(
@@ -233,7 +296,7 @@ def _lead_rows(
             l.id DESC
         LIMIT ?
         """,
-        (user_id, user_id, limit),
+        (organization_id, user_id, user_id, limit),
     ).fetchall()
     return [dict(row) for row in rows]
 
@@ -242,6 +305,8 @@ def _count(
     db: sqlite3.Connection,
     user_id: int,
     extra_condition: str,
+    *,
+    organization_id: int,
 ) -> int:
     return int(
         db.execute(
@@ -251,7 +316,7 @@ def _count(
             WHERE {_relationship_visibility_sql()}
               AND ({extra_condition})
             """,
-            (user_id, user_id),
+            (organization_id, user_id, user_id),
         ).fetchone()["item_count"]
     )
 
@@ -259,6 +324,8 @@ def _count(
 def load_relationship_manager_dashboard(
     db: sqlite3.Connection,
     actor: Record,
+    *,
+    organization_id: int | None = None,
 ) -> dict[str, Any]:
     if not is_relationship_manager(actor):
         raise LeadPermissionError(
@@ -266,6 +333,8 @@ def load_relationship_manager_dashboard(
         )
 
     user_id = _actor_id(actor)
+    safe_organization_id = _organization_id(db, organization_id)
+    _require_actor_workspace(db, actor, organization_id)
     today = date.today().isoformat()
     playbook = get_primary_playbook_for_user(db, user_id)
     if playbook is not None:
@@ -312,19 +381,19 @@ def load_relationship_manager_dashboard(
     metric_cards = [
         {
             "label": "Relationship leads",
-            "value": _count(db, user_id, "1 = 1"),
+            "value": _count(db, user_id, "1 = 1", organization_id=safe_organization_id),
         },
         {
             "label": "Approved outreach",
-            "value": _count(db, user_id, ready_condition),
+            "value": _count(db, user_id, ready_condition, organization_id=safe_organization_id),
         },
         {
             "label": "Follow-ups due",
-            "value": _count(db, user_id, due_condition),
+            "value": _count(db, user_id, due_condition, organization_id=safe_organization_id),
         },
         {
             "label": "Replies / meetings",
-            "value": _count(db, user_id, handoff_condition),
+            "value": _count(db, user_id, handoff_condition, organization_id=safe_organization_id),
         },
     ]
 
@@ -336,7 +405,7 @@ def load_relationship_manager_dashboard(
                 "New relationship leads that need a clear next action "
                 "while research evidence is being completed."
             ),
-            "leads": _lead_rows(db, user_id, qualification_condition),
+            "leads": _lead_rows(db, user_id, qualification_condition, organization_id=safe_organization_id),
         },
         {
             "key": "ready_outreach",
@@ -345,7 +414,7 @@ def load_relationship_manager_dashboard(
                 "Research and Owner outreach approval are complete. "
                 "Contact logging remains locked until Phase 6.2."
             ),
-            "leads": _lead_rows(db, user_id, ready_condition),
+            "leads": _lead_rows(db, user_id, ready_condition, organization_id=safe_organization_id),
         },
         {
             "key": "followups_due",
@@ -353,7 +422,7 @@ def load_relationship_manager_dashboard(
             "description": (
                 "Relationship leads whose next action is due today or overdue."
             ),
-            "leads": _lead_rows(db, user_id, due_condition),
+            "leads": _lead_rows(db, user_id, due_condition, organization_id=safe_organization_id),
         },
         {
             "key": "waiting_mark",
@@ -361,7 +430,7 @@ def load_relationship_manager_dashboard(
             "description": (
                 "Research review or outreach approval still needs the Owner."
             ),
-            "leads": _lead_rows(db, user_id, waiting_condition),
+            "leads": _lead_rows(db, user_id, waiting_condition, organization_id=safe_organization_id),
         },
         {
             "key": "handoff",
@@ -369,7 +438,7 @@ def load_relationship_manager_dashboard(
             "description": (
                 "Interested prospects at Reply or Meeting stage."
             ),
-            "leads": _lead_rows(db, user_id, handoff_condition),
+            "leads": _lead_rows(db, user_id, handoff_condition, organization_id=safe_organization_id),
         },
     ]
 

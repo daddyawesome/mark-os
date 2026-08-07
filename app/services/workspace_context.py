@@ -6,6 +6,11 @@ from typing import Any
 
 from fastapi import Request
 
+from app.db.organizations import (
+    ensure_owner_workspace_memberships,
+    organization_id_by_slug,
+)
+
 
 SESSION_CURRENT_ORGANIZATION_ID_KEY = "mark_os_current_organization_id"
 
@@ -62,6 +67,12 @@ def resolve_workspace_session(
     is introduced by a later 6.6B staff step.
     """
     user_id = _positive_id(user.get("id"), label="User ID")
+    role = str(user.get("role") or "").strip().casefold()
+    if role == "owner":
+        # New global owner records must never be stranded without the two
+        # canonical workspace-admin memberships. This is idempotent.
+        ensure_owner_workspace_memberships(db)
+
     workspaces = authorized_workspaces(db, user_id)
     by_id = {int(workspace["id"]): workspace for workspace in workspaces}
 
@@ -81,7 +92,6 @@ def resolve_workspace_session(
 
     session.pop(SESSION_CURRENT_ORGANIZATION_ID_KEY, None)
 
-    role = str(user.get("role") or "").strip().casefold()
     default_workspace: dict[str, Any] | None = None
 
     if role == "owner":
@@ -137,13 +147,74 @@ def select_current_workspace(
     return dict(workspace)
 
 
+
+def require_workspace_membership(
+    db: sqlite3.Connection,
+    user_id: int,
+    organization_id: int,
+) -> dict[str, Any]:
+    """Return one membership or fail without exposing other workspace data."""
+    safe_user_id = _positive_id(user_id, label="User ID")
+    safe_organization_id = _positive_id(
+        organization_id,
+        label="Organization ID",
+    )
+    row = db.execute(
+        """
+        SELECT
+            o.id,
+            o.slug,
+            o.name,
+            m.membership_role
+        FROM organization_memberships AS m
+        JOIN organizations AS o
+          ON o.id = m.organization_id
+        JOIN users AS u
+          ON u.id = m.user_id
+        WHERE m.user_id = ?
+          AND m.organization_id = ?
+          AND u.active = 1
+        """,
+        (safe_user_id, safe_organization_id),
+    ).fetchone()
+    if row is None:
+        raise PermissionError("Workspace is not authorized for this user.")
+    return dict(row)
+
 def request_current_workspace(request: Request) -> dict[str, Any] | None:
     workspace = getattr(request.state, "current_workspace", None)
     return workspace if isinstance(workspace, dict) else None
 
 
-def require_request_organization_id(request: Request) -> int:
+def require_request_organization_id(
+    request: Request,
+    *,
+    db: sqlite3.Connection | None = None,
+) -> int:
+    """Return the authenticated CRM workspace for a real request.
+
+    Production middleware always installs ``current_workspace`` in request
+    state. Older unit tests sometimes call route functions directly with a
+    lightweight request object; only those calls may fall back to MARK Agency.
+    An explicitly present ``None`` workspace fails closed.
+    """
+    scope = getattr(request, "scope", None)
+    if isinstance(scope, dict):
+        state = scope.get("state", {})
+        has_workspace_key = "current_workspace" in state
+    else:
+        request_state = getattr(request, "state", None)
+        has_workspace_key = (
+            request_state is not None
+            and hasattr(request_state, "current_workspace")
+        )
+
+    if not has_workspace_key:
+        if db is None:
+            raise RuntimeError("Current workspace context is unavailable.")
+        return organization_id_by_slug(db, "mark-agency")
+
     workspace = request_current_workspace(request)
     if workspace is None:
-        raise RuntimeError("Current workspace context is unavailable.")
+        raise PermissionError("An authorized CRM workspace is required.")
     return _positive_id(workspace.get("id"), label="Organization ID")

@@ -4,6 +4,7 @@ import sqlite3
 from typing import Any
 
 from app.db.family_workspace import ensure_personal_workspace
+from app.db.organizations import organization_id_by_slug
 from app.services.passwords import hash_password
 
 
@@ -209,6 +210,7 @@ def create_managed_user(
     password: str,
     password_confirmation: str,
     role: str,
+    workspace_slug: str | None = None,
 ) -> dict[str, Any]:
     clean_username = _required_text(
         username,
@@ -250,6 +252,22 @@ def create_managed_user(
     created_user_id = int(cursor.lastrowid)
     if safe_role == "member":
         ensure_personal_workspace(db, created_user_id)
+    elif safe_role in {"lead_sourcer", "relationship_manager"}:
+        organization_id = organization_id_by_slug(
+            db,
+            workspace_slug or "mark-agency",
+        )
+        db.execute(
+            """
+            INSERT INTO organization_memberships (
+                user_id,
+                organization_id,
+                membership_role
+            )
+            VALUES (?, ?, 'crm_contributor')
+            """,
+            (created_user_id, organization_id),
+        )
 
     created = get_user_for_management(db, created_user_id)
     if created is None:
@@ -264,6 +282,7 @@ def create_lead_sourcer(
     display_name: str,
     password: str,
     password_confirmation: str,
+    workspace_slug: str = "mark-agency",
 ) -> dict[str, Any]:
     return create_managed_user(
         db,
@@ -272,6 +291,7 @@ def create_lead_sourcer(
         password=password,
         password_confirmation=password_confirmation,
         role="lead_sourcer",
+        workspace_slug=workspace_slug,
     )
 
 
@@ -282,6 +302,7 @@ def create_relationship_manager(
     display_name: str,
     password: str,
     password_confirmation: str,
+    workspace_slug: str = "mark-agency",
 ) -> dict[str, Any]:
     return create_managed_user(
         db,
@@ -290,6 +311,7 @@ def create_relationship_manager(
         password=password,
         password_confirmation=password_confirmation,
         role="relationship_manager",
+        workspace_slug=workspace_slug,
     )
 
 
@@ -356,6 +378,31 @@ def set_user_active(
             """,
             (target_id,),
         )
+        if target["role"] in {"lead_sourcer", "relationship_manager"}:
+            has_membership = db.execute(
+                """
+                SELECT 1
+                FROM organization_memberships
+                WHERE user_id = ?
+                LIMIT 1
+                """,
+                (target_id,),
+            ).fetchone()
+            if has_membership is None:
+                db.execute(
+                    """
+                    INSERT INTO organization_memberships (
+                        user_id,
+                        organization_id,
+                        membership_role
+                    )
+                    VALUES (?, ?, 'crm_contributor')
+                    """,
+                    (
+                        target_id,
+                        organization_id_by_slug(db, "mark-agency"),
+                    ),
+                )
     else:
         owner_id = get_primary_owner_id(db, active_only=True)
         if owner_id is None:

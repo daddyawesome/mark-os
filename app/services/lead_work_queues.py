@@ -4,6 +4,8 @@ import sqlite3
 from collections.abc import Mapping
 from typing import Any
 
+from app.db.organizations import organization_id_by_slug
+from app.services.workspace_context import require_workspace_membership
 from app.services.access_control import (
     is_lead_sourcer,
     is_owner,
@@ -73,24 +75,47 @@ def _positive_user_id(user: Record | None) -> int | None:
 
 
 def _visibility_clause(
+    db: sqlite3.Connection,
     user: Record | None,
+    organization_id: int | None = None,
 ) -> tuple[str, list[object]]:
+    safe_organization_id = (
+        organization_id_by_slug(db, "mark-agency")
+        if organization_id is None
+        else int(organization_id)
+    )
+    if safe_organization_id <= 0:
+        raise ValueError("Organization ID must be a positive integer.")
+
+    if organization_id is not None:
+        user_id = _positive_user_id(user)
+        if user_id is None:
+            raise PermissionError("CRM workspace membership is required.")
+        require_workspace_membership(
+            db,
+            user_id,
+            safe_organization_id,
+        )
+
+    organization_sql = "l.organization_id = ?"
+
     if is_owner(user):
-        return "1 = 1", []
+        return organization_sql, [safe_organization_id]
 
     if is_lead_sourcer(user):
         user_id = _positive_user_id(user)
         if user_id is None:
             return "0 = 1", []
         return (
-            """
-            (
+            f"""
+            {organization_sql}
+            AND (
                 l.created_by_user_id = ?
                 OR l.assigned_to_user_id = ?
                 OR l.researched_by_user_id = ?
             )
             """,
-            [user_id, user_id, user_id],
+            [safe_organization_id, user_id, user_id, user_id],
         )
 
     if is_relationship_manager(user):
@@ -98,13 +123,14 @@ def _visibility_clause(
         if user_id is None:
             return "0 = 1", []
         return (
-            """
-            (
+            f"""
+            {organization_sql}
+            AND (
                 l.business_development_owner_user_id = ?
                 OR l.created_by_user_id = ?
             )
             """,
-            [user_id, user_id],
+            [safe_organization_id, user_id, user_id],
         )
 
     return "0 = 1", []
@@ -208,10 +234,14 @@ def _queue_card(
 def list_visible_leads(
     db: sqlite3.Connection,
     user: Record | None,
+    *,
+    organization_id: int | None = None,
 ) -> list[sqlite3.Row]:
-    """Return exactly the active leads the CRM actor may see."""
+    """Return active leads visible to the actor inside one workspace."""
     visibility_sql, parameters = _visibility_clause(
+        db,
         user,
+        organization_id,
     )
     return db.execute(
         f"""
@@ -698,12 +728,20 @@ def _relationship_manager_metric_cards(
 def build_role_aware_crm_dashboard(
     db: sqlite3.Connection,
     user: Record | None,
+    *,
+    organization_id: int | None = None,
 ) -> dict[str, Any]:
-    """Build deterministic CRM queues for the actor's role."""
+    """Build deterministic CRM queues for the actor inside one workspace."""
     visibility_sql, parameters = _visibility_clause(
+        db,
         user,
+        organization_id,
     )
-    leads = list_visible_leads(db, user)
+    leads = list_visible_leads(
+        db,
+        user,
+        organization_id=organization_id,
+    )
 
     if is_owner(user):
         return {
