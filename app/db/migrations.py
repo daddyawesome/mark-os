@@ -69,9 +69,10 @@ def initialize_database(db: sqlite3.Connection) -> None:
 
     chat.validate_schema(db)
     agent_audit.validate_schema(db)
+    organizations.validate_schema(db)
+    organizations.seed(db)
     leads.migrate_request_fingerprint(db)
     leads.migrate_ownership(db)
-    leads.validate_schema(db)
     users.migrate(db)
     users.migrate_family_roles(db)
     users.validate_schema(db)
@@ -82,6 +83,8 @@ def initialize_database(db: sqlite3.Connection) -> None:
     lead_research.validate_schema(db)
     relationship_manager.migrate(db)
     relationship_manager.validate_schema(db)
+    leads.migrate_organization(db)
+    leads.validate_schema(db, require_organization=True)
     lead_activities.validate_schema(db)
 
     # Safe additive migrations for already-live SQLite databases.
@@ -114,7 +117,6 @@ def initialize_database(db: sqlite3.Connection) -> None:
     goals.seed(db)
     quests.seed(db)
     memory.seed(db)
-    organizations.seed(db)
     family_ownership.backfill_owner(db)
     family_workspace.migrate(db)
     family_workspace.ensure_all_workspaces(db)

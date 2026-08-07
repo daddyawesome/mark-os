@@ -8,6 +8,7 @@ from app.services.lead_identity import lead_creation_fingerprint
 
 LEAD_COLUMNS = [
     "id",
+    "organization_id",
     "quest_id",
     "created_by_user_id",
     "assigned_to_user_id",
@@ -106,6 +107,11 @@ EXPECTED_LEAD_INDEXES = {
             "next_action_due_date",
             "id",
         ],
+    ),
+    "idx_leads_organization_id": (
+        False,
+        False,
+        ["organization_id"],
     ),
 }
 
@@ -229,12 +235,15 @@ def _insert_lead(
     return db.execute(
         """
         INSERT INTO leads
-            (quest_id, request_key, request_fingerprint, dedupe_key,
+            (organization_id, quest_id, request_key, request_fingerprint, dedupe_key,
              company, contact_person, source, problem_opportunity,
              why_mark_fits, pipeline_status, priority, next_action, deleted_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            db.execute(
+                "SELECT id FROM organizations WHERE slug = 'mark-agency'"
+            ).fetchone()[0],
             quest_id,
             request_key,
             request_fingerprint or f"fingerprint:{dedupe_key}",
@@ -399,7 +408,10 @@ def test_fresh_database_has_exact_crm_schema_constraints_indexes_and_fk(
     foreign_keys = db.execute("PRAGMA foreign_key_list(leads)").fetchall()
     assert {
         (row[2], row[3], row[4], row[6]) for row in foreign_keys
-    } == {("tasks", "quest_id", "id", "RESTRICT")}
+    } == {
+        ("tasks", "quest_id", "id", "RESTRICT"),
+        ("organizations", "organization_id", "id", "RESTRICT"),
+    }
 
     columns = {
         row[1]: row for row in db.execute("PRAGMA table_info(leads)").fetchall()

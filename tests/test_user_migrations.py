@@ -170,9 +170,13 @@ def test_user_bootstrap_does_not_change_existing_crm_or_quest_rows(
             )
             """
         ).lastrowid
+        organization_id = db.execute(
+            "SELECT id FROM organizations WHERE slug = 'mark-agency'"
+        ).fetchone()[0]
         db.execute(
             """
             INSERT INTO leads (
+                organization_id,
                 quest_id,
                 request_key,
                 request_fingerprint,
@@ -184,9 +188,10 @@ def test_user_bootstrap_does_not_change_existing_crm_or_quest_rows(
                 why_mark_fits,
                 next_action
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                organization_id,
                 quest_id,
                 "m1-preserve-request",
                 "m1-preserve-fingerprint",

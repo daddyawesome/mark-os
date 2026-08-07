@@ -637,6 +637,15 @@ def create_lead(
             )
             if duplicate:
                 return duplicate
+            organization_rows = db.execute(
+                "SELECT id FROM organizations WHERE slug = 'mark-agency'"
+            ).fetchall()
+            if len(organization_rows) != 1:
+                raise RuntimeError(
+                    "Cannot create lead; exactly one mark-agency "
+                    "organization is required."
+                )
+            organization_id = organization_rows[0]["id"]
             quest_owner_id = _crm_quest_owner_id(
                 db,
                 safe_assignee_id,
@@ -649,17 +658,19 @@ def create_lead(
             cursor = db.execute(
                 """
                 INSERT INTO leads
-                    (quest_id, created_by_user_id, assigned_to_user_id,
+                    (organization_id, quest_id, created_by_user_id,
+                     assigned_to_user_id,
                      business_development_owner_user_id,
                      request_key, request_fingerprint, dedupe_key,
                      company, contact_person, job_title, source, source_url,
                      problem_opportunity,
                      why_mark_fits, pipeline_status, priority, next_action,
                      next_action_due_date, notes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """,
                 (
+                    organization_id,
                     quest["id"],
                     safe_creator_id,
                     safe_assignee_id,
