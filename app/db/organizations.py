@@ -67,3 +67,42 @@ def seed(db: sqlite3.Connection) -> None:
             ("pendang", "Pendang Research & Analytics"),
         ),
     )
+
+
+def ensure_owner_workspace_memberships(db: sqlite3.Connection) -> None:
+    """Give every active global owner admin membership in both core workspaces."""
+    db.execute(
+        """
+        INSERT OR IGNORE INTO organization_memberships (
+            user_id,
+            organization_id,
+            membership_role
+        )
+        SELECT
+            u.id,
+            o.id,
+            'workspace_admin'
+        FROM users AS u
+        CROSS JOIN organizations AS o
+        WHERE u.role = 'owner'
+          AND u.active = 1
+          AND o.slug IN ('mark-agency', 'pendang')
+        """
+    )
+    db.execute(
+        """
+        UPDATE organization_memberships
+        SET membership_role = 'workspace_admin'
+        WHERE user_id IN (
+            SELECT id
+            FROM users
+            WHERE role = 'owner' AND active = 1
+        )
+          AND organization_id IN (
+            SELECT id
+            FROM organizations
+            WHERE slug IN ('mark-agency', 'pendang')
+        )
+          AND membership_role <> 'workspace_admin'
+        """
+    )

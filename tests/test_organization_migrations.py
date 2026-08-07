@@ -104,8 +104,17 @@ def test_organization_constraints_and_membership_persist(
 
     db = _connect(database_path)
     user_id = db.execute(
-        "SELECT id FROM users WHERE username = 'mark'"
-    ).fetchone()[0]
+        """
+        INSERT INTO users (
+            username,
+            display_name,
+            password_hash,
+            role
+        )
+        VALUES (?, ?, ?, 'lead_sourcer')
+        """,
+        ("membership-test-user", "Membership Test User", "test-hash"),
+    ).lastrowid
     organization_id = db.execute(
         "SELECT id FROM organizations WHERE slug = 'pendang'"
     ).fetchone()[0]

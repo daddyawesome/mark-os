@@ -103,8 +103,10 @@ async def login_and_permission_guard(request: Request, call_next):
     path = request.url.path
     method = request.method.upper()
 
-    # Templates can always inspect this state value, including public pages.
+    # Templates can always inspect these state values, including public pages.
     request.state.current_user = None
+    request.state.current_workspace = None
+    request.state.authorized_workspaces = []
 
     is_public = path in PUBLIC_PATHS or path.startswith("/static/")
     if is_public:
@@ -124,6 +126,11 @@ async def login_and_permission_guard(request: Request, call_next):
         )
 
     request.state.current_user = user
+    request.state.current_workspace = user.get("current_workspace")
+    request.state.authorized_workspaces = user.get(
+        "authorized_workspaces",
+        [],
+    )
 
     if not can_access_request(user, method, path):
         status_code = (

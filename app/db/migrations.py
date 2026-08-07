@@ -77,6 +77,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     users.migrate_family_roles(db)
     users.validate_schema(db)
     users.bootstrap_owner_from_environment(db)
+    organizations.ensure_owner_workspace_memberships(db)
     organizations.validate_schema(db)
     playbooks.validate_schema(db)
     lead_research.migrate(db)
