@@ -1,13 +1,21 @@
 # MARK-OS
 
 MARK-OS is a personal and business operating system built with FastAPI, Jinja,
-HTMX, Bulma, and SQLite. It combines private personal workspaces, quests and XP,
-a multi-user CRM, staff workflows, organization-scoped business workspaces,
-production safety, and optional budget-safe AI foundations.
+HTMX, Bulma, and SQLite. It combines a private personal workspace (goals,
+quests, XP, check-ins), a multi-user client-hunting CRM, organization-scoped
+business workspaces for running more than one venture from one deployment,
+staff roles and approval workflows, and production safety (backups,
+observability, optimistic edit protection) — with AI kept optional and
+budget-safe rather than load-bearing.
 
-The detailed architecture, roadmap, role model, database rules, release
-procedures, backup/recovery runbooks, decision log, and current phase status live
-in [`PROJECT.md`](PROJECT.md).
+**Status:** actively developed, in production on Railway. Current phase:
+Phase 6 (Agency Operations and Production Safety) — see
+[`PROJECT.md`](PROJECT.md) for exactly what's shipped versus in progress.
+
+The detailed architecture, role model, database rules, release procedures,
+backup/recovery runbooks, decision log, and full phase-by-phase roadmap live
+in [`PROJECT.md`](PROJECT.md). This file only covers what you need to run the
+project locally.
 
 ## Quick start
 
@@ -20,18 +28,24 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Configure the required local values in `.env`, then start MARK-OS:
+Set at least `MARK_OS_USERNAME` and `MARK_OS_PASSWORD` in `.env` — MARK-OS does
+not load `.env` automatically, so always pass it explicitly to Uvicorn:
 
 ```bash
 uvicorn --env-file .env app.main:app --reload
 ```
 
+`SESSION_SECRET` is only required when deploying on Railway; a dev default is
+used locally, and startup will refuse to run on Railway without a real one.
+See `.env.example` for the full list of optional variables (custom DB path,
+backup settings, health-check monitoring).
+
 Useful local pages:
 
 ```text
-http://127.0.0.1:8000/
-http://127.0.0.1:8000/crm
-http://127.0.0.1:8000/health
+http://127.0.0.1:8000/        personal workspace / quests
+http://127.0.0.1:8000/crm     client-hunting CRM
+http://127.0.0.1:8000/health  liveness + DB check, used by Railway and uptime monitoring
 ```
 
 ### Windows PowerShell
