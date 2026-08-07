@@ -57,10 +57,7 @@ def test_owner_review_partial_has_three_decisions():
     )
     assert 'value="rejected"' in partial
     assert 'name="review_notes"' in partial
-    assert (
-        "current_user.role == 'owner'"
-        in partial
-    )
+    assert "and can_manage_crm" in partial
 
 
 def test_review_partial_does_not_approve_outreach():

@@ -2,7 +2,7 @@
 <div class="notification is-success is-light mb-5">
     <strong>Outreach approved</strong>
     <br>
-    Owner approval was recorded
+    Workspace approval was recorded
     {{ lead.outreach_approved_at }}.
     The lead may now move to Contacted.
 </div>
@@ -16,7 +16,7 @@
     </h2>
     {% if
         current_user
-        and current_user.role == 'owner'
+        and can_manage_crm
         and can_approve_outreach
     %}
     <p class="mark-muted mb-4">
@@ -37,7 +37,7 @@
     </form>
     {% else %}
     <p class="mark-muted">
-        Waiting for the Owner to approve outreach.
+        Waiting for workspace-owner outreach approval.
     </p>
     {% endif %}
 </div>

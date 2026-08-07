@@ -43,6 +43,7 @@ def authorized_workspaces(
         JOIN organizations AS o
           ON o.id = m.organization_id
         WHERE m.user_id = ?
+          AND m.active = 1
         ORDER BY
             CASE WHEN o.slug = 'mark-agency' THEN 0 ELSE 1 END,
             o.name COLLATE NOCASE,
@@ -137,6 +138,7 @@ def select_current_workspace(
         JOIN organizations AS o
           ON o.id = m.organization_id
         WHERE m.user_id = ? AND m.organization_id = ?
+          AND m.active = 1
         """,
         (user_id, safe_organization_id),
     ).fetchone()
@@ -173,6 +175,7 @@ def require_workspace_membership(
           ON u.id = m.user_id
         WHERE m.user_id = ?
           AND m.organization_id = ?
+          AND m.active = 1
           AND u.active = 1
         """,
         (safe_user_id, safe_organization_id),
@@ -180,6 +183,52 @@ def require_workspace_membership(
     if row is None:
         raise PermissionError("Workspace is not authorized for this user.")
     return dict(row)
+
+
+def workspace_membership_role(user: Mapping[str, Any] | None) -> str:
+    """Return the authenticated active-workspace role without widening global role."""
+    if user is None:
+        return ""
+    direct = str(user.get("workspace_membership_role") or "").strip().casefold()
+    if direct:
+        return direct
+    workspace = user.get("current_workspace")
+    if isinstance(workspace, Mapping):
+        return str(workspace.get("membership_role") or "").strip().casefold()
+    return ""
+
+
+def load_crm_actor_for_workspace(
+    db: sqlite3.Connection,
+    user: Mapping[str, Any],
+    organization_id: int,
+) -> dict[str, Any]:
+    """Reload global role and active workspace membership from database truth."""
+    safe_user_id = _positive_id(user.get("id"), label="User ID")
+    safe_organization_id = _positive_id(
+        organization_id,
+        label="Organization ID",
+    )
+    membership = require_workspace_membership(
+        db,
+        safe_user_id,
+        safe_organization_id,
+    )
+    row = db.execute(
+        """
+        SELECT id, username, display_name, role, active, must_change_password,
+               session_version
+        FROM users
+        WHERE id = ? AND active = 1
+        """,
+        (safe_user_id,),
+    ).fetchone()
+    if row is None:
+        raise PermissionError("Workspace is not authorized for this user.")
+    actor = dict(row)
+    actor["workspace_membership_role"] = membership["membership_role"]
+    actor["current_workspace"] = dict(membership)
+    return actor
 
 def request_current_workspace(request: Request) -> dict[str, Any] | None:
     workspace = getattr(request.state, "current_workspace", None)

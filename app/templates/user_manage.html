@@ -75,6 +75,42 @@
     </div>
 
     <div class="column is-7">
+        {% if managed_user.role in ['lead_sourcer', 'relationship_manager'] %}
+        <div class="mark-card p-5 mb-5">
+            <p class="mark-kicker">Business Workspaces</p>
+            <h2 class="title is-4 mt-2">Workspace authority</h2>
+            <p class="mark-muted mb-4">Workspace access is independent from the global account role. Changing or revoking access immediately invalidates existing sessions.</p>
+            {% for membership in managed_user.workspace_memberships %}
+            <div class="box mb-4">
+                <p class="has-text-weight-bold">{{ membership.name }}</p>
+                <p class="mark-muted is-size-7 mb-3">{{ membership.slug }} · {{ 'Active' if membership.active else ('Revoked' if membership.configured else 'Not granted') }}</p>
+                <form method="post" action="/settings/users/{{ managed_user.id }}/workspace">
+                    <input type="hidden" name="workspace_slug" value="{{ membership.slug }}">
+                    {% if managed_user.role == 'lead_sourcer' %}
+                    <input type="hidden" name="membership_role" value="crm_contributor">
+                    <p class="mb-3"><strong>Role:</strong> CRM Contributor</p>
+                    {% else %}
+                    <div class="field">
+                        <label class="label">Workspace role</label>
+                        <div class="select is-fullwidth">
+                            <select name="membership_role">
+                                <option value="crm_contributor" {% if membership.membership_role == 'crm_contributor' %}selected{% endif %}>CRM Contributor</option>
+                                <option value="workspace_owner" {% if membership.membership_role == 'workspace_owner' %}selected{% endif %}>Workspace Owner</option>
+                            </select>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if membership.active %}
+                    <button class="button is-danger is-outlined" type="submit" name="action" value="revoke">Revoke workspace access</button>
+                    {% else %}
+                    <button class="button is-mark" type="submit" name="action" value="grant">Grant / restore workspace access</button>
+                    {% endif %}
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <div class="mark-card p-5">
             <p class="mark-kicker">Security</p>
             <h2 class="title is-4 mt-2">Reset password</h2>

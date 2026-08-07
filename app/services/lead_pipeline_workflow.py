@@ -20,7 +20,7 @@ from app.services.leads import (
     update_lead,
     update_lead_pipeline,
 )
-from app.services.workspace_context import require_workspace_membership
+from app.services.workspace_context import load_crm_actor_for_workspace
 
 
 Record = Mapping[str, Any]
@@ -74,17 +74,17 @@ def _actor_id(actor: Record | None) -> int:
     return value
 
 
-def _require_actor_workspace(
+def _actor_for_workspace(
     db: sqlite3.Connection,
     actor: Record,
     organization_id: int | None,
-) -> None:
+) -> Record:
     if organization_id is None:
-        return
+        return actor
     try:
-        require_workspace_membership(
+        return load_crm_actor_for_workspace(
             db,
-            _actor_id(actor),
+            actor,
             organization_id,
         )
     except PermissionError as exc:
@@ -296,8 +296,8 @@ def approve_outreach(
     organization_id: int | None = None,
 ) -> sqlite3.Row:
     """Record Owner approval before first outreach."""
+    actor = _actor_for_workspace(db, actor, organization_id)
     actor_id = _actor_id(actor)
-    _require_actor_workspace(db, actor, organization_id)
 
     with _workflow_write(
         db,
@@ -418,8 +418,8 @@ def change_pipeline_stage(
     organization_id: int | None = None,
 ) -> sqlite3.Row:
     """Apply an Owner-authorized transition inside one workspace."""
+    actor = _actor_for_workspace(db, actor, organization_id)
     actor_id = _actor_id(actor)
-    _require_actor_workspace(db, actor, organization_id)
     with _workflow_write(
         db,
         "lead_pipeline_transition",
@@ -496,8 +496,8 @@ def update_owner_lead(
     organization_id: int | None = None,
 ) -> sqlite3.Row:
     """Protect full Owner edits inside one CRM workspace."""
+    actor = _actor_for_workspace(db, actor, organization_id)
     _actor_id(actor)
-    _require_actor_workspace(db, actor, organization_id)
 
     with _workflow_write(
         db,

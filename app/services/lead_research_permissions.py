@@ -6,6 +6,7 @@ from typing import Any
 
 from app.db.lead_research import RESEARCH_STATUSES
 from app.services.access_control import (
+    has_crm_owner_authority,
     is_lead_sourcer,
     is_owner,
     is_relationship_manager,
@@ -167,7 +168,7 @@ def can_view_lead(
     if not _lead_is_active(lead):
         return False
 
-    if is_owner(user):
+    if has_crm_owner_authority(user):
         return True
 
     if is_lead_sourcer(user):
@@ -190,7 +191,7 @@ def editable_fields_for(
     if not _lead_is_active(lead):
         return frozenset()
 
-    if is_owner(user):
+    if has_crm_owner_authority(user):
         return OWNER_GENERAL_EDIT_FIELDS
 
     if (
@@ -280,7 +281,7 @@ def can_transition_research_status(
     if current_status == normalized_target:
         return can_view_lead(user, lead)
 
-    if is_owner(user):
+    if has_crm_owner_authority(user):
         return True
 
     if (
@@ -350,7 +351,7 @@ def can_review_research(
     lead: Record | None,
 ) -> bool:
     return (
-        is_owner(user)
+        has_crm_owner_authority(user)
         and _lead_is_active(lead)
         and _normalized_research_status(lead)
         == "ready_for_review"
@@ -362,7 +363,7 @@ def can_approve_outreach(
     lead: Record | None,
 ) -> bool:
     return (
-        is_owner(user)
+        has_crm_owner_authority(user)
         and _lead_is_active(lead)
         and _normalized_research_status(lead)
         == "approved"
@@ -374,7 +375,7 @@ def can_reassign_lead(
     lead: Record | None,
 ) -> bool:
     return (
-        is_owner(user)
+        has_crm_owner_authority(user)
         and _lead_is_active(lead)
     )
 
@@ -391,7 +392,7 @@ def can_change_pipeline(
     )
 
     return (
-        is_owner(user)
+        has_crm_owner_authority(user)
         and _lead_is_active(lead)
         and normalized_target in PIPELINE_STATUSES
     )
@@ -431,7 +432,7 @@ def can_soft_delete_lead(
     lead: Record | None,
 ) -> bool:
     return (
-        is_owner(user)
+        has_crm_owner_authority(user)
         and _lead_is_active(lead)
     )
 

@@ -34,6 +34,7 @@ from app.services.lead_csv_import import (
     preview_leads_from_csv,
 )
 from app.services.access_control import (
+    has_crm_owner_authority,
     is_lead_sourcer,
     is_owner,
     is_relationship_manager,
@@ -99,7 +100,7 @@ NOTICE_MESSAGES = {
     "created": "Lead and linked quest created.",
     "duplicate": "That request was already saved. The existing lead is shown below.",
     "updated": "Lead details updated.",
-    "research_submitted": "Research submitted for Owner review.",
+    "research_submitted": "Research submitted for workspace-owner review.",
     "pipeline": "Pipeline status updated.",
     "next_action": "Next action updated.",
     "deleted": "Lead archived. Its quest history was preserved.",
@@ -115,7 +116,7 @@ NOTICE_MESSAGES = {
 ERROR_MESSAGES = {
     "invalid": "The lead could not be saved. Check the required fields and allowed values.",
     "confirmation": 'Type DELETE exactly to archive this lead.',
-    "forbidden": "Your account can add and review leads, but only the owner can edit pipeline actions or private MARK-OS data.",
+    "forbidden": "That action requires workspace-owner CRM authority or global Owner access.",
     "review_notes_required": 'Review notes are required when requesting changes or rejecting.',
     "invalid_review": 'The research review decision could not be saved.',
     "pipeline_rule": "That pipeline move is not allowed. Contacted requires approved research, outreach approval, and a complete contact audit; Proposal requires Meeting; Won requires Proposal.",
@@ -187,10 +188,10 @@ def _activity_form_context(
     *,
     organization_id: int,
 ) -> dict:
-    can_create = is_owner(user) or is_lead_sourcer(user)
+    can_create = has_crm_owner_authority(user) or is_lead_sourcer(user)
     activity_types = (
         ACTIVITY_TYPES
-        if is_owner(user)
+        if has_crm_owner_authority(user)
         else tuple(
             activity_type
             for activity_type in ACTIVITY_TYPES
@@ -199,7 +200,7 @@ def _activity_form_context(
         if is_lead_sourcer(user)
         else ()
     )
-    channels = CHANNELS if is_owner(user) else ("internal",)
+    channels = CHANNELS if has_crm_owner_authority(user) else ("internal",)
     return {
         "can_create_activity": can_create,
         "activity_type_options": activity_types,
@@ -207,17 +208,17 @@ def _activity_form_context(
         "activity_response_status_options": RESPONSE_STATUSES,
         "contact_activity_type_options": (
             CONTACT_ACTIVITY_TYPES
-            if is_owner(user)
+            if has_crm_owner_authority(user)
             else ()
         ),
         "contact_channel_options": (
             CONTACT_CHANNELS
-            if is_owner(user)
+            if has_crm_owner_authority(user)
             else ()
         ),
         "contact_response_status_options": (
             CONTACT_RESPONSE_STATUSES
-            if is_owner(user)
+            if has_crm_owner_authority(user)
             else ()
         ),
         "activity_users": (
@@ -235,7 +236,7 @@ def _can_correct_activity_in_ui(
     user,
     activity: dict,
 ) -> bool:
-    if is_owner(user):
+    if has_crm_owner_authority(user):
         return True
     return (
         is_lead_sourcer(user)
@@ -316,13 +317,14 @@ def _lead_or_404(
 
 def _shared_context(db, request: Request) -> dict:
     user = request.state.current_user
-    owner = is_owner(user)
+    global_owner = is_owner(user)
     return {
         "pipeline_options": PIPELINE_OPTIONS,
         "priority_options": PRIORITY_OPTIONS,
-        "system_state": load_system_state(db) if owner else None,
+        "system_state": load_system_state(db) if global_owner else None,
         "current_user": user,
-        "can_manage_crm": owner,
+        "can_manage_crm": has_crm_owner_authority(user),
+        "can_view_linked_quest": global_owner,
     }
 
 
@@ -512,8 +514,13 @@ async def preview_leads_csv(
                         "new"
                         if (
                             is_lead_sourcer(request.state.current_user)
-                            or is_relationship_manager(
-                                request.state.current_user
+                            or (
+                                is_relationship_manager(
+                                    request.state.current_user
+                                )
+                                and not has_crm_owner_authority(
+                                    request.state.current_user
+                                )
                             )
                         )
                         else None
@@ -660,8 +667,13 @@ def create_lead(
                     "new"
                     if (
                         is_lead_sourcer(request.state.current_user)
-                        or is_relationship_manager(
-                            request.state.current_user
+                        or (
+                            is_relationship_manager(
+                                request.state.current_user
+                            )
+                            and not has_crm_owner_authority(
+                                request.state.current_user
+                            )
                         )
                     )
                     else pipeline_status
@@ -701,7 +713,7 @@ def lead_detail(request: Request, lead_id: int):
         organization_id = _request_organization_id(db, request)
         lead = _lead_or_404(db, lead_id, request)
         show_deleted = (
-            is_owner(user)
+            has_crm_owner_authority(user)
             and request.query_params.get("include_deleted") == "1"
         )
         try:
@@ -755,7 +767,7 @@ def lead_detail(request: Request, lead_id: int):
                     db,
                     organization_id=organization_id,
                 )
-                if is_owner(user)
+                if has_crm_owner_authority(user)
                 else []
             ),
             "notice": _message(
@@ -1227,6 +1239,7 @@ def delete_lead(
             db,
             lead_id,
             confirmed=True,
+            actor=request.state.current_user,
             organization_id=_request_organization_id(db, request),
         )
 

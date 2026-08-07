@@ -5,8 +5,9 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.db.organizations import organization_id_by_slug
-from app.services.workspace_context import require_workspace_membership
+from app.services.workspace_context import load_crm_actor_for_workspace
 from app.services.access_control import (
+    has_crm_owner_authority,
     is_lead_sourcer,
     is_owner,
     is_relationship_manager,
@@ -91,15 +92,15 @@ def _visibility_clause(
         user_id = _positive_user_id(user)
         if user_id is None:
             raise PermissionError("CRM workspace membership is required.")
-        require_workspace_membership(
+        user = load_crm_actor_for_workspace(
             db,
-            user_id,
+            user,
             safe_organization_id,
         )
 
     organization_sql = "l.organization_id = ?"
 
-    if is_owner(user):
+    if has_crm_owner_authority(user):
         return organization_sql, [safe_organization_id]
 
     if is_lead_sourcer(user):
@@ -732,18 +733,25 @@ def build_role_aware_crm_dashboard(
     organization_id: int | None = None,
 ) -> dict[str, Any]:
     """Build deterministic CRM queues for the actor inside one workspace."""
+    effective_user = user
+    if organization_id is not None and user is not None:
+        effective_user = load_crm_actor_for_workspace(
+            db,
+            user,
+            int(organization_id),
+        )
     visibility_sql, parameters = _visibility_clause(
         db,
-        user,
+        effective_user,
         organization_id,
     )
     leads = list_visible_leads(
         db,
-        user,
+        effective_user,
         organization_id=organization_id,
     )
 
-    if is_owner(user):
+    if has_crm_owner_authority(effective_user):
         return {
             "queue_mode": "owner",
             "queue_cards": _owner_queues(
@@ -755,7 +763,7 @@ def build_role_aware_crm_dashboard(
             "leads": leads,
         }
 
-    if is_lead_sourcer(user):
+    if is_lead_sourcer(effective_user):
         return {
             "queue_mode": "researcher",
             "queue_cards": _researcher_queues(
@@ -771,7 +779,7 @@ def build_role_aware_crm_dashboard(
             "leads": leads,
         }
 
-    if is_relationship_manager(user):
+    if is_relationship_manager(effective_user):
         return {
             "queue_mode": "relationship_manager",
             "queue_cards": _relationship_manager_queues(

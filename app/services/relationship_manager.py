@@ -7,12 +7,13 @@ from typing import Any
 
 from app.db.organizations import organization_id_by_slug
 from app.services.access_control import (
+    has_crm_owner_authority,
     is_owner,
     is_relationship_manager,
 )
 from app.services.lead_research_permissions import LeadPermissionError
 from app.services.leads import get_lead, update_lead_next_action
-from app.services.workspace_context import require_workspace_membership
+from app.services.workspace_context import load_crm_actor_for_workspace
 from app.services.playbooks import (
     get_primary_playbook_for_user,
     render_markdown_safely,
@@ -51,17 +52,17 @@ def _organization_id(
     return _positive_id(organization_id, "Organization ID")
 
 
-def _require_actor_workspace(
+def _actor_for_workspace(
     db: sqlite3.Connection,
     actor: Record,
     organization_id: int | None,
-) -> None:
+) -> Record:
     if organization_id is None:
-        return
+        return actor
     try:
-        require_workspace_membership(
+        return load_crm_actor_for_workspace(
             db,
-            _actor_id(actor),
+            actor,
             organization_id,
         )
     except PermissionError as exc:
@@ -76,6 +77,8 @@ def relationship_manager_matches_lead(
 ) -> bool:
     if not is_relationship_manager(actor) or lead is None:
         return False
+    if has_crm_owner_authority(actor):
+        return True
     actor_id = _actor_id(actor)
     return actor_id in {
         _value(lead, "business_development_owner_user_id"),
@@ -89,7 +92,7 @@ def can_update_relationship_next_action(
 ) -> bool:
     if lead is None or _value(lead, "deleted_at") is not None:
         return False
-    return is_owner(actor) or relationship_manager_matches_lead(actor, lead)
+    return has_crm_owner_authority(actor) or relationship_manager_matches_lead(actor, lead)
 
 
 def update_next_action_for_actor(
@@ -102,7 +105,7 @@ def update_next_action_for_actor(
     organization_id: int | None = None,
 ) -> sqlite3.Row:
     safe_organization_id = _organization_id(db, organization_id)
-    _require_actor_workspace(db, actor, organization_id)
+    actor = _actor_for_workspace(db, actor, organization_id)
     lead = get_lead(
         db,
         _positive_id(lead_id, "Lead ID"),
@@ -135,7 +138,8 @@ def list_active_relationship_managers(
           ON membership.user_id = users.id
          AND membership.organization_id = ?
         WHERE role = 'relationship_manager'
-          AND active = 1
+          AND users.active = 1
+          AND membership.active = 1
         ORDER BY display_name COLLATE NOCASE, id
         """,
         (safe_organization_id,),
@@ -151,14 +155,13 @@ def assign_relationship_manager(
     relationship_manager_user_id: int | None,
     organization_id: int | None = None,
 ) -> sqlite3.Row:
-    if not is_owner(actor):
-        raise LeadPermissionError(
-            "Only the Owner can assign a Relationship Manager."
-        )
-
     safe_lead_id = _positive_id(lead_id, "Lead ID")
     safe_organization_id = _organization_id(db, organization_id)
-    _require_actor_workspace(db, actor, organization_id)
+    actor = _actor_for_workspace(db, actor, organization_id)
+    if not has_crm_owner_authority(actor):
+        raise LeadPermissionError(
+            "Workspace owner authority is required to assign a Relationship Manager."
+        )
     lead = get_lead(
         db,
         safe_lead_id,
@@ -184,6 +187,7 @@ def assign_relationship_manager(
             WHERE users.id = ?
               AND users.role = 'relationship_manager'
               AND users.active = 1
+              AND membership.active = 1
             """,
             (safe_organization_id, manager_id),
         ).fetchone()
@@ -261,7 +265,12 @@ def _relationship_lead_select() -> str:
     """
 
 
-def _relationship_visibility_sql() -> str:
+def _relationship_visibility_sql(*, workspace_owner: bool) -> str:
+    if workspace_owner:
+        return """
+            l.organization_id = ?
+            AND l.deleted_at IS NULL
+        """
     return """
         l.organization_id = ?
         AND l.deleted_at IS NULL
@@ -279,11 +288,18 @@ def _lead_rows(
     *,
     organization_id: int,
     limit: int = 8,
+    workspace_owner: bool = False,
 ) -> list[dict[str, Any]]:
+    visibility_sql = _relationship_visibility_sql(workspace_owner=workspace_owner)
+    parameters = (
+        (organization_id, limit)
+        if workspace_owner
+        else (organization_id, user_id, user_id, limit)
+    )
     rows = db.execute(
         f"""
         {_relationship_lead_select()}
-        WHERE {_relationship_visibility_sql()}
+        WHERE {visibility_sql}
           AND ({extra_condition})
         ORDER BY
             CASE l.priority
@@ -296,7 +312,7 @@ def _lead_rows(
             l.id DESC
         LIMIT ?
         """,
-        (organization_id, user_id, user_id, limit),
+        parameters,
     ).fetchall()
     return [dict(row) for row in rows]
 
@@ -307,16 +323,23 @@ def _count(
     extra_condition: str,
     *,
     organization_id: int,
+    workspace_owner: bool = False,
 ) -> int:
+    visibility_sql = _relationship_visibility_sql(workspace_owner=workspace_owner)
+    parameters = (
+        (organization_id,)
+        if workspace_owner
+        else (organization_id, user_id, user_id)
+    )
     return int(
         db.execute(
             f"""
             SELECT COUNT(*) AS item_count
             FROM leads AS l
-            WHERE {_relationship_visibility_sql()}
+            WHERE {visibility_sql}
               AND ({extra_condition})
             """,
-            (organization_id, user_id, user_id),
+            parameters,
         ).fetchone()["item_count"]
     )
 
@@ -332,9 +355,10 @@ def load_relationship_manager_dashboard(
             "Relationship Manager access is required."
         )
 
-    user_id = _actor_id(actor)
     safe_organization_id = _organization_id(db, organization_id)
-    _require_actor_workspace(db, actor, organization_id)
+    actor = _actor_for_workspace(db, actor, organization_id)
+    user_id = _actor_id(actor)
+    workspace_owner = has_crm_owner_authority(actor)
     today = date.today().isoformat()
     playbook = get_primary_playbook_for_user(db, user_id)
     if playbook is not None:
@@ -381,19 +405,19 @@ def load_relationship_manager_dashboard(
     metric_cards = [
         {
             "label": "Relationship leads",
-            "value": _count(db, user_id, "1 = 1", organization_id=safe_organization_id),
+            "value": _count(db, user_id, "1 = 1", organization_id=safe_organization_id, workspace_owner=workspace_owner),
         },
         {
             "label": "Approved outreach",
-            "value": _count(db, user_id, ready_condition, organization_id=safe_organization_id),
+            "value": _count(db, user_id, ready_condition, organization_id=safe_organization_id, workspace_owner=workspace_owner),
         },
         {
             "label": "Follow-ups due",
-            "value": _count(db, user_id, due_condition, organization_id=safe_organization_id),
+            "value": _count(db, user_id, due_condition, organization_id=safe_organization_id, workspace_owner=workspace_owner),
         },
         {
             "label": "Replies / meetings",
-            "value": _count(db, user_id, handoff_condition, organization_id=safe_organization_id),
+            "value": _count(db, user_id, handoff_condition, organization_id=safe_organization_id, workspace_owner=workspace_owner),
         },
     ]
 
@@ -405,7 +429,7 @@ def load_relationship_manager_dashboard(
                 "New relationship leads that need a clear next action "
                 "while research evidence is being completed."
             ),
-            "leads": _lead_rows(db, user_id, qualification_condition, organization_id=safe_organization_id),
+            "leads": _lead_rows(db, user_id, qualification_condition, organization_id=safe_organization_id, workspace_owner=workspace_owner),
         },
         {
             "key": "ready_outreach",
@@ -414,7 +438,7 @@ def load_relationship_manager_dashboard(
                 "Research and Owner outreach approval are complete. "
                 "Contact logging remains locked until Phase 6.2."
             ),
-            "leads": _lead_rows(db, user_id, ready_condition, organization_id=safe_organization_id),
+            "leads": _lead_rows(db, user_id, ready_condition, organization_id=safe_organization_id, workspace_owner=workspace_owner),
         },
         {
             "key": "followups_due",
@@ -422,7 +446,7 @@ def load_relationship_manager_dashboard(
             "description": (
                 "Relationship leads whose next action is due today or overdue."
             ),
-            "leads": _lead_rows(db, user_id, due_condition, organization_id=safe_organization_id),
+            "leads": _lead_rows(db, user_id, due_condition, organization_id=safe_organization_id, workspace_owner=workspace_owner),
         },
         {
             "key": "waiting_mark",
@@ -430,7 +454,7 @@ def load_relationship_manager_dashboard(
             "description": (
                 "Research review or outreach approval still needs the Owner."
             ),
-            "leads": _lead_rows(db, user_id, waiting_condition, organization_id=safe_organization_id),
+            "leads": _lead_rows(db, user_id, waiting_condition, organization_id=safe_organization_id, workspace_owner=workspace_owner),
         },
         {
             "key": "handoff",
@@ -438,7 +462,7 @@ def load_relationship_manager_dashboard(
             "description": (
                 "Interested prospects at Reply or Meeting stage."
             ),
-            "leads": _lead_rows(db, user_id, handoff_condition, organization_id=safe_organization_id),
+            "leads": _lead_rows(db, user_id, handoff_condition, organization_id=safe_organization_id, workspace_owner=workspace_owner),
         },
     ]
 

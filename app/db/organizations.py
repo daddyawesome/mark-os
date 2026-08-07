@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS organization_memberships (
             'workspace_owner',
             'crm_contributor'
         )),
+    active INTEGER NOT NULL DEFAULT 1
+        CHECK(active IN (0, 1)),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, organization_id),
     FOREIGN KEY (user_id)
@@ -45,7 +47,28 @@ CREATE TABLE IF NOT EXISTS organization_memberships (
 INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_organization_memberships_organization
 ON organization_memberships(organization_id, user_id);
+
+CREATE INDEX IF NOT EXISTS idx_organization_memberships_active_user
+ON organization_memberships(user_id, active, organization_id);
 """
+
+
+def migrate(db: sqlite3.Connection) -> None:
+    """Add independently revocable workspace membership state."""
+    if not table_exists(db, "organization_memberships"):
+        return
+    columns = {
+        row["name"]
+        for row in db.execute("PRAGMA table_info(organization_memberships)")
+    }
+    if "active" not in columns:
+        db.execute(
+            """
+            ALTER TABLE organization_memberships
+            ADD COLUMN active INTEGER NOT NULL DEFAULT 1
+                CHECK(active IN (0, 1))
+            """
+        )
 
 
 def validate_schema(db: sqlite3.Connection) -> None:
@@ -54,6 +77,14 @@ def validate_schema(db: sqlite3.Connection) -> None:
             raise RuntimeError(
                 f"Incompatible organization schema; {table_name} is missing"
             )
+    columns = {
+        row["name"]
+        for row in db.execute("PRAGMA table_info(organization_memberships)")
+    }
+    if "active" not in columns:
+        raise RuntimeError(
+            "Incompatible organization schema; membership active state is missing"
+        )
 
 
 def seed(db: sqlite3.Connection) -> None:
@@ -76,12 +107,14 @@ def ensure_owner_workspace_memberships(db: sqlite3.Connection) -> None:
         INSERT OR IGNORE INTO organization_memberships (
             user_id,
             organization_id,
-            membership_role
+            membership_role,
+            active
         )
         SELECT
             u.id,
             o.id,
-            'workspace_admin'
+            'workspace_admin',
+            1
         FROM users AS u
         CROSS JOIN organizations AS o
         WHERE u.role = 'owner'
@@ -92,7 +125,8 @@ def ensure_owner_workspace_memberships(db: sqlite3.Connection) -> None:
     db.execute(
         """
         UPDATE organization_memberships
-        SET membership_role = 'workspace_admin'
+        SET membership_role = 'workspace_admin',
+            active = 1
         WHERE user_id IN (
             SELECT id
             FROM users
@@ -103,7 +137,7 @@ def ensure_owner_workspace_memberships(db: sqlite3.Connection) -> None:
             FROM organizations
             WHERE slug IN ('mark-agency', 'pendang')
         )
-          AND membership_role <> 'workspace_admin'
+          AND (membership_role <> 'workspace_admin' OR active <> 1)
         """
     )
 
@@ -136,12 +170,14 @@ def ensure_legacy_crm_workspace_memberships(
         INSERT OR IGNORE INTO organization_memberships (
             user_id,
             organization_id,
-            membership_role
+            membership_role,
+            active
         )
         SELECT
             u.id,
             o.id,
-            'crm_contributor'
+            'crm_contributor',
+            1
         FROM users AS u
         JOIN organizations AS o
           ON o.slug = 'mark-agency' COLLATE NOCASE

@@ -13,6 +13,7 @@ from app.services.team_users import (
     list_users_with_stats,
     reset_user_password,
     set_user_active,
+    set_workspace_membership,
 )
 
 
@@ -110,6 +111,8 @@ def create_user(
     password: str = Form(...),
     password_confirmation: str = Form(...),
     role: str = Form(default="lead_sourcer"),
+    workspace_slug: str = Form(default="mark-agency"),
+    membership_role: str = Form(default="crm_contributor"),
 ):
     with get_db() as db:
         try:
@@ -120,6 +123,8 @@ def create_user(
                 password=password,
                 password_confirmation=password_confirmation,
                 role=role,
+                workspace_slug=workspace_slug,
+                membership_role=membership_role,
             )
         except ValueError as exc:
             return _redirect("/settings/users/new", error=str(exc))
@@ -196,6 +201,47 @@ def update_user_status(
         f"/settings/users/{user_id}",
         message=(
             f"{updated['display_name']} was {state_label}. "
+            "Existing sessions were revoked."
+        ),
+    )
+
+
+@router.post("/{user_id}/workspace")
+def update_user_workspace(
+    request: Request,
+    user_id: int,
+    workspace_slug: str = Form(...),
+    membership_role: str = Form(...),
+    action: str = Form(...),
+):
+    normalized_action = action.strip().casefold()
+    if normalized_action not in {"grant", "revoke"}:
+        return _redirect(
+            f"/settings/users/{user_id}",
+            error="Unsupported workspace action.",
+        )
+    acting_user = request.state.current_user
+    with get_db() as db:
+        try:
+            membership = set_workspace_membership(
+                db,
+                target_user_id=user_id,
+                acting_user_id=int(acting_user["id"]),
+                workspace_slug=workspace_slug,
+                membership_role=membership_role,
+                active=normalized_action == "grant",
+            )
+        except ValueError as exc:
+            return _redirect(
+                f"/settings/users/{user_id}",
+                error=str(exc),
+            )
+
+    state = "enabled" if membership["active"] else "revoked"
+    return _redirect(
+        f"/settings/users/{user_id}",
+        message=(
+            f"{membership['name']} access was {state}. "
             "Existing sessions were revoked."
         ),
     )

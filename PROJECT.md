@@ -4,7 +4,67 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.6B-5 — Pendang Staff Membership Authority and Revocation
+**Immediate next milestone:** Phase 6.6B-6 — Workspace Switching UI and Pendang Launch Surface
+
+<!-- PHASE_6_6B5_COMPLETION_START -->
+**6.6B-5 Status: ✅ COMPLETE — Pendang Staff Membership Authority and Revocation**
+
+Completed:
+- Added independently revocable `active` state to
+  `organization_memberships` with an additive, idempotent SQLite migration.
+- Active workspace resolution, workspace selection, membership checks, CRM user
+  choices, and relationship-manager choices ignore revoked memberships.
+- Global Owner memberships remain active `workspace_admin` memberships in both
+  `mark-agency` and `pendang`.
+- Added database-backed effective CRM authority that combines:
+  - the stable global user role;
+  - the authenticated active workspace membership;
+  - the workspace membership role;
+  - the existing lead/research workflow state.
+- A global `relationship_manager` with active `workspace_owner` membership may
+  exercise existing workspace-owner CRM actions inside that workspace without
+  becoming global Owner.
+- Workspace-owner CRM authority now covers the existing review, outreach
+  approval, major pipeline, next-action, relationship assignment, CRM editing,
+  activity-audit, Won/Lost, and archive paths.
+- Workspace-owner authority does **not** grant personal/family workspace access,
+  global user administration, global settings, or private finance.
+- `lead_sourcer` accounts are constrained to `crm_contributor` workspace
+  membership and cannot be promoted to `workspace_owner`.
+- Lead Researcher approval, outreach approval, major pipeline, Won/Lost, and
+  archive restrictions remain enforced.
+- Lead creator, assignee, activity performer/responsible user, and Business
+  Development Owner references are validated against active membership in the
+  selected runtime workspace.
+- Owner user management can grant, change, restore, or revoke CRM workspace
+  membership.
+- Membership grant, role change, restore, or revocation increments the target
+  user's `session_version`, making permission changes effective for existing
+  sessions immediately.
+- Revoking workspace membership safely reassigns active `assigned_to_user_id`
+  work in that workspace to the global Owner and clears active Business
+  Development Owner assignment while preserving creator/research/history
+  attribution.
+- A revoked membership is not silently recreated by legacy MARK Agency startup
+  compatibility seeding.
+- The supported Pendang role model is now:
+  - Mark: global `owner`; `workspace_admin` in MARK Agency and Pendang.
+  - Rey model: global `relationship_manager`; Pendang `workspace_owner`;
+    never global Owner.
+  - Freddy model: global `lead_sourcer`; Pendang `crm_contributor`.
+- No Rey/Freddy production usernames, passwords, or accounts are seeded by this
+  migration. Real credential onboarding remains an explicit launch action.
+
+**Next substep: 6.6B-6 — Workspace Switching UI and Pendang Launch Surface**
+- Add Mark's authenticated workspace selector.
+- Keep single-workspace staff locked to their authorized workspace with no
+  selector.
+- Add Pendang-specific staff labels and launch-facing CRM context.
+- Make Pendang owner/research queues obvious in the Forest Fieldbook UI.
+- Prepare the controlled Rey/Freddy account onboarding flow without putting
+  credentials in source control.
+<!-- PHASE_6_6B5_COMPLETION_END -->
+
 
 <!-- PHASE_6_6B4B_COMPLETION_START -->
 **6.6B-4B Status: ✅ COMPLETE — Active Workspace Through CRM Workflows**
@@ -147,7 +207,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 495 passed after Phase 6.6B-4B workspace workflow isolation
+**Last verified full-suite baseline:** 505 passed after Phase 6.6B-5 Pendang membership authority and revocation
 
 ---
 
@@ -3144,6 +3204,39 @@ backup.
 
 
 
+
+
+## 2026-08-07 — Separate global identity from revocable workspace authority
+
+**Decision:**
+
+- keep `users.role` as the stable global application identity and add no second
+  global Owner role;
+- make `organization_memberships.active` the independently revocable workspace
+  access gate;
+- calculate CRM owner-like authority from the authenticated global
+  `relationship_manager` role plus an active `workspace_owner` membership;
+- reserve `workspace_admin` for the current global Owner model;
+- constrain Lead Researchers to `crm_contributor`;
+- reload global role and active membership from SQLite before consequential CRM
+  workflow decisions instead of trusting posted IDs or caller-supplied role
+  claims;
+- invalidate all existing sessions whenever a workspace membership is granted,
+  changed, restored, or revoked;
+- preserve historical creator/research/activity attribution when access is
+  revoked while returning active assignments to a safe Owner-controlled state;
+- never seed real Pendang staff credentials in migrations or source control.
+
+**Reason:**
+
+- Rey needs Pendang owner authority without gaining access to MARK Agency,
+  personal/family workspaces, global settings, or private finance;
+- Freddy needs a narrow research role that cannot approve its own work or make
+  owner-only CRM decisions;
+- membership revocation must take effect immediately and must survive ordinary
+  application startup;
+- separating global identity from workspace authority keeps future business
+  workspaces possible without duplicating authentication, databases, or apps.
 
 ## 2026-08-07 — Enforce the authenticated workspace through CRM workflows
 

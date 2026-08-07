@@ -55,6 +55,28 @@
                 </div>
 
                 <div class="field">
+                    <label class="label" for="workspace_slug">Business workspace</label>
+                    <div class="select is-fullwidth">
+                        <select id="workspace_slug" name="workspace_slug">
+                            <option value="mark-agency">MARK Agency</option>
+                            <option value="pendang">Pendang Research &amp; Analytics</option>
+                        </select>
+                    </div>
+                    <p class="help">Used only for CRM staff accounts.</p>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="membership_role">Workspace authority</label>
+                    <div class="select is-fullwidth">
+                        <select id="membership_role" name="membership_role">
+                            <option value="crm_contributor">CRM Contributor</option>
+                            <option value="workspace_owner">Workspace Owner</option>
+                        </select>
+                    </div>
+                    <p class="help">Lead Researchers are always CRM Contributors. Workspace Owner is valid only for a Relationship Manager such as Pendang's Managing Director.</p>
+                </div>
+
+                <div class="field">
                     <label class="label" for="display_name">Display name</label>
                     <div class="control">
                         <input class="input"

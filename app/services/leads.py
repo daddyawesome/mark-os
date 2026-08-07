@@ -120,6 +120,36 @@ def _active_user_id(
     return safe_user_id
 
 
+def _active_workspace_user_id(
+    db: sqlite3.Connection,
+    value: int | None,
+    field_name: str,
+    *,
+    organization_id: int,
+) -> int | None:
+    if value is None:
+        return None
+    safe_user_id = _positive_id(value, field_name)
+    row = db.execute(
+        """
+        SELECT users.id
+        FROM users
+        JOIN organization_memberships AS membership
+          ON membership.user_id = users.id
+         AND membership.organization_id = ?
+        WHERE users.id = ?
+          AND users.active = 1
+          AND membership.active = 1
+        """,
+        (organization_id, safe_user_id),
+    ).fetchone()
+    if row is None:
+        raise ValueError(
+            f"{field_name} must reference an active user in this workspace"
+        )
+    return safe_user_id
+
+
 def _required_text(value: str, field_name: str, maximum: int) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{field_name} must be text")
@@ -650,21 +680,37 @@ def create_lead(
 ) -> LeadCreateResult:
     clean_request_key = _normalize_request_key(request_key)
     safe_organization_id = _resolve_organization_id(db, organization_id)
-    safe_creator_id = _active_user_id(
-        db,
-        created_by_user_id,
-        "Created-by user ID",
-    )
-    safe_assignee_id = _active_user_id(
-        db,
-        assigned_to_user_id,
-        "Assigned-to user ID",
-    )
-    safe_relationship_manager_id = _active_user_id(
-        db,
-        business_development_owner_user_id,
-        "Business-development owner user ID",
-    )
+    if organization_id is None:
+        safe_creator_id = _active_user_id(
+            db, created_by_user_id, "Created-by user ID"
+        )
+        safe_assignee_id = _active_user_id(
+            db, assigned_to_user_id, "Assigned-to user ID"
+        )
+        safe_relationship_manager_id = _active_user_id(
+            db,
+            business_development_owner_user_id,
+            "Business-development owner user ID",
+        )
+    else:
+        safe_creator_id = _active_workspace_user_id(
+            db,
+            created_by_user_id,
+            "Created-by user ID",
+            organization_id=safe_organization_id,
+        )
+        safe_assignee_id = _active_workspace_user_id(
+            db,
+            assigned_to_user_id,
+            "Assigned-to user ID",
+            organization_id=safe_organization_id,
+        )
+        safe_relationship_manager_id = _active_workspace_user_id(
+            db,
+            business_development_owner_user_id,
+            "Business-development owner user ID",
+            organization_id=safe_organization_id,
+        )
     if safe_relationship_manager_id is not None:
         relationship_manager = db.execute(
             """
@@ -1146,6 +1192,7 @@ def delete_lead(
     lead_id: int,
     *,
     confirmed: bool = False,
+    actor: dict | sqlite3.Row | None = None,
     organization_id: int | None = None,
 ) -> sqlite3.Row:
     if confirmed is not True:
@@ -1160,6 +1207,24 @@ def delete_lead(
             include_deleted=True,
             organization_id=safe_organization_id,
         )
+        if actor is not None:
+            from app.services.lead_research_permissions import (
+                LeadPermissionError,
+                can_soft_delete_lead,
+            )
+            from app.services.workspace_context import load_crm_actor_for_workspace
+            try:
+                effective_actor = load_crm_actor_for_workspace(
+                    db, actor, safe_organization_id
+                )
+            except PermissionError as exc:
+                raise LeadPermissionError(
+                    "You are not allowed to archive this lead."
+                ) from exc
+            if not can_soft_delete_lead(effective_actor, lead):
+                raise LeadPermissionError(
+                    "You are not allowed to archive this lead."
+                )
         if lead["deleted_at"] is not None:
             return lead
         cursor = db.execute(

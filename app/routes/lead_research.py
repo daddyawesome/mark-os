@@ -234,12 +234,12 @@ def submit_lead_research_for_review(
 def research_review_queue(
     request: Request,
 ):
-    from app.services.access_control import is_owner
+    from app.services.access_control import has_crm_owner_authority
     from app.services.lead_research_workflow import (
         list_research_review_queue,
     )
 
-    if not is_owner(
+    if not has_crm_owner_authority(
         request.state.current_user
     ):
         raise HTTPException(

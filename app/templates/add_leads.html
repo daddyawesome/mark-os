@@ -23,7 +23,11 @@
 </div>
 {% elif current_user and current_user.role == 'relationship_manager' %}
 <div class="notification is-warning is-light">
-    Leads you create are saved as <strong>New</strong> and assigned to you as Business Development Owner. Mark retains approval, pipeline, pricing, proposal, closing, and archive authority.
+    {% if can_manage_crm %}
+    You are operating with <strong>Workspace Owner</strong> authority in this business workspace. CRM approvals, major pipeline decisions, relationship assignment, Won/Lost, and archive actions are available here without granting global MARK-OS Owner access.
+    {% else %}
+    Leads you create are saved as <strong>New</strong> and assigned to you as Business Development Owner. Workspace-owner approval is still required for major pipeline, closing, and archive actions.
+    {% endif %}
 </div>
 {% endif %}
 

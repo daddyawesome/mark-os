@@ -11,7 +11,7 @@ from app.services.lead_research_permissions import (
     require_edit_fields,
 )
 from app.services.leads import get_lead, update_lead
-from app.services.workspace_context import require_workspace_membership
+from app.services.workspace_context import load_crm_actor_for_workspace
 
 
 Record = Mapping[str, Any]
@@ -40,17 +40,17 @@ def _actor_id(actor: Record | None) -> int:
     return value
 
 
-def _require_actor_workspace(
+def _actor_for_workspace(
     db: sqlite3.Connection,
     actor: Record,
     organization_id: int | None,
-) -> None:
+) -> Record:
     if organization_id is None:
-        return
+        return actor
     try:
-        require_workspace_membership(
+        return load_crm_actor_for_workspace(
             db,
-            _actor_id(actor),
+            actor,
             organization_id,
         )
     except PermissionError as exc:
@@ -93,8 +93,8 @@ def update_research_details(
     organization_id: int | None = None,
 ) -> sqlite3.Row:
     """Save research fields for an authorized actor in one workspace."""
+    actor = _actor_for_workspace(db, actor, organization_id)
     actor_id = _actor_id(actor)
-    _require_actor_workspace(db, actor, organization_id)
     current = _require_active_lead(
         db,
         lead_id,
@@ -248,8 +248,8 @@ def submit_research_for_review(
         can_submit_for_review,
     )
 
+    actor = _actor_for_workspace(db, actor, organization_id)
     actor_id = _actor_id(actor)
-    _require_actor_workspace(db, actor, organization_id)
     current = _require_active_lead(
         db,
         lead_id,
@@ -446,8 +446,8 @@ def review_research(
         can_review_research,
     )
 
+    actor = _actor_for_workspace(db, actor, organization_id)
     actor_id = _actor_id(actor)
-    _require_actor_workspace(db, actor, organization_id)
     current = _require_active_lead(
         db,
         lead_id,

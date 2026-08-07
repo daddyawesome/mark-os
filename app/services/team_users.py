@@ -4,7 +4,7 @@ import sqlite3
 from typing import Any
 
 from app.db.family_workspace import ensure_personal_workspace
-from app.db.organizations import organization_id_by_slug
+from app.db.organizations import MEMBERSHIP_ROLES, organization_id_by_slug
 from app.services.passwords import hash_password
 
 
@@ -56,6 +56,163 @@ def _validated_managed_role(role: str) -> str:
     if clean_role not in MANAGED_ROLES:
         raise ValueError("Unsupported account type.")
     return clean_role
+
+
+def _validated_membership_role(global_role: str, membership_role: str) -> str:
+    clean = str(membership_role or "").strip().casefold()
+    if clean not in MEMBERSHIP_ROLES:
+        raise ValueError("Unsupported workspace role.")
+    if global_role == "lead_sourcer" and clean != "crm_contributor":
+        raise ValueError("Lead Researchers must use CRM Contributor workspace access.")
+    if global_role == "relationship_manager" and clean not in {
+        "crm_contributor",
+        "workspace_owner",
+    }:
+        raise ValueError(
+            "Relationship Managers may use CRM Contributor or Workspace Owner access."
+        )
+    if global_role not in {"lead_sourcer", "relationship_manager"}:
+        raise ValueError("This account type does not use CRM workspace access.")
+    return clean
+
+
+def _require_global_owner(db: sqlite3.Connection, user_id: int) -> None:
+    row = db.execute(
+        "SELECT role, active FROM users WHERE id = ?",
+        (_positive_id(user_id, "Acting user ID"),),
+    ).fetchone()
+    if row is None or row["role"] != "owner" or not bool(row["active"]):
+        raise ValueError("An active global Owner is required.")
+
+
+def list_user_workspace_memberships(
+    db: sqlite3.Connection,
+    user_id: int,
+) -> list[dict[str, Any]]:
+    safe_user_id = _positive_id(user_id, "User ID")
+    rows = db.execute(
+        """
+        SELECT
+            o.id AS organization_id,
+            o.slug,
+            o.name,
+            m.membership_role,
+            COALESCE(m.active, 0) AS active,
+            CASE WHEN m.user_id IS NULL THEN 0 ELSE 1 END AS configured
+        FROM organizations AS o
+        LEFT JOIN organization_memberships AS m
+          ON m.organization_id = o.id
+         AND m.user_id = ?
+        ORDER BY
+            CASE WHEN o.slug = 'mark-agency' THEN 0 ELSE 1 END,
+            o.name COLLATE NOCASE,
+            o.id
+        """,
+        (safe_user_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def set_workspace_membership(
+    db: sqlite3.Connection,
+    *,
+    target_user_id: int,
+    acting_user_id: int,
+    workspace_slug: str,
+    membership_role: str,
+    active: bool,
+) -> dict[str, Any]:
+    """Grant/change/revoke one CRM workspace membership and revoke sessions."""
+    target_id = _positive_id(target_user_id, "Target user ID")
+    _require_global_owner(db, acting_user_id)
+    target = db.execute(
+        "SELECT id, role, active FROM users WHERE id = ?",
+        (target_id,),
+    ).fetchone()
+    if target is None:
+        raise ValueError("User not found.")
+    if target["role"] == "owner":
+        raise ValueError("Global Owner workspace memberships are managed automatically.")
+    if target["role"] not in {"lead_sourcer", "relationship_manager"}:
+        raise ValueError("Only CRM staff can receive business workspace access.")
+
+    safe_role = _validated_membership_role(target["role"], membership_role)
+    organization_id = organization_id_by_slug(db, workspace_slug)
+    existing = db.execute(
+        """
+        SELECT membership_role, active
+        FROM organization_memberships
+        WHERE user_id = ? AND organization_id = ?
+        """,
+        (target_id, organization_id),
+    ).fetchone()
+    desired_active = 1 if active else 0
+    if (
+        existing is not None
+        and existing["membership_role"] == safe_role
+        and int(existing["active"]) == desired_active
+    ):
+        return next(
+            row
+            for row in list_user_workspace_memberships(db, target_id)
+            if int(row["organization_id"]) == organization_id
+        )
+
+    db.execute(
+        """
+        INSERT INTO organization_memberships (
+            user_id, organization_id, membership_role, active
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, organization_id) DO UPDATE SET
+            membership_role = excluded.membership_role,
+            active = excluded.active
+        """,
+        (target_id, organization_id, safe_role, desired_active),
+    )
+
+    # Permission changes take effect immediately for all existing sessions.
+    db.execute(
+        """
+        UPDATE users
+        SET session_version = session_version + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (target_id,),
+    )
+
+    if not active:
+        owner_id = get_primary_owner_id(db, active_only=True)
+        if owner_id is None:
+            raise ValueError("An active Owner is required before revoking workspace access.")
+        db.execute(
+            """
+            UPDATE leads
+            SET assigned_to_user_id = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE organization_id = ?
+              AND assigned_to_user_id = ?
+              AND deleted_at IS NULL
+            """,
+            (owner_id, organization_id, target_id),
+        )
+        db.execute(
+            """
+            UPDATE leads
+            SET business_development_owner_user_id = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE organization_id = ?
+              AND business_development_owner_user_id = ?
+              AND deleted_at IS NULL
+            """,
+            (organization_id, target_id),
+        )
+
+    return next(
+        row
+        for row in list_user_workspace_memberships(db, target_id)
+        if int(row["organization_id"]) == organization_id
+    )
 
 
 def get_primary_owner_id(
@@ -199,7 +356,13 @@ def get_user_for_management(
         """,
         (safe_user_id,),
     ).fetchone()
-    return dict(row) if row is not None else None
+    if row is None:
+        return None
+    managed = dict(row)
+    managed["workspace_memberships"] = list_user_workspace_memberships(
+        db, safe_user_id
+    )
+    return managed
 
 
 def create_managed_user(
@@ -211,6 +374,7 @@ def create_managed_user(
     password_confirmation: str,
     role: str,
     workspace_slug: str | None = None,
+    membership_role: str = "crm_contributor",
 ) -> dict[str, Any]:
     clean_username = _required_text(
         username,
@@ -224,6 +388,11 @@ def create_managed_user(
     )
     safe_password = _validated_password(password, password_confirmation)
     safe_role = _validated_managed_role(role)
+    safe_membership_role = (
+        _validated_membership_role(safe_role, membership_role)
+        if safe_role in {"lead_sourcer", "relationship_manager"}
+        else None
+    )
 
     try:
         cursor = db.execute(
@@ -262,11 +431,12 @@ def create_managed_user(
             INSERT INTO organization_memberships (
                 user_id,
                 organization_id,
-                membership_role
+                membership_role,
+                active
             )
-            VALUES (?, ?, 'crm_contributor')
+            VALUES (?, ?, ?, 1)
             """,
-            (created_user_id, organization_id),
+            (created_user_id, organization_id, safe_membership_role),
         )
 
     created = get_user_for_management(db, created_user_id)
@@ -303,6 +473,7 @@ def create_relationship_manager(
     password: str,
     password_confirmation: str,
     workspace_slug: str = "mark-agency",
+    membership_role: str = "crm_contributor",
 ) -> dict[str, Any]:
     return create_managed_user(
         db,
@@ -312,6 +483,7 @@ def create_relationship_manager(
         password_confirmation=password_confirmation,
         role="relationship_manager",
         workspace_slug=workspace_slug,
+        membership_role=membership_role,
     )
 
 
@@ -394,9 +566,10 @@ def set_user_active(
                     INSERT INTO organization_memberships (
                         user_id,
                         organization_id,
-                        membership_role
+                        membership_role,
+                        active
                     )
-                    VALUES (?, ?, 'crm_contributor')
+                    VALUES (?, ?, 'crm_contributor', 1)
                     """,
                     (
                         target_id,

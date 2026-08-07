@@ -73,6 +73,7 @@ EXPECTED_ROUTES = [
     ("GET", "/settings/users/{user_id}", "manage_user_page"),
     ("POST", "/settings/users/{user_id}/status", "update_user_status"),
     ("POST", "/settings/users/{user_id}/password", "update_user_password"),
+    ("POST", "/settings/users/{user_id}/workspace", "update_user_workspace"),
 ]
 
 
