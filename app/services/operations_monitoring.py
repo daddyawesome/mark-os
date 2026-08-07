@@ -21,6 +21,11 @@ from app.services.database_backup import (
     check_backup_status,
 )
 from app.services.observability import log_event, log_exception
+from app.sqlite import (
+    OPERATIONS_SQLITE_BUSY_TIMEOUT_MS,
+    OPERATIONS_SQLITE_TIMEOUT_SECONDS,
+    configure_busy_timeout,
+)
 
 
 HEALTH_VERSION = "0.5.0-observability"
@@ -69,6 +74,19 @@ class OperationsCheck:
 UrlOpener = Callable[..., Any]
 
 
+def _read_only_connection(path: Path) -> sqlite3.Connection:
+    connection = sqlite3.connect(
+        f"{path.as_uri()}?mode=ro",
+        uri=True,
+        timeout=OPERATIONS_SQLITE_TIMEOUT_SECONDS,
+    )
+    configure_busy_timeout(
+        connection,
+        OPERATIONS_SQLITE_BUSY_TIMEOUT_MS,
+    )
+    return connection
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -108,11 +126,7 @@ def check_database_readiness(
         )
 
     try:
-        connection = sqlite3.connect(
-            f"{path.as_uri()}?mode=ro",
-            uri=True,
-            timeout=3,
-        )
+        connection = _read_only_connection(path)
         try:
             connection.execute("PRAGMA query_only = ON")
             connection.execute("SELECT 1").fetchone()

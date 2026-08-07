@@ -8,6 +8,12 @@ from typing import Iterator
 
 from app.db.leads import CRM_FINGERPRINT_BACKFILL_SENTINEL
 from app.db.migrations import initialize_database
+from app.sqlite import (
+    SQLITE_BUSY_TIMEOUT_MS,
+    SQLITE_TIMEOUT_SECONDS,
+    configure_busy_timeout,
+    initialize_wal,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,7 +27,11 @@ def get_db() -> Iterator[sqlite3.Connection]:
     # DB_PATH intentionally remains in this compatibility facade. Tests and
     # maintenance commands replace it with an isolated path at runtime.
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(DB_PATH)
+    connection = sqlite3.connect(
+        DB_PATH,
+        timeout=SQLITE_TIMEOUT_SECONDS,
+    )
+    configure_busy_timeout(connection, SQLITE_BUSY_TIMEOUT_MS)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     try:
@@ -37,4 +47,5 @@ def get_db() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     """Run the domain-owned schema, migration, validation, and seed pipeline."""
     with get_db() as db:
+        initialize_wal(db, DB_PATH)
         initialize_database(db)
