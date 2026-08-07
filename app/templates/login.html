@@ -6,90 +6,23 @@
     <meta name="theme-color" content="#06130b">
     <title>Sign in · MARK OS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
-    <style>
-        :root {
-            --forest-950: #06130b;
-            --forest-900: #0b1f17;
-            --forest-800: #143725;
-            --forest-500: #35c481;
-            --forest-300: #90e7bd;
-            --mist: #dff6e8;
-            --line: rgba(144,231,189,.20);
-            --text-soft: #b7d9c5;
-        }
-        html, body { min-height: 100%; background: var(--forest-950); }
-        body {
-            color: var(--mist);
-            background:
-                radial-gradient(circle at 18% 16%, rgba(53,196,129,.22), transparent 26rem),
-                radial-gradient(circle at 82% 80%, rgba(31,91,63,.34), transparent 30rem),
-                linear-gradient(135deg, #06130b 0%, #0b1f17 48%, #040806 100%);
-        }
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background-image:
-                linear-gradient(rgba(144,231,189,.04) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(144,231,189,.04) 1px, transparent 1px);
-            background-size: 34px 34px;
-        }
-        .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; position: relative; z-index: 1; }
-        .login-card {
-            width: 100%; max-width: 500px;
-            border-radius: 30px;
-            border: 1px solid var(--line);
-            background: rgba(8, 26, 18, .88);
-            box-shadow: 0 30px 90px rgba(0,0,0,.45), 0 0 50px rgba(53,196,129,.12);
-            overflow: hidden;
-        }
-        .login-orb {
-            width: 4.5rem; height: 4.5rem; border-radius: 999px; margin: 0 auto 1rem;
-            display: flex; align-items: center; justify-content: center;
-            background: linear-gradient(135deg, var(--forest-300), var(--forest-500));
-            color: var(--forest-950); font-size: 2rem; font-weight: 900;
-            box-shadow: 0 0 42px rgba(53,196,129,.42);
-        }
-        .kicker { color: var(--forest-300); font-size: .72rem; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; }
-        .title, .subtitle, .label { color: var(--mist); }
-        .muted { color: var(--text-soft); }
-        .input {
-            background: rgba(4,14,9,.85) !important;
-            color: var(--mist) !important;
-            border-color: rgba(144,231,189,.28) !important;
-            box-shadow: none !important;
-        }
-        .button.is-mark {
-            background: linear-gradient(135deg, var(--forest-500), #80e8b2);
-            color: var(--forest-950);
-            border: 0;
-            font-weight: 900;
-            box-shadow: 0 0 28px rgba(53,196,129,.26);
-        }
-        .notification.is-mark {
-            background: rgba(53,196,129,.12);
-            border: 1px solid var(--line);
-            color: var(--mist);
-        }
-        .login-footer { border-top: 1px solid var(--line); color: var(--text-soft); font-size: .75rem; letter-spacing: .08em; }
-    </style>
+    <link rel="stylesheet" href="/static/css/mark-os-frontend.css?v=20260807-1">
 </head>
-<body>
+<body class="mark-login-page">
 <section class="login-wrap">
     <div class="login-card">
         <div class="p-6 has-text-centered">
             <div class="login-orb">M</div>
-            <p class="kicker">Personal Operating System // Secure Node</p>
+            <p class="kicker">Secure sign in</p>
             <h1 class="title is-1 mt-3 mb-2">MARK OS</h1>
-            <p class="subtitle is-6 muted">Observe reality. Remember the past. Decide what matters next.</p>
+            <p class="subtitle is-6 muted">Open your authorized MARK OS workspace.</p>
         </div>
 
         <div class="px-6 pb-6">
-            <div class="box" style="background: rgba(13,39,27,.80); border: 1px solid var(--line); border-radius: 22px; color: var(--mist);">
+            <div class="box">
                 <p class="kicker mb-2">Authentication</p>
-                <h2 class="title is-4 mb-1">Welcome back, Mark.</h2>
-                <p class="muted mb-5">Encrypted session. Private life data.</p>
+                <h2 class="title is-4 mb-1">Welcome back.</h2>
+                <p class="muted mb-5">Sign in to continue to your authorized workspace.</p>
 
                 {% if error %}
                     <div class="notification is-danger is-light">{{ error }}</div>
@@ -101,25 +34,25 @@
                 <form method="post" action="/login">
                     <input type="hidden" name="next" value="{{ next or '/' }}">
                     <div class="field">
-                        <label class="label">Username</label>
+                        <label class="label" for="username">Username</label>
                         <div class="control">
-                            <input class="input is-medium" type="text" name="username" autocomplete="username" required autofocus>
+                            <input class="input is-medium" id="username" type="text" name="username" autocomplete="username" required autofocus>
                         </div>
                     </div>
                     <div class="field">
-                        <label class="label">Password</label>
+                        <label class="label" for="password">Password</label>
                         <div class="control">
-                            <input class="input is-medium" type="password" name="password" autocomplete="current-password" required>
+                            <input class="input is-medium" id="password" type="password" name="password" autocomplete="current-password" required>
                         </div>
                     </div>
-                    <button class="button is-mark is-fullwidth is-medium mt-5" type="submit">ENTER MARK OS</button>
+                    <button class="button is-mark is-fullwidth is-medium mt-5" type="submit">Sign in</button>
                 </form>
             </div>
         </div>
 
         <div class="login-footer p-4 is-flex is-justify-content-space-between">
-            <span>PRIVATE LIFE DATA</span>
-            <span>SYSTEM ONLINE</span>
+            <span>Secure workspace</span>
+            <span>MARK OS</span>
         </div>
     </div>
 </section>
