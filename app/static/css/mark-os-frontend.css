@@ -1175,3 +1175,420 @@ code {
         animation-iteration-count: 1 !important;
     }
 }
+
+/* MARK-OS Forest Fieldbook — Orbit-inspired operational theme.
+   Visual layer only: no business logic, authorization, or HTMX contract changes. */
+:root {
+    --field-paper: #f3f0df;
+    --field-paper-bright: #fffdf3;
+    --field-paper-deep: #e5e0c8;
+    --field-paper-sage: #dfe8ce;
+    --field-paper-fern: #cfddbc;
+    --field-paper-amber: #efe0aa;
+    --field-paper-rose: #edd0c8;
+    --field-ink: #203428;
+    --field-ink-soft: #506556;
+    --field-pine: #173c2a;
+    --field-pine-deep: #0d291c;
+    --field-pine-black: #082016;
+    --field-moss: #668052;
+    --field-fern: #93aa71;
+    --field-fern-light: #b8c997;
+    --field-amber: #c59a3f;
+    --field-berry: #a5524c;
+    --field-border: #2d4b37;
+    --field-border-soft: rgba(45, 75, 55, 0.35);
+    --field-shadow: #183624;
+    --field-focus: #376f4d;
+    --field-radius-a: 18px 12px 20px 10px / 11px 19px 12px 18px;
+    --field-radius-b: 12px 20px 11px 18px / 20px 12px 18px 10px;
+    --field-radius-c: 20px 10px 17px 12px / 12px 18px 10px 20px;
+    --bulma-body-background-color: var(--field-paper);
+    --bulma-body-color: var(--field-ink);
+    --bulma-text: var(--field-ink);
+    --bulma-text-strong: var(--field-ink);
+    --bulma-link-text: var(--field-pine);
+    --bulma-background: var(--field-paper);
+    --bulma-scheme-main: var(--field-paper);
+    --bulma-scheme-main-bis: var(--field-paper-bright);
+    --bulma-scheme-main-ter: var(--field-paper-deep);
+    --bulma-border: var(--field-border-soft);
+}
+
+html { background: var(--field-paper); }
+
+body {
+    color: var(--field-ink);
+    background-color: var(--field-paper);
+    background-image:
+        radial-gradient(circle, rgba(45, 75, 55, 0.13) 0.8px, transparent 0.9px),
+        linear-gradient(90deg, rgba(23, 60, 42, 0.018) 1px, transparent 1px);
+    background-size: 24px 24px, 72px 72px;
+}
+
+body::before {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    content: "";
+    pointer-events: none;
+    opacity: 0.28;
+    background: repeating-linear-gradient(
+        2deg,
+        transparent 0 15px,
+        rgba(32, 52, 40, 0.025) 15px 16px
+    );
+    mask-image: none;
+}
+
+a {
+    color: var(--field-pine);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+}
+
+a:hover { color: var(--field-pine-black); }
+.mark-app { color: var(--field-ink); }
+.mark-container { max-width: 1320px; padding-top: 1.15rem; }
+
+.mark-sidebar {
+    color: var(--field-paper-bright);
+    border-right: 2px solid var(--field-pine-black);
+    background:
+        radial-gradient(circle at 25% 10%, rgba(184, 201, 151, 0.11), transparent 16rem),
+        linear-gradient(180deg, var(--field-pine) 0%, var(--field-pine-deep) 58%, var(--field-pine-black) 100%);
+    box-shadow: 5px 0 0 rgba(24, 54, 36, 0.22);
+    backdrop-filter: none;
+}
+
+.mark-sidebar-brand {
+    min-height: 74px;
+    color: var(--field-paper-bright);
+    border-bottom: 2px dashed rgba(243, 240, 223, 0.26);
+}
+
+.mark-sidebar-brand:hover { color: #ffffff; background: rgba(243, 240, 223, 0.06); }
+
+.mark-brand-orb {
+    width: 2.45rem;
+    height: 2.45rem;
+    color: var(--field-pine-black);
+    border: 2px solid var(--field-pine-black);
+    border-radius: 14px 9px 16px 8px / 8px 15px 9px 14px;
+    background: var(--field-paper-fern);
+    box-shadow: 3px 3px 0 var(--field-pine-black);
+}
+
+.mark-sidebar-brand-copy strong {
+    color: var(--field-paper-bright);
+    font-family: "Marker Felt", "Segoe Print", "Bradley Hand", ui-rounded, system-ui, sans-serif;
+    font-size: 1rem;
+    letter-spacing: 0.055em;
+}
+
+.mark-sidebar-brand-copy small { color: rgba(243, 240, 223, 0.72); font-size: 0.7rem; }
+
+.mark-sidebar-label {
+    color: rgba(243, 240, 223, 0.62);
+    font-family: "Marker Felt", "Segoe Print", ui-rounded, system-ui, sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.045em;
+    text-transform: none;
+}
+
+.mark-sidebar-link,
+.mark-sidebar-summary {
+    color: rgba(255, 253, 243, 0.92);
+    border: 1px solid transparent;
+    border-radius: 11px 8px 12px 7px / 8px 12px 7px 11px;
+    font-weight: 680;
+    transition: transform 90ms ease, background-color 90ms ease, box-shadow 90ms ease;
+}
+
+.mark-sidebar-link:hover,
+.mark-sidebar-summary:hover {
+    color: #ffffff;
+    border-color: rgba(243, 240, 223, 0.18);
+    background: rgba(243, 240, 223, 0.07);
+    transform: translateX(1px);
+}
+
+.mark-sidebar-link.is-active,
+.mark-sidebar-summary.is-active {
+    color: var(--field-ink);
+    border: 2px solid var(--field-pine-black);
+    background: var(--field-paper-fern);
+    box-shadow: 3px 3px 0 var(--field-pine-black);
+    transform: translate(-1px, -1px);
+}
+
+.mark-sidebar-submenu { border-left: 1px dashed rgba(243, 240, 223, 0.28); }
+.mark-sidebar-footer { border-top: 2px dashed rgba(243, 240, 223, 0.22); background: rgba(4, 18, 12, 0.24); }
+
+.mark-sidebar-level,
+.mark-sidebar-user {
+    color: var(--field-paper-bright);
+    border: 1px solid rgba(243, 240, 223, 0.2);
+    border-radius: 10px 7px 11px 8px / 8px 11px 7px 10px;
+    background: rgba(243, 240, 223, 0.055);
+}
+
+.mark-sidebar-level { color: var(--field-paper-fern); }
+.mark-sidebar-user strong { color: var(--field-paper-bright); }
+.mark-sidebar-user span { color: rgba(243, 240, 223, 0.66); }
+
+.fieldbook-context {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 1.5rem;
+    padding: 0.45rem 0.15rem 0.75rem;
+    color: var(--field-ink);
+    border-bottom: 2px dashed rgba(45, 75, 55, 0.42);
+}
+
+.fieldbook-context-main { display: flex; min-width: 0; flex-direction: column; gap: 0.08rem; }
+
+.fieldbook-context-kicker {
+    color: var(--field-moss);
+    font-family: "Marker Felt", "Segoe Print", ui-rounded, system-ui, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.045em;
+}
+
+.fieldbook-context-title {
+    overflow: hidden;
+    color: var(--field-pine-deep);
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fieldbook-context-meta {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--field-ink-soft);
+    font-size: 0.78rem;
+    font-weight: 650;
+}
+
+.fieldbook-context-dot { width: 0.36rem; height: 0.36rem; border-radius: 999px; background: var(--field-moss); }
+
+.mark-hero,
+.mark-card,
+.box.mark-card,
+.card.mark-card {
+    position: relative;
+    color: var(--field-ink);
+    border: 2px solid var(--field-border);
+    background: linear-gradient(rgba(255, 253, 243, 0.96), rgba(243, 240, 223, 0.96));
+}
+
+.mark-hero {
+    overflow: visible;
+    border-radius: var(--field-radius-a);
+    box-shadow: 6px 6px 0 rgba(24, 54, 36, 0.88);
+}
+
+.mark-hero::before {
+    position: absolute;
+    top: -0.7rem;
+    left: 50%;
+    width: min(8rem, 30%);
+    height: 1.25rem;
+    content: "";
+    pointer-events: none;
+    border: 1px solid rgba(111, 94, 55, 0.18);
+    background: rgba(222, 207, 160, 0.72);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset;
+    transform: translateX(-50%) rotate(-1.2deg);
+}
+
+.mark-card,
+.box.mark-card,
+.card.mark-card { border-radius: var(--field-radius-b); box-shadow: 3px 3px 0 rgba(24, 54, 36, 0.64); }
+.mark-card-2 { background: var(--field-paper-deep); }
+
+.mark-hero .title,
+.mark-card .title,
+.card.mark-card .title,
+.box.mark-card .title,
+.mark-hero .subtitle,
+.mark-card .subtitle { color: var(--field-ink); }
+
+.mark-hero .subtitle,
+.mark-muted,
+.help { color: var(--field-ink-soft) !important; }
+
+.mark-hero .title.is-1,
+.crm-hero-copy .title { color: var(--field-pine-deep); letter-spacing: -0.03em; }
+
+.mark-kicker,
+.mark-panel-title {
+    color: var(--field-moss);
+    font-family: "Marker Felt", "Segoe Print", ui-rounded, system-ui, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: none;
+}
+
+.mark-number {
+    color: var(--field-pine-deep);
+    font-family: "Marker Felt", "Segoe Print", ui-rounded, system-ui, sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+}
+
+.mark-chip,
+.tag.is-dark {
+    color: var(--field-pine-deep) !important;
+    border: 1.5px solid var(--field-border);
+    border-radius: 8px 5px 9px 6px / 5px 9px 6px 8px;
+    background: var(--field-paper-sage) !important;
+    box-shadow: 1px 1px 0 rgba(24, 54, 36, 0.42);
+}
+.mark-divider { border-color: var(--field-border-soft); background: var(--field-border-soft); }
+
+.fieldbook-metrics .fieldbook-metric-card {
+    min-height: 8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-width: 2px;
+    box-shadow: 4px 4px 0 rgba(24, 54, 36, 0.7);
+    transform-origin: center;
+}
+.fieldbook-metrics .column:nth-child(4n + 1) .fieldbook-metric-card { background: var(--field-paper-sage); transform: rotate(-0.45deg); }
+.fieldbook-metrics .column:nth-child(4n + 2) .fieldbook-metric-card { background: var(--field-paper-amber); transform: rotate(0.35deg); }
+.fieldbook-metrics .column:nth-child(4n + 3) .fieldbook-metric-card { background: var(--field-paper-fern); transform: rotate(-0.25deg); }
+.fieldbook-metrics .column:nth-child(4n + 4) .fieldbook-metric-card { background: var(--field-paper-bright); transform: rotate(0.45deg); }
+
+.fieldbook-queue-grid .fieldbook-queue-card { height: 100%; }
+.fieldbook-queue-grid .column:nth-child(3n + 2) .fieldbook-queue-card { border-radius: var(--field-radius-c); }
+.fieldbook-queue-grid .column:nth-child(3n + 3) .fieldbook-queue-card { border-radius: var(--field-radius-a); }
+
+.button {
+    border-width: 2px;
+    border-radius: 10px 7px 12px 6px / 7px 12px 6px 10px;
+    font-weight: 720;
+    transition: transform 80ms ease, box-shadow 80ms ease, background-color 80ms ease;
+}
+
+.button.is-mark,
+.button.is-light,
+.button.is-ghost-forest { border-color: var(--field-border) !important; box-shadow: 3px 3px 0 var(--field-shadow); }
+
+.button.is-mark { color: #ffffff; background: var(--field-pine) !important; }
+.button.is-mark:hover { color: #ffffff; border-color: var(--field-pine-black) !important; background: #23563d !important; box-shadow: 2px 2px 0 var(--field-shadow); transform: translate(1px, 1px); }
+.button.is-light { color: var(--field-ink) !important; background: var(--field-paper-bright) !important; }
+.button.is-light:hover,
+.button.is-ghost-forest:hover { color: var(--field-pine-black) !important; border-color: var(--field-pine) !important; background: var(--field-paper-sage) !important; box-shadow: 2px 2px 0 var(--field-shadow); transform: translate(1px, 1px); }
+.button.is-ghost-forest { color: var(--field-pine) !important; background: transparent !important; }
+.button:active { box-shadow: none !important; transform: translate(3px, 3px) !important; }
+.button.is-danger.is-outlined { color: var(--field-berry) !important; border-color: var(--field-berry) !important; background: var(--field-paper-bright) !important; box-shadow: 3px 3px 0 rgba(117, 55, 50, 0.42); }
+
+.input,
+.textarea,
+.select select {
+    color: var(--field-ink) !important;
+    border: 2px solid var(--field-border) !important;
+    border-radius: 10px 7px 11px 6px / 7px 11px 6px 10px !important;
+    background: var(--field-paper-bright) !important;
+    box-shadow: 2px 2px 0 rgba(24, 54, 36, 0.24) !important;
+}
+.input:hover,
+.textarea:hover,
+.select select:hover { border-color: var(--field-pine) !important; }
+.input:focus,
+.textarea:focus,
+.select select:focus { border-color: var(--field-focus) !important; box-shadow: 2px 2px 0 rgba(24, 54, 36, 0.3), 0 0 0 3px rgba(55, 111, 77, 0.16) !important; }
+.input::placeholder,
+.textarea::placeholder { color: #859487; }
+.label { color: var(--field-pine-deep); font-weight: 760; }
+
+:where(a, button, input, textarea, select, summary):focus-visible {
+    outline: 3px solid rgba(55, 111, 77, 0.58);
+    outline-offset: 3px;
+}
+
+.table-container {
+    overflow: auto;
+    border: 2px solid var(--field-border);
+    border-radius: 12px 8px 14px 7px / 8px 14px 7px 12px;
+    background: var(--field-paper-bright);
+    box-shadow: 3px 3px 0 rgba(24, 54, 36, 0.38);
+    scrollbar-color: var(--field-moss) var(--field-paper-deep);
+}
+.table { color: var(--field-ink) !important; background: transparent !important; }
+.table thead { background: var(--field-paper-sage); }
+.table td,
+.table th { color: var(--field-ink) !important; border-color: rgba(45, 75, 55, 0.24) !important; }
+.table th { color: var(--field-pine-deep) !important; font-size: 0.72rem; letter-spacing: 0.035em; }
+.table tbody tr { background: rgba(255, 253, 243, 0.74); }
+.table.is-hoverable tbody tr:not(.is-selected):hover { background: rgba(207, 221, 188, 0.58) !important; }
+.table a { color: var(--field-pine); }
+
+.notification {
+    color: var(--field-ink) !important;
+    border: 2px solid var(--field-border);
+    border-radius: var(--field-radius-c);
+    box-shadow: 3px 3px 0 rgba(24, 54, 36, 0.48);
+}
+.notification.is-mark { color: var(--field-ink) !important; border-color: var(--field-border) !important; background: var(--field-paper-fern) !important; }
+.notification.is-light { color: var(--field-ink) !important; background: var(--field-paper-bright) !important; }
+.notification.is-warning.is-light { color: #5a461b !important; border-color: #8d702e !important; background: var(--field-paper-amber) !important; }
+.notification.is-danger.is-light { color: #68352f !important; border-color: var(--field-berry) !important; background: var(--field-paper-rose) !important; }
+code { color: var(--field-pine-deep); border: 1px solid rgba(45, 75, 55, 0.25); background: var(--field-paper-sage); }
+
+.mark-login-page {
+    color: var(--field-ink);
+    background:
+        radial-gradient(circle at 22% 18%, rgba(184, 201, 151, 0.14), transparent 20rem),
+        linear-gradient(145deg, var(--field-pine) 0%, var(--field-pine-deep) 54%, var(--field-pine-black) 100%);
+}
+.mark-login-page::before { display: block; background-image: radial-gradient(rgba(243, 240, 223, 0.14) 0.8px, transparent 0.9px); background-size: 24px 24px; opacity: 0.32; }
+.login-card { overflow: visible; color: var(--field-ink); border: 3px solid var(--field-pine-black); border-radius: var(--field-radius-a); background: var(--field-paper); box-shadow: 9px 9px 0 rgba(4, 18, 12, 0.9); }
+.login-card::before { position: absolute; top: -0.75rem; left: 50%; width: 8.5rem; height: 1.35rem; content: ""; border: 1px solid rgba(111, 94, 55, 0.2); background: rgba(222, 207, 160, 0.82); transform: translateX(-50%) rotate(-1.4deg); }
+.login-orb { color: var(--field-pine-black); border: 2px solid var(--field-pine-black); border-radius: 15px 9px 16px 8px / 8px 16px 9px 15px; background: var(--field-paper-fern); box-shadow: 4px 4px 0 var(--field-pine-black); }
+.login-card .kicker { color: var(--field-moss); font-family: "Marker Felt", "Segoe Print", ui-rounded, system-ui, sans-serif; }
+.login-card .title,
+.login-card .subtitle,
+.login-card .label { color: var(--field-ink); }
+.login-card .muted { color: var(--field-ink-soft); }
+.login-card .box { color: var(--field-ink); border: 2px solid var(--field-border); border-radius: var(--field-radius-b); background: var(--field-paper-bright); box-shadow: 3px 3px 0 rgba(24, 54, 36, 0.45); }
+.login-footer { color: var(--field-ink-soft); border-top: 2px dashed rgba(45, 75, 55, 0.32); }
+
+@media (max-width: 900px) {
+    .fieldbook-context { align-items: flex-start; flex-direction: column; gap: 0.4rem; }
+    .fieldbook-context-meta { flex-wrap: wrap; }
+    .fieldbook-metrics .fieldbook-metric-card { transform: none !important; }
+}
+
+@media (max-width: 640px) {
+    body { background-size: 20px 20px, 60px 60px; }
+    .fieldbook-context { margin-bottom: 1.15rem; }
+    .fieldbook-context-title { white-space: normal; }
+    .mark-hero { box-shadow: 4px 4px 0 rgba(24, 54, 36, 0.82); }
+    .mark-card,
+    .box.mark-card,
+    .card.mark-card,
+    .notification { box-shadow: 2px 2px 0 rgba(24, 54, 36, 0.52); }
+    .table-container { border-radius: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fieldbook-metrics .fieldbook-metric-card,
+    .button,
+    .mark-sidebar-link,
+    .mark-sidebar-summary { transform: none !important; }
+}

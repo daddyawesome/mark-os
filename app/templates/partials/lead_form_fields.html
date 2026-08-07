@@ -2,6 +2,10 @@
 {% set selected_status = lead.pipeline_status if editing else 'new' %}
 {% set selected_priority = lead.priority if editing else 'medium' %}
 
+{% if editing %}
+<input type="hidden" name="row_version" value="{{ lead.row_version }}">
+{% endif %}
+
 <div class="columns is-multiline">
     <div class="column is-half">
         <div class="field">

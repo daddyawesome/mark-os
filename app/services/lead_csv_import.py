@@ -193,6 +193,7 @@ def preview_leads_from_csv(
     content: bytes,
     *,
     pipeline_status_override: str | None = None,
+    organization_id: int | None = None,
 ) -> LeadCsvPreviewResult:
     """Parse and validate CSV rows without writing leads or quests."""
     rows, file_digest = _read_rows(content)
@@ -260,7 +261,11 @@ def preview_leads_from_csv(
             )
             continue
 
-        existing = find_active_lead_by_dedupe_key(db, dedupe_key)
+        existing = find_active_lead_by_dedupe_key(
+            db,
+            dedupe_key,
+            organization_id=organization_id,
+        )
         if existing is not None:
             duplicate_count += 1
             preview_rows.append(
@@ -313,6 +318,7 @@ def import_leads_from_csv(
     created_by_user_id: int | None = None,
     assigned_to_user_id: int | None = None,
     business_development_owner_user_id: int | None = None,
+    organization_id: int | None = None,
 ) -> LeadCsvImportResult:
     """Import valid rows while reporting duplicates and row-level errors.
 
@@ -354,6 +360,7 @@ def import_leads_from_csv(
                 business_development_owner_user_id=(
                     business_development_owner_user_id
                 ),
+                organization_id=organization_id,
             )
         except ValueError as exc:
             errors.append(

@@ -9,6 +9,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Final
 
+from app.sqlite import (
+    SQLITE_BUSY_TIMEOUT_MS,
+    SQLITE_TIMEOUT_SECONDS,
+    configure_busy_timeout,
+)
+
 
 MANIFEST_VERSION: Final[int] = 1
 DEFAULT_KEEP_LAST: Final[int] = 14
@@ -98,17 +104,20 @@ def _read_only_connection(path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(
         f"{path.as_uri()}?mode=ro",
         uri=True,
-        timeout=30,
+        timeout=SQLITE_TIMEOUT_SECONDS,
     )
-    connection.execute("PRAGMA busy_timeout = 30000")
+    configure_busy_timeout(connection, SQLITE_BUSY_TIMEOUT_MS)
     connection.execute("PRAGMA query_only = ON")
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
 def _write_connection(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(str(path), timeout=30)
-    connection.execute("PRAGMA busy_timeout = 30000")
+    connection = sqlite3.connect(
+        str(path),
+        timeout=SQLITE_TIMEOUT_SECONDS,
+    )
+    configure_busy_timeout(connection, SQLITE_BUSY_TIMEOUT_MS)
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 

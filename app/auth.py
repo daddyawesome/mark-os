@@ -14,6 +14,10 @@ from app.services.users import (
     get_active_user_by_id,
     has_active_users,
 )
+from app.services.workspace_context import (
+    resolve_workspace_session,
+    workspace_display_role,
+)
 
 
 SESSION_USER_ID_KEY = "mark_os_user_id"
@@ -109,16 +113,24 @@ def current_user(request: Request) -> dict[str, Any] | None:
     try:
         with get_db() as db:
             user = get_active_user_by_id(db, user_id)
+            if (
+                user is None
+                or int(user["session_version"]) != session_version
+            ):
+                request.session.clear()
+                return None
+
+            current_workspace, authorized = resolve_workspace_session(
+                db,
+                request.session,
+                user,
+            )
     except sqlite3.Error:
         return None
 
-    if (
-        user is None
-        or int(user["session_version"]) != session_version
-    ):
-        request.session.clear()
-        return None
-
+    user["current_workspace"] = current_workspace
+    user["authorized_workspaces"] = authorized
+    user["workspace_display_role"] = workspace_display_role(user)
     return user
 
 

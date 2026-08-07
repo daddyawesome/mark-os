@@ -6,14 +6,22 @@ from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from typing import Any, Iterator
 
+from app.db.organizations import organization_id_by_slug
 from app.db.lead_activities import (
     ACTIVITY_TYPES,
     CHANNELS,
     RESPONSE_STATUSES,
 )
-from app.services.access_control import is_lead_sourcer, is_owner
+from app.services.access_control import (
+    has_crm_owner_authority,
+    is_lead_sourcer,
+)
 from app.services.lead_research_permissions import can_view_lead
 from app.services.leads import get_lead
+from app.services.workspace_context import (
+    load_crm_actor_for_workspace,
+    require_workspace_membership,
+)
 
 
 Record = Mapping[str, Any] | sqlite3.Row
@@ -90,6 +98,8 @@ def _actor_id(actor: Record | None) -> int:
 def _load_active_actor(
     db: sqlite3.Connection,
     actor: Record | None,
+    *,
+    organization_id: int | None = None,
 ) -> dict[str, Any]:
     actor_id = _actor_id(actor)
     row = db.execute(
@@ -105,31 +115,65 @@ def _load_active_actor(
         raise LeadActivityPermissionError(
             "An active CRM role is required."
         )
-    return dict(row)
+    database_actor = dict(row)
+    if organization_id is not None:
+        try:
+            return load_crm_actor_for_workspace(
+                db,
+                database_actor,
+                organization_id,
+            )
+        except PermissionError as exc:
+            raise LeadActivityPermissionError(
+                "CRM workspace membership is required."
+            ) from exc
+    return database_actor
 
 
 def _active_crm_user_id(
     db: sqlite3.Connection,
     value: int | None,
     field_name: str,
+    *,
+    organization_id: int | None = None,
 ) -> int | None:
     if value is None:
         return None
     user_id = _positive_id(value, field_name)
-    row = db.execute(
-        """
-        SELECT id
-        FROM users
-        WHERE id = ?
-          AND active = 1
-          AND role IN (
-              'owner',
-              'lead_sourcer',
-              'relationship_manager'
-          )
-        """,
-        (user_id,),
-    ).fetchone()
+    if organization_id is None:
+        row = db.execute(
+            """
+            SELECT id
+            FROM users
+            WHERE id = ?
+              AND active = 1
+              AND role IN (
+                  'owner',
+                  'lead_sourcer',
+                  'relationship_manager'
+              )
+            """,
+            (user_id,),
+        ).fetchone()
+    else:
+        row = db.execute(
+            """
+            SELECT users.id
+            FROM users
+            JOIN organization_memberships AS membership
+              ON membership.user_id = users.id
+             AND membership.organization_id = ?
+            WHERE users.id = ?
+              AND users.active = 1
+              AND membership.active = 1
+              AND users.role IN (
+                  'owner',
+                  'lead_sourcer',
+                  'relationship_manager'
+              )
+            """,
+            (organization_id, user_id),
+        ).fetchone()
     if row is None:
         raise ValueError(
             f"{field_name} must reference an active CRM user."
@@ -229,7 +273,7 @@ def _allowed_activity_types(
 ) -> frozenset[str]:
     if not can_view_lead(actor, lead):
         return frozenset()
-    if is_owner(actor):
+    if has_crm_owner_authority(actor):
         return frozenset(ACTIVITY_TYPES)
     if is_lead_sourcer(actor):
         return LEAD_SOURCER_ACTIVITY_TYPES
@@ -240,9 +284,24 @@ def _require_visible_lead(
     db: sqlite3.Connection,
     actor: Record,
     lead_id: int,
+    *,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
-    lead = get_lead(db, safe_lead_id)
+    if organization_id is not None:
+        try:
+            require_workspace_membership(
+                db,
+                int(actor["id"]),
+                organization_id,
+            )
+        except PermissionError as exc:
+            raise LeadActivityNotFoundError("Lead not found.") from exc
+    lead = get_lead(
+        db,
+        safe_lead_id,
+        organization_id=organization_id,
+    )
     if lead is None or not can_view_lead(actor, lead):
         raise LeadActivityNotFoundError("Lead not found.")
     return lead
@@ -296,6 +355,7 @@ def _require_visible_activity(
     activity_id: int,
     *,
     include_deleted: bool = False,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
     activity = _activity_row(
         db,
@@ -304,7 +364,12 @@ def _require_visible_activity(
     )
     if activity is None:
         raise LeadActivityNotFoundError("Lead activity not found.")
-    _require_visible_lead(db, actor, int(activity["lead_id"]))
+    _require_visible_lead(
+        db,
+        actor,
+        int(activity["lead_id"]),
+        organization_id=organization_id,
+    )
     return activity
 
 
@@ -322,6 +387,7 @@ def _normalized_values(
     responsible_user_id: int | None,
     response_status: Any,
     next_follow_up_date: Any,
+    organization_id: int | None = None,
 ) -> dict[str, Any]:
     clean_type = _choice(activity_type, "Activity type", ACTIVITY_TYPES)
     allowed_types = _allowed_activity_types(actor, lead)
@@ -345,9 +411,10 @@ def _normalized_values(
             db,
             performed_by_user_id,
             "Performed-by user ID",
+            organization_id=organization_id,
         )
     )
-    if performer_id != actor_id and not is_owner(actor):
+    if performer_id != actor_id and not has_crm_owner_authority(actor):
         raise LeadActivityPermissionError(
             "Only the Owner can attribute an activity to another performer."
         )
@@ -356,6 +423,7 @@ def _normalized_values(
         db,
         responsible_user_id,
         "Responsible user ID",
+        organization_id=organization_id,
     )
     clean_follow_up = _normalize_follow_up_date(next_follow_up_date)
     if clean_follow_up is not None and responsible_id is None:
@@ -363,7 +431,7 @@ def _normalized_values(
             "A responsible CRM user is required when a follow-up date is set."
         )
 
-    if not is_owner(actor) and clean_channel != "internal":
+    if not has_crm_owner_authority(actor) and clean_channel != "internal":
         raise LeadActivityPermissionError(
             "Staff activity records are internal until delegated outreach "
             "permission is implemented."
@@ -412,9 +480,30 @@ def list_active_activity_users(
     db: sqlite3.Connection,
     *,
     actor: Record,
+    organization_id: int | None = None,
 ) -> list[sqlite3.Row]:
-    """Return active CRM users available for activity attribution."""
-    _load_active_actor(db, actor)
+    """Return active CRM users who belong to the selected workspace."""
+    safe_organization_id = (
+        organization_id_by_slug(db, "mark-agency")
+        if organization_id is None
+        else _positive_id(organization_id, "Organization ID")
+    )
+    database_actor = _load_active_actor(
+        db,
+        actor,
+        organization_id=safe_organization_id,
+    )
+    if organization_id is not None:
+        try:
+            require_workspace_membership(
+                db,
+                int(database_actor["id"]),
+                safe_organization_id,
+            )
+        except PermissionError as exc:
+            raise LeadActivityPermissionError(
+                "CRM workspace membership is required."
+            ) from exc
     return db.execute(
         """
         SELECT
@@ -423,7 +512,11 @@ def list_active_activity_users(
             display_name,
             role
         FROM users
-        WHERE active = 1
+        JOIN organization_memberships AS membership
+          ON membership.user_id = users.id
+         AND membership.organization_id = ?
+        WHERE users.active = 1
+          AND membership.active = 1
           AND role IN (
               'owner',
               'lead_sourcer',
@@ -438,7 +531,8 @@ def list_active_activity_users(
             END,
             display_name COLLATE NOCASE,
             id
-        """
+        """,
+        (safe_organization_id,),
     ).fetchall()
 def create_activity(
     db: sqlite3.Connection,
@@ -454,10 +548,16 @@ def create_activity(
     responsible_user_id: int | None = None,
     response_status: str = "not_applicable",
     next_follow_up_date: str | None = None,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
     """Append an auditable activity for one visible lead."""
-    database_actor = _load_active_actor(db, actor)
-    lead = _require_visible_lead(db, database_actor, lead_id)
+    database_actor = _load_active_actor(db, actor, organization_id=organization_id)
+    lead = _require_visible_lead(
+        db,
+        database_actor,
+        lead_id,
+        organization_id=organization_id,
+    )
     values = _normalized_values(
         db,
         actor=database_actor,
@@ -471,6 +571,7 @@ def create_activity(
         responsible_user_id=responsible_user_id,
         response_status=response_status,
         next_follow_up_date=next_follow_up_date,
+        organization_id=organization_id,
     )
 
     with _write_unit(db):
@@ -520,10 +621,16 @@ def list_lead_activities(
     actor: Record,
     include_deleted: bool = False,
     limit: int = 100,
+    organization_id: int | None = None,
 ) -> list[sqlite3.Row]:
-    database_actor = _load_active_actor(db, actor)
-    lead = _require_visible_lead(db, database_actor, lead_id)
-    if include_deleted and not is_owner(database_actor):
+    database_actor = _load_active_actor(db, actor, organization_id=organization_id)
+    lead = _require_visible_lead(
+        db,
+        database_actor,
+        lead_id,
+        organization_id=organization_id,
+    )
+    if include_deleted and not has_crm_owner_authority(database_actor):
         raise LeadActivityPermissionError(
             "Only the Owner can view deleted activity records."
         )
@@ -552,15 +659,17 @@ def get_activity(
     *,
     actor: Record,
     include_deleted: bool = False,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    database_actor = _load_active_actor(db, actor)
-    if include_deleted and not is_owner(database_actor):
+    database_actor = _load_active_actor(db, actor, organization_id=organization_id)
+    if include_deleted and not has_crm_owner_authority(database_actor):
         raise LeadActivityNotFoundError("Lead activity not found.")
     return _require_visible_activity(
         db,
         database_actor,
         activity_id,
         include_deleted=include_deleted,
+        organization_id=organization_id,
     )
 
 
@@ -569,7 +678,7 @@ def _can_correct(
     lead: Record,
     activity: Record,
 ) -> bool:
-    if is_owner(actor):
+    if has_crm_owner_authority(actor):
         return True
     return (
         is_lead_sourcer(actor)
@@ -593,14 +702,21 @@ def correct_activity(
     responsible_user_id: int | None | object = _UNSET,
     response_status: str | object = _UNSET,
     next_follow_up_date: str | None | object = _UNSET,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
     """Correct an activity while preserving its original author."""
-    database_actor = _load_active_actor(db, actor)
-    current = _require_visible_activity(db, database_actor, activity_id)
+    database_actor = _load_active_actor(db, actor, organization_id=organization_id)
+    current = _require_visible_activity(
+        db,
+        database_actor,
+        activity_id,
+        organization_id=organization_id,
+    )
     lead = _require_visible_lead(
         db,
         database_actor,
         int(current["lead_id"]),
+        organization_id=organization_id,
     )
     if not _can_correct(database_actor, lead, current):
         raise LeadActivityPermissionError(
@@ -665,6 +781,7 @@ def correct_activity(
             if next_follow_up_date is _UNSET
             else next_follow_up_date
         ),
+        organization_id=organization_id,
     )
 
     if not any(values[field] != current[field] for field in values):
@@ -720,13 +837,20 @@ def soft_delete_activity(
     *,
     actor: Record,
     correction_reason: str,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    database_actor = _load_active_actor(db, actor)
-    current = _require_visible_activity(db, database_actor, activity_id)
+    database_actor = _load_active_actor(db, actor, organization_id=organization_id)
+    current = _require_visible_activity(
+        db,
+        database_actor,
+        activity_id,
+        organization_id=organization_id,
+    )
     lead = _require_visible_lead(
         db,
         database_actor,
         int(current["lead_id"]),
+        organization_id=organization_id,
     )
     if not _can_correct(database_actor, lead, current):
         raise LeadActivityPermissionError(
@@ -771,11 +895,12 @@ def restore_activity(
     *,
     actor: Record,
     correction_reason: str,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    database_actor = _load_active_actor(db, actor)
-    if not is_owner(database_actor):
+    database_actor = _load_active_actor(db, actor, organization_id=organization_id)
+    if not has_crm_owner_authority(database_actor):
         raise LeadActivityPermissionError(
-            "Only the Owner can restore an activity."
+            "Workspace owner authority is required to restore an activity."
         )
 
     current = _require_visible_activity(
@@ -783,6 +908,7 @@ def restore_activity(
         database_actor,
         activity_id,
         include_deleted=True,
+        organization_id=organization_id,
     )
     if current["deleted_at"] is None:
         raise ValueError("Lead activity is not deleted.")

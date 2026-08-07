@@ -52,6 +52,10 @@ MAX_NOTES_LENGTH = 5_000
 _UNSET = object()
 
 
+class LeadEditConflictError(ValueError):
+    """Raised when a CRM mutation uses an out-of-date lead version."""
+
+
 @dataclass(frozen=True)
 class LeadCreateResult:
     lead: sqlite3.Row
@@ -69,6 +73,61 @@ def _positive_id(value: int, field_name: str) -> int:
     return value
 
 
+def _expected_row_version(value: int | None) -> int | None:
+    if value is None:
+        return None
+    return _positive_id(value, "Expected row version")
+
+
+def require_lead_version(
+    lead: sqlite3.Row,
+    expected_row_version: int | None,
+) -> int | None:
+    """Validate an optional optimistic-edit token against one loaded lead."""
+    safe_expected = _expected_row_version(expected_row_version)
+    if safe_expected is None:
+        return None
+    if int(lead["row_version"]) != safe_expected:
+        raise LeadEditConflictError(
+            "This lead changed after it was loaded. Reload and try again."
+        )
+    return safe_expected
+
+
+def _resolve_organization_id(
+    db: sqlite3.Connection,
+    value: int | None,
+) -> int:
+    """Resolve one explicit workspace, with temporary MARK Agency fallback.
+
+    Phase 6.6B-4A keeps legacy internal callers working while every runtime CRM
+    caller is migrated to pass the active organization in 6.6B-4B. Even the
+    fallback is scoped to MARK Agency; no core lead query remains globally
+    unscoped.
+    """
+    if value is None:
+        rows = db.execute(
+            "SELECT id FROM organizations WHERE slug = 'mark-agency'"
+        ).fetchall()
+        if len(rows) != 1:
+            raise RuntimeError(
+                "Cannot resolve CRM workspace; exactly one mark-agency "
+                "organization is required."
+            )
+        return int(rows[0]["id"])
+
+    safe_organization_id = _positive_id(value, "Organization ID")
+    row = db.execute(
+        "SELECT id FROM organizations WHERE id = ?",
+        (safe_organization_id,),
+    ).fetchone()
+    if row is None:
+        raise ValueError(
+            "Organization ID must reference an existing organization"
+        )
+    return safe_organization_id
+
+
 def _active_user_id(
     db: sqlite3.Connection,
     value: int | None,
@@ -83,6 +142,36 @@ def _active_user_id(
     ).fetchone()
     if user is None:
         raise ValueError(f"{field_name} must reference an active user")
+    return safe_user_id
+
+
+def _active_workspace_user_id(
+    db: sqlite3.Connection,
+    value: int | None,
+    field_name: str,
+    *,
+    organization_id: int,
+) -> int | None:
+    if value is None:
+        return None
+    safe_user_id = _positive_id(value, field_name)
+    row = db.execute(
+        """
+        SELECT users.id
+        FROM users
+        JOIN organization_memberships AS membership
+          ON membership.user_id = users.id
+         AND membership.organization_id = ?
+        WHERE users.id = ?
+          AND users.active = 1
+          AND membership.active = 1
+        """,
+        (organization_id, safe_user_id),
+    ).fetchone()
+    if row is None:
+        raise ValueError(
+            f"{field_name} must reference an active user in this workspace"
+        )
     return safe_user_id
 
 
@@ -331,8 +420,10 @@ def get_lead(
     lead_id: int,
     *,
     include_deleted: bool = False,
+    organization_id: int | None = None,
 ) -> sqlite3.Row | None:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
+    safe_organization_id = _resolve_organization_id(db, organization_id)
     deleted_condition = "" if include_deleted else "AND l.deleted_at IS NULL"
     return db.execute(
         f"""
@@ -349,41 +440,50 @@ def get_lead(
         LEFT JOIN users AS assignee ON assignee.id = l.assigned_to_user_id
         LEFT JOIN users AS relationship_manager
           ON relationship_manager.id = l.business_development_owner_user_id
-        WHERE l.id = ? {deleted_condition}
+        WHERE l.id = ?
+          AND l.organization_id = ?
+          {deleted_condition}
         """,
-        (safe_lead_id,),
+        (safe_lead_id, safe_organization_id),
     ).fetchone()
-
 
 def get_lead_by_quest(
     db: sqlite3.Connection,
     quest_id: int,
     *,
     include_deleted: bool = False,
+    organization_id: int | None = None,
 ) -> sqlite3.Row | None:
     safe_quest_id = _positive_id(quest_id, "Quest ID")
-    if include_deleted:
-        return db.execute(
-            "SELECT * FROM leads WHERE quest_id = ?",
-            (safe_quest_id,),
-        ).fetchone()
+    safe_organization_id = _resolve_organization_id(db, organization_id)
+    deleted_condition = "" if include_deleted else "AND deleted_at IS NULL"
     return db.execute(
-        "SELECT * FROM leads WHERE quest_id = ? AND deleted_at IS NULL",
-        (safe_quest_id,),
+        f"""
+        SELECT *
+        FROM leads
+        WHERE quest_id = ?
+          AND organization_id = ?
+          {deleted_condition}
+        """,
+        (safe_quest_id, safe_organization_id),
     ).fetchone()
-
 
 def _require_lead(
     db: sqlite3.Connection,
     lead_id: int,
     *,
     include_deleted: bool = False,
+    organization_id: int | None = None,
 ) -> sqlite3.Row:
-    lead = get_lead(db, lead_id, include_deleted=include_deleted)
+    lead = get_lead(
+        db,
+        lead_id,
+        include_deleted=include_deleted,
+        organization_id=organization_id,
+    )
     if not lead:
         raise ValueError("Lead not found")
     return lead
-
 
 def _get_quest(db: sqlite3.Connection, quest_id: int) -> sqlite3.Row:
     quest = db.execute("SELECT * FROM tasks WHERE id = ?", (quest_id,)).fetchone()
@@ -418,29 +518,48 @@ def _get_lead_by_request_key(
 def _get_active_lead_by_dedupe_key(
     db: sqlite3.Connection,
     dedupe_key: str,
+    *,
+    organization_id: int | None = None,
 ) -> sqlite3.Row | None:
+    safe_organization_id = _resolve_organization_id(db, organization_id)
     return db.execute(
-        "SELECT * FROM leads WHERE dedupe_key = ? AND deleted_at IS NULL",
-        (dedupe_key,),
+        """
+        SELECT *
+        FROM leads
+        WHERE organization_id = ?
+          AND dedupe_key = ?
+          AND deleted_at IS NULL
+        """,
+        (safe_organization_id, dedupe_key),
     ).fetchone()
-
 
 def find_active_lead_by_dedupe_key(
     db: sqlite3.Connection,
     dedupe_key: str,
+    *,
+    organization_id: int | None = None,
 ) -> sqlite3.Row | None:
-    return _get_active_lead_by_dedupe_key(db, dedupe_key)
-
+    return _get_active_lead_by_dedupe_key(
+        db,
+        dedupe_key,
+        organization_id=organization_id,
+    )
 
 def _existing_create_result(
     db: sqlite3.Connection,
     *,
+    organization_id: int,
     request_key: str | None,
     values: dict[str, str | None],
 ) -> LeadCreateResult | None:
     if request_key:
         by_request = _get_lead_by_request_key(db, request_key)
         if by_request:
+            if int(by_request["organization_id"]) != organization_id:
+                # Request keys remain globally unique for backward-compatible
+                # idempotency, but a retry must never return another workspace's
+                # lead.
+                raise ValueError("Request key was already used")
             if by_request["deleted_at"] is not None:
                 raise ValueError("Request key belongs to a deleted lead")
             if by_request["request_fingerprint"] != lead_creation_fingerprint(values):
@@ -448,11 +567,14 @@ def _existing_create_result(
                     "Request key was already used with a different lead payload"
                 )
             return _lead_result(db, by_request, created=False)
-    by_identity = _get_active_lead_by_dedupe_key(db, str(values["dedupe_key"]))
+    by_identity = _get_active_lead_by_dedupe_key(
+        db,
+        str(values["dedupe_key"]),
+        organization_id=organization_id,
+    )
     if by_identity:
         return _lead_result(db, by_identity, created=False)
     return None
-
 
 def _crm_quest_owner_id(
     db: sqlite3.Connection,
@@ -579,23 +701,41 @@ def create_lead(
     created_by_user_id: int | None = None,
     assigned_to_user_id: int | None = None,
     business_development_owner_user_id: int | None = None,
+    organization_id: int | None = None,
 ) -> LeadCreateResult:
     clean_request_key = _normalize_request_key(request_key)
-    safe_creator_id = _active_user_id(
-        db,
-        created_by_user_id,
-        "Created-by user ID",
-    )
-    safe_assignee_id = _active_user_id(
-        db,
-        assigned_to_user_id,
-        "Assigned-to user ID",
-    )
-    safe_relationship_manager_id = _active_user_id(
-        db,
-        business_development_owner_user_id,
-        "Business-development owner user ID",
-    )
+    safe_organization_id = _resolve_organization_id(db, organization_id)
+    if organization_id is None:
+        safe_creator_id = _active_user_id(
+            db, created_by_user_id, "Created-by user ID"
+        )
+        safe_assignee_id = _active_user_id(
+            db, assigned_to_user_id, "Assigned-to user ID"
+        )
+        safe_relationship_manager_id = _active_user_id(
+            db,
+            business_development_owner_user_id,
+            "Business-development owner user ID",
+        )
+    else:
+        safe_creator_id = _active_workspace_user_id(
+            db,
+            created_by_user_id,
+            "Created-by user ID",
+            organization_id=safe_organization_id,
+        )
+        safe_assignee_id = _active_workspace_user_id(
+            db,
+            assigned_to_user_id,
+            "Assigned-to user ID",
+            organization_id=safe_organization_id,
+        )
+        safe_relationship_manager_id = _active_workspace_user_id(
+            db,
+            business_development_owner_user_id,
+            "Business-development owner user ID",
+            organization_id=safe_organization_id,
+        )
     if safe_relationship_manager_id is not None:
         relationship_manager = db.execute(
             """
@@ -632,6 +772,7 @@ def create_lead(
         with _write_unit(db):
             duplicate = _existing_create_result(
                 db,
+                organization_id=safe_organization_id,
                 request_key=clean_request_key,
                 values=values,
             )
@@ -649,17 +790,19 @@ def create_lead(
             cursor = db.execute(
                 """
                 INSERT INTO leads
-                    (quest_id, created_by_user_id, assigned_to_user_id,
+                    (organization_id, quest_id, created_by_user_id,
+                     assigned_to_user_id,
                      business_development_owner_user_id,
                      request_key, request_fingerprint, dedupe_key,
                      company, contact_person, job_title, source, source_url,
                      problem_opportunity,
                      why_mark_fits, pipeline_status, priority, next_action,
                      next_action_due_date, notes, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """,
                 (
+                    safe_organization_id,
                     quest["id"],
                     safe_creator_id,
                     safe_assignee_id,
@@ -696,6 +839,7 @@ def create_lead(
     except sqlite3.IntegrityError:
         duplicate = _existing_create_result(
             db,
+            organization_id=safe_organization_id,
             request_key=clean_request_key,
             values=values,
         )
@@ -703,11 +847,14 @@ def create_lead(
             return duplicate
         raise
 
-    lead = get_lead(db, lead_id)
+    lead = get_lead(
+        db,
+        lead_id,
+        organization_id=safe_organization_id,
+    )
     if not lead:
         raise RuntimeError("Created lead could not be reloaded")
     return _lead_result(db, lead, created=True)
-
 
 def list_leads(
     db: sqlite3.Connection,
@@ -716,9 +863,13 @@ def list_leads(
     priority: str | None = None,
     created_by_user_id: int | None = None,
     include_deleted: bool = False,
+    organization_id: int | None = None,
 ) -> list[sqlite3.Row]:
-    conditions = [] if include_deleted else ["l.deleted_at IS NULL"]
-    parameters: list[object] = []
+    safe_organization_id = _resolve_organization_id(db, organization_id)
+    conditions = ["l.organization_id = ?"]
+    parameters: list[object] = [safe_organization_id]
+    if not include_deleted:
+        conditions.append("l.deleted_at IS NULL")
     if pipeline_status is not None:
         conditions.append("l.pipeline_status = ?")
         parameters.append(_normalize_pipeline_status(pipeline_status))
@@ -728,7 +879,7 @@ def list_leads(
     if created_by_user_id is not None:
         conditions.append("l.created_by_user_id = ?")
         parameters.append(_positive_id(created_by_user_id, "Created-by user ID"))
-    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    where = f"WHERE {' AND '.join(conditions)}"
     return db.execute(
         f"""
         SELECT
@@ -759,7 +910,6 @@ def list_leads(
         """,
         parameters,
     ).fetchall()
-
 
 def _values_from_update(
     current: sqlite3.Row,
@@ -861,11 +1011,14 @@ def _persist_lead_update(
     values: dict[str, str | None],
     event_type: str = "crm_updated",
     event_note: str | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
+    safe_expected = require_lead_version(current, expected_row_version)
     changed = _changed_fields(current, values)
     if not changed:
         return current
 
+    organization_id = int(current["organization_id"])
     try:
         cursor = db.execute(
             """
@@ -874,8 +1027,12 @@ def _persist_lead_update(
                 source = ?, source_url = ?, problem_opportunity = ?,
                 why_mark_fits = ?, pipeline_status = ?, priority = ?,
                 next_action = ?, next_action_due_date = ?, notes = ?,
+                row_version = row_version + 1,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ? AND deleted_at IS NULL
+            WHERE id = ?
+              AND organization_id = ?
+              AND deleted_at IS NULL
+              AND (? IS NULL OR row_version = ?)
             """,
             (
                 values["dedupe_key"],
@@ -892,9 +1049,21 @@ def _persist_lead_update(
                 values["next_action_due_date"],
                 values["notes"],
                 current["id"],
+                organization_id,
+                safe_expected,
+                safe_expected,
             ),
         )
         if cursor.rowcount != 1:
+            reloaded = get_lead(
+                db,
+                current["id"],
+                organization_id=organization_id,
+            )
+            if reloaded is not None and safe_expected is not None:
+                raise LeadEditConflictError(
+                    "This lead changed after it was loaded. Reload and try again."
+                )
             raise ValueError("Lead not found")
         _sync_quest(db, quest_id=current["quest_id"], values=values)
         _, progress = PIPELINE_QUEST_STATE[str(values["pipeline_status"])]
@@ -909,16 +1078,20 @@ def _persist_lead_update(
         duplicate = _get_active_lead_by_dedupe_key(
             db,
             str(values["dedupe_key"]),
+            organization_id=organization_id,
         )
         if duplicate and duplicate["id"] != current["id"]:
             raise ValueError("An active lead already has this identity") from exc
         raise
 
-    updated = get_lead(db, current["id"])
+    updated = get_lead(
+        db,
+        current["id"],
+        organization_id=organization_id,
+    )
     if not updated:
         raise RuntimeError("Updated lead could not be reloaded")
     return updated
-
 
 def update_lead(
     db: sqlite3.Connection,
@@ -936,10 +1109,17 @@ def update_lead(
     next_action: str | None = None,
     next_action_due_date: str | None | object = _UNSET,
     notes: str | None = None,
+    organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
+    safe_organization_id = _resolve_organization_id(db, organization_id)
     with _write_unit(db):
-        current = _require_lead(db, safe_lead_id)
+        current = _require_lead(
+            db,
+            safe_lead_id,
+            organization_id=safe_organization_id,
+        )
         values = _values_from_update(
             current,
             company=company,
@@ -955,7 +1135,12 @@ def update_lead(
             next_action_due_date=next_action_due_date,
             notes=notes,
         )
-        return _persist_lead_update(db, current=current, values=values)
+        return _persist_lead_update(
+            db,
+            current=current,
+            values=values,
+            expected_row_version=expected_row_version,
+        )
 
 
 def update_lead_pipeline(
@@ -963,11 +1148,19 @@ def update_lead_pipeline(
     lead_id: int,
     *,
     pipeline_status: str,
+    organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
+    safe_organization_id = _resolve_organization_id(db, organization_id)
     clean_status = _normalize_pipeline_status(pipeline_status)
     with _write_unit(db):
-        current = _require_lead(db, safe_lead_id)
+        current = _require_lead(
+            db,
+            safe_lead_id,
+            organization_id=safe_organization_id,
+        )
+        require_lead_version(current, expected_row_version)
         if current["pipeline_status"] == clean_status:
             return current
         values = _values_from_update(
@@ -994,6 +1187,7 @@ def update_lead_pipeline(
                 f"CRM pipeline changed from {current['pipeline_status']} to "
                 f"{clean_status}."
             ),
+            expected_row_version=expected_row_version,
         )
 
 
@@ -1003,10 +1197,18 @@ def update_lead_next_action(
     *,
     next_action: str,
     next_action_due_date: str | None = None,
+    organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     safe_lead_id = _positive_id(lead_id, "Lead ID")
+    safe_organization_id = _resolve_organization_id(db, organization_id)
     with _write_unit(db):
-        current = _require_lead(db, safe_lead_id)
+        current = _require_lead(
+            db,
+            safe_lead_id,
+            organization_id=safe_organization_id,
+        )
+        require_lead_version(current, expected_row_version)
         values = _values_from_update(
             current,
             company=None,
@@ -1033,6 +1235,7 @@ def update_lead_next_action(
             values=values,
             event_type="crm_next_action",
             event_note=f"CRM next action set to: {values['next_action']}{due_note}.",
+            expected_row_version=expected_row_version,
         )
 
 
@@ -1041,25 +1244,73 @@ def delete_lead(
     lead_id: int,
     *,
     confirmed: bool = False,
+    actor: dict | sqlite3.Row | None = None,
+    organization_id: int | None = None,
+    expected_row_version: int | None = None,
 ) -> sqlite3.Row:
     if confirmed is not True:
         raise ValueError("Lead deletion requires confirmation")
     safe_lead_id = _positive_id(lead_id, "Lead ID")
+    safe_organization_id = _resolve_organization_id(db, organization_id)
 
     with _write_unit(db):
-        lead = _require_lead(db, safe_lead_id, include_deleted=True)
+        lead = _require_lead(
+            db,
+            safe_lead_id,
+            include_deleted=True,
+            organization_id=safe_organization_id,
+        )
+        safe_expected = require_lead_version(lead, expected_row_version)
+        if actor is not None:
+            from app.services.lead_research_permissions import (
+                LeadPermissionError,
+                can_soft_delete_lead,
+            )
+            from app.services.workspace_context import load_crm_actor_for_workspace
+            try:
+                effective_actor = load_crm_actor_for_workspace(
+                    db, actor, safe_organization_id
+                )
+            except PermissionError as exc:
+                raise LeadPermissionError(
+                    "You are not allowed to archive this lead."
+                ) from exc
+            if not can_soft_delete_lead(effective_actor, lead):
+                raise LeadPermissionError(
+                    "You are not allowed to archive this lead."
+                )
         if lead["deleted_at"] is not None:
             return lead
         cursor = db.execute(
             """
             UPDATE leads
-            SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ? AND deleted_at IS NULL
+            SET deleted_at = CURRENT_TIMESTAMP,
+                row_version = row_version + 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+              AND organization_id = ?
+              AND deleted_at IS NULL
+              AND (? IS NULL OR row_version = ?)
             """,
-            (safe_lead_id,),
+            (
+                safe_lead_id,
+                safe_organization_id,
+                safe_expected,
+                safe_expected,
+            ),
         )
         if cursor.rowcount != 1:
-            return _require_lead(db, safe_lead_id, include_deleted=True)
+            reloaded = _require_lead(
+                db,
+                safe_lead_id,
+                include_deleted=True,
+                organization_id=safe_organization_id,
+            )
+            if safe_expected is not None and int(reloaded["row_version"]) != safe_expected:
+                raise LeadEditConflictError(
+                    "This lead changed after it was loaded. Reload and try again."
+                )
+            return reloaded
         db.execute(
             """
             UPDATE tasks
@@ -1077,19 +1328,25 @@ def delete_lead(
             progress=0,
         )
 
-    deleted = get_lead(db, safe_lead_id, include_deleted=True)
+    deleted = get_lead(
+        db,
+        safe_lead_id,
+        include_deleted=True,
+        organization_id=safe_organization_id,
+    )
     if not deleted:
         raise RuntimeError("Deleted lead could not be reloaded")
     return deleted
-
 
 def get_crm_dashboard_metrics(
     db: sqlite3.Connection,
     *,
     created_by_user_id: int | None = None,
+    organization_id: int | None = None,
 ) -> dict[str, int]:
-    conditions = ["deleted_at IS NULL"]
-    parameters: list[object] = []
+    safe_organization_id = _resolve_organization_id(db, organization_id)
+    conditions = ["organization_id = ?", "deleted_at IS NULL"]
+    parameters: list[object] = [safe_organization_id]
 
     if created_by_user_id is not None:
         conditions.append("created_by_user_id = ?")

@@ -147,9 +147,13 @@ def test_existing_unattributed_lead_is_backfilled_to_owner(
             )
             """
         ).lastrowid
+        organization_id = db.execute(
+            "SELECT id FROM organizations WHERE slug = 'mark-agency'"
+        ).fetchone()[0]
         lead_id = db.execute(
             """
             INSERT INTO leads (
+                organization_id,
                 quest_id,
                 request_fingerprint,
                 dedupe_key,
@@ -160,9 +164,10 @@ def test_existing_unattributed_lead_is_backfilled_to_owner(
                 why_mark_fits,
                 next_action
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                organization_id,
                 quest_id,
                 "historical-request-fingerprint",
                 "historical-dedupe-key",

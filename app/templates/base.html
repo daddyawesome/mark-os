@@ -4,7 +4,7 @@
 <!-- MARK_OS_SIDEBAR_USERS_V1 -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#06130b">
+    <meta name="theme-color" content="#173c2a">
     <title>{% block title %}MARK OS{% endblock %}</title>
 
     <link
@@ -13,13 +13,16 @@
     >
     <link
         rel="stylesheet"
-        href="/static/css/mark-os-frontend.css?v=20260807-1"
+        href="/static/css/mark-os-frontend.css?v=20260807-2"
     >
     <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 </head>
 
 <body>
 {% set current_user = request.state.current_user %}
+{% set current_workspace = request.state.current_workspace %}
+{% set authorized_workspaces = request.state.authorized_workspaces %}
+{% set is_business_workspace_path = request.url.path.startswith('/crm') or request.url.path.startswith('/relationship-manager') %}
 
 {% if current_user %}
 <button
@@ -51,7 +54,7 @@
         <span class="mark-brand-orb">M</span>
         <span class="mark-sidebar-brand-copy">
             <strong>MARK OS</strong>
-            <small>Operating workspace</small>
+            <small>Forest fieldbook</small>
         </span>
     </a>
 
@@ -206,6 +209,57 @@
 
 <div class="mark-app mark-layout-content{% if current_user %} has-sidebar{% endif %}">
     <main class="mark-container">
+        {% if current_user %}
+        <header
+            class="fieldbook-context"
+            aria-label="Current workspace context"
+        >
+            <div class="fieldbook-context-main">
+                <span class="fieldbook-context-kicker">
+                    MARK OS Fieldbook
+                </span>
+                <strong class="fieldbook-context-title">
+                    {% if is_business_workspace_path %}
+                        Business workspace:
+                        {{ current_workspace.name if current_workspace else 'Pending workspace' }}
+                    {% else %}
+                        Personal workspace
+                    {% endif %}
+                </strong>
+            </div>
+            <div class="fieldbook-context-meta">
+                {% if
+                    is_business_workspace_path
+                    and current_user.role == 'owner'
+                    and authorized_workspaces|length > 1
+                %}
+                <form method="post" action="/workspace/select" class="is-flex is-align-items-center" style="gap: .4rem;">
+                    <input type="hidden" name="next" value="{{ request.url.path }}">
+                    <div class="select is-small">
+                        <select name="organization_id" aria-label="Business workspace">
+                            {% for workspace in authorized_workspaces %}
+                            <option value="{{ workspace.id }}" {% if current_workspace and workspace.id == current_workspace.id %}selected{% endif %}>
+                                {{ workspace.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button class="button is-small is-light" type="submit">Switch</button>
+                </form>
+                <span class="fieldbook-context-dot" aria-hidden="true"></span>
+                {% endif %}
+                <span>{{ current_user.display_name }}</span>
+                <span class="fieldbook-context-dot" aria-hidden="true"></span>
+                <span>
+                    {% if is_business_workspace_path %}
+                        {{ current_user.workspace_display_role }}
+                    {% else %}
+                        {{ current_user.role|replace('_', ' ')|title }}
+                    {% endif %}
+                </span>
+            </div>
+        </header>
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 </div>

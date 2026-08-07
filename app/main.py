@@ -28,6 +28,7 @@ from app.routes import (
     quests,
     relationship_manager,
     users,
+    workspaces,
 )
 from app.services.access_control import (
     can_access_request,
@@ -103,8 +104,10 @@ async def login_and_permission_guard(request: Request, call_next):
     path = request.url.path
     method = request.method.upper()
 
-    # Templates can always inspect this state value, including public pages.
+    # Templates can always inspect these state values, including public pages.
     request.state.current_user = None
+    request.state.current_workspace = None
+    request.state.authorized_workspaces = []
 
     is_public = path in PUBLIC_PATHS or path.startswith("/static/")
     if is_public:
@@ -124,6 +127,11 @@ async def login_and_permission_guard(request: Request, call_next):
         )
 
     request.state.current_user = user
+    request.state.current_workspace = user.get("current_workspace")
+    request.state.authorized_workspaces = user.get(
+        "authorized_workspaces",
+        [],
+    )
 
     if not can_access_request(user, method, path):
         status_code = (
@@ -140,6 +148,26 @@ async def login_and_permission_guard(request: Request, call_next):
         if method in {"GET", "HEAD"}:
             return RedirectResponse(
                 url=f"{landing_path_for_user(user)}?error=forbidden",
+                status_code=303,
+            )
+        return PlainTextResponse(
+            "Forbidden",
+            status_code=403,
+        )
+
+    if bool(user.get("must_change_password")) and path not in {
+        "/account/password",
+        "/logout",
+    }:
+        log_security_event(
+            "password_change_required",
+            request,
+            user=user,
+            status_code=303 if method in {"GET", "HEAD"} else 403,
+        )
+        if method in {"GET", "HEAD"}:
+            return RedirectResponse(
+                url="/account/password",
                 status_code=303,
             )
         return PlainTextResponse(
@@ -200,4 +228,5 @@ app.include_router(client_hunting.router)
 app.include_router(lead_research.router)
 app.include_router(relationship_manager.router)
 app.include_router(users.router)
+app.include_router(workspaces.router)
 app.include_router(pages.router)

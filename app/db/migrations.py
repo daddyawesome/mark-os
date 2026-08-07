@@ -12,6 +12,7 @@ from app.db import (
     lead_research,
     leads,
     memory,
+    organizations,
     playbooks,
     quests,
     relationship_manager,
@@ -27,6 +28,7 @@ from app.db import lead_activities
 SCHEMA_SQL = "\n".join(
     (
         users.SCHEMA_SQL,
+        organizations.SCHEMA_SQL,
         playbooks.SCHEMA_SQL,
         goals.SCHEMA_SQL,
         checkins.SCHEMA_SQL,
@@ -45,6 +47,7 @@ SCHEMA_SQL = "\n".join(
 INDEX_SQL = "\n".join(
     (
         users.INDEX_SQL,
+        organizations.INDEX_SQL,
         playbooks.INDEX_SQL,
         checkins.INDEX_SQL,
         memory.INDEX_SQL,
@@ -66,18 +69,31 @@ def initialize_database(db: sqlite3.Connection) -> None:
 
     chat.validate_schema(db)
     agent_audit.validate_schema(db)
+    organizations.migrate(db)
+    organizations.validate_schema(db)
+    organizations.seed(db)
     leads.migrate_request_fingerprint(db)
     leads.migrate_ownership(db)
-    leads.validate_schema(db)
     users.migrate(db)
     users.migrate_family_roles(db)
     users.validate_schema(db)
     users.bootstrap_owner_from_environment(db)
+    organizations.ensure_owner_workspace_memberships(db)
+    organizations.ensure_legacy_crm_workspace_memberships(db)
+    organizations.validate_schema(db)
     playbooks.validate_schema(db)
     lead_research.migrate(db)
     lead_research.validate_schema(db)
     relationship_manager.migrate(db)
     relationship_manager.validate_schema(db)
+    leads.migrate_organization(db)
+    leads.migrate_row_version(db)
+    leads.migrate_workspace_dedupe_index(db)
+    leads.validate_schema(
+        db,
+        require_organization=True,
+        require_row_version=True,
+    )
     lead_activities.validate_schema(db)
 
     # Safe additive migrations for already-live SQLite databases.

@@ -5,7 +5,7 @@
     <div class="crm-hero-layout">
         <div class="crm-hero-copy">
             <p class="mark-kicker">
-                CRM · Opportunity pipeline
+                {{ current_workspace.name if current_workspace else 'CRM' }} · Opportunity pipeline
             </p>
             {% if
                 current_user
@@ -18,6 +18,19 @@
                 Handle requested changes first, continue
                 active research, and track everything
                 waiting for Owner review.
+            </p>
+            {% elif
+                current_user
+                and current_user.role == 'relationship_manager'
+                and current_workspace
+                and current_workspace.membership_role == 'workspace_owner'
+            %}
+            <h1 class="title is-1 mb-2">
+                Run the Pendang pipeline from one fieldbook.
+            </h1>
+            <p class="subtitle is-5 mark-muted">
+                Review research, approve outreach, manage the pipeline, and keep
+                Pendang opportunities moving without exposing MARK Agency data.
             </p>
             {% elif
                 current_user
@@ -92,19 +105,39 @@
 </div>
 {% endif %}
 
+{% if current_workspace and current_workspace.slug == 'pendang' %}
+<div class="notification is-mark mb-5">
+    <strong>Pendang Research &amp; Analytics</strong> ·
+    {{ current_user.workspace_display_role }}.
+    This CRM view is isolated to Pendang records and queues.
+</div>
+{% endif %}
+
 {% if
     current_user
     and current_user.role == 'lead_sourcer'
 %}
 <div class="notification is-mark">
-    Lead Researcher access: you can add, import, edit
-    permitted research, respond to requested changes,
-    and submit work for Mark's review. Mark controls
-    approval, outreach, pipeline movement, and archiving.
+    Lead Researcher access — {{ current_user.workspace_display_role }}: you can add, import, edit
+    permitted research, respond to requested changes, and submit work for
+    workspace-owner review. You cannot approve your own research or outreach,
+    move owner-controlled pipeline stages, mark Won/Lost, or archive leads.
 </div>
 {% endif %}
 
 {% if
+    current_user
+    and current_user.role == 'relationship_manager'
+    and current_workspace
+    and current_workspace.membership_role == 'workspace_owner'
+%}
+<div class="notification is-mark">
+    {{ current_user.workspace_display_role }} authority is limited to this
+    business workspace. You can review research, approve outreach, manage
+    owner-controlled CRM stages, and archive workspace leads. Global MARK OS
+    users, private family data, and MARK Agency remain outside this authority.
+</div>
+{% elif
     current_user
     and current_user.role == 'relationship_manager'
 %}
@@ -116,7 +149,7 @@
 </div>
 {% endif %}
 
-<div class="columns is-multiline mb-5">
+<div class="columns is-multiline mb-5 fieldbook-metrics">
     {% for metric in metric_cards %}
     <div
         class="column
@@ -125,6 +158,7 @@
     >
         <div
             class="mark-card
+                   fieldbook-metric-card
                    p-4
                    has-text-centered"
             style="height: 100%;"

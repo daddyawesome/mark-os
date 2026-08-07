@@ -11,7 +11,7 @@
                 <span class="mark-chip">{{ lead.pipeline_status|upper }}</span>
                 <span class="mark-chip">{{ lead.priority|upper }} PRIORITY</span>
                 <span class="mark-chip">RESEARCH: {{ lead.research_status|replace('_', ' ')|upper }}</span>
-                {% if can_manage_crm %}
+                {% if can_view_linked_quest %}
                 <a class="mark-chip" href="/quests/{{ lead.quest_id }}">QUEST #{{ lead.quest_id }}</a>
                 {% endif %}
             </div>
@@ -27,6 +27,7 @@
     action="/crm/leads/{{ lead.id }}/research/submit"
     style="display: inline;"
 >
+    <input type="hidden" name="row_version" value="{{ lead.row_version }}">
     <button
         class="button is-mark"
         type="submit"
@@ -46,7 +47,7 @@
 {% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
 {% if lead.research_status == 'ready_for_review' %}
 <div class="notification is-info is-light">
-    <strong>READY FOR REVIEW</strong> — awaiting Mark's decision.
+    <strong>READY FOR REVIEW</strong> — awaiting workspace-owner review.
 </div>
 {% endif %}
 
@@ -103,6 +104,7 @@
             <p class="mark-kicker">Quick update</p>
             <h2 class="title is-4">Pipeline</h2>
             <form method="post" action="/crm/leads/{{ lead.id }}/pipeline">
+                <input type="hidden" name="row_version" value="{{ lead.row_version }}">
                 <div class="field">
                     <label class="label" for="pipeline_status">Pipeline status</label>
                     <div class="select is-fullwidth">
@@ -128,6 +130,7 @@
             <p class="mark-kicker">Next move</p>
             <h2 class="title is-4">Next action</h2>
             <form method="post" action="/crm/leads/{{ lead.id }}/next-action">
+                <input type="hidden" name="row_version" value="{{ lead.row_version }}">
                 <div class="field">
                     <label class="label" for="next_action">Next action</label>
                     <input class="input" id="next_action" name="next_action" type="text" required value="{{ lead.next_action }}">
@@ -146,6 +149,7 @@
             <p class="mark-kicker">Business Development</p>
             <h2 class="title is-4">Assign a relationship owner.</h2>
             <form method="post" action="/crm/leads/{{ lead.id }}/relationship-owner">
+                <input type="hidden" name="row_version" value="{{ lead.row_version }}">
                 <div class="field">
                     <label class="label" for="relationship_manager_user_id">Relationship Manager</label>
                     <div class="select is-fullwidth">
@@ -170,14 +174,14 @@
         </div>
         {% elif current_user and current_user.role == 'relationship_manager' %}
         <div class="notification is-warning is-light">
-            You may update this relationship lead's next action. Mark retains research approval, outreach approval, pipeline movement, pricing, proposals, Won/Lost, and archiving.
+            You may update this relationship lead's next action. Workspace-owner authority is required for research approval, outreach approval, pipeline movement, Won/Lost, and archiving.
         </div>
         {% elif not can_update_next_action %}
         <div class="mark-card p-5">
             <p class="mark-kicker">Read-only review</p>
-            <h2 class="title is-4">Lead submitted for Mark.</h2>
+            <h2 class="title is-4">Lead submitted for review.</h2>
             <p class="mark-muted">
-                You can review this lead, but only the owner can edit it, update the contact pipeline, change the next action, or archive it.
+                You can review this lead, but only workspace-owner authority can edit major CRM controls, change the pipeline, or archive it.
             </p>
         </div>
         {% endif %}

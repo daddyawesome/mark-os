@@ -186,6 +186,9 @@ def test_new_lead_defaults_to_draft(
         WHERE role = 'owner'
         """
     ).fetchone()["id"]
+    organization_id = db.execute(
+        "SELECT id FROM organizations WHERE slug = 'mark-agency'"
+    ).fetchone()["id"]
 
     quest_id = db.execute(
         """
@@ -212,6 +215,7 @@ def test_new_lead_defaults_to_draft(
     lead_id = db.execute(
         """
         INSERT INTO leads (
+            organization_id,
             quest_id,
             created_by_user_id,
             assigned_to_user_id,
@@ -225,7 +229,7 @@ def test_new_lead_defaults_to_draft(
             next_action
         )
         VALUES (
-            ?, ?, ?,
+            ?, ?, ?, ?,
             'v1:new-draft-fingerprint',
             'v1:new-draft-lead',
             'Draft Analytics',
@@ -236,7 +240,7 @@ def test_new_lead_defaults_to_draft(
             'Complete research.'
         )
         """,
-        (quest_id, owner_id, owner_id),
+        (organization_id, quest_id, owner_id, owner_id),
     ).lastrowid
     db.commit()
 

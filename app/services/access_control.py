@@ -27,6 +27,24 @@ _LEAD_ACTIVITY_ACTION_PATTERN = re.compile(
 _RELATIONSHIP_NEXT_ACTION_PATTERN = re.compile(
     r"^/crm/leads/[1-9][0-9]*/next-action$"
 )
+_WORKSPACE_OWNER_EDIT_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/edit$"
+)
+_WORKSPACE_OWNER_PIPELINE_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/pipeline$"
+)
+_WORKSPACE_OWNER_RELATIONSHIP_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/relationship-owner$"
+)
+_WORKSPACE_OWNER_DELETE_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/delete$"
+)
+_WORKSPACE_OWNER_RESEARCH_REVIEW_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/research/review$"
+)
+_WORKSPACE_OWNER_OUTREACH_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/outreach/approve$"
+)
 
 _QUEST_DETAIL_PATTERN = re.compile(r"^/quests/[1-9][0-9]*$")
 _HISTORY_EDIT_PATTERN = re.compile(
@@ -124,6 +142,36 @@ def is_relationship_manager(
     return role_of(user) == RELATIONSHIP_MANAGER_ROLE
 
 
+def workspace_membership_role_of(
+    user: Mapping[str, Any] | None,
+) -> str:
+    if user is None:
+        return ""
+    direct = str(user.get("workspace_membership_role") or "").strip().casefold()
+    if direct:
+        return direct
+    workspace = user.get("current_workspace")
+    if isinstance(workspace, Mapping):
+        return str(workspace.get("membership_role") or "").strip().casefold()
+    return ""
+
+
+def is_workspace_owner_manager(
+    user: Mapping[str, Any] | None,
+) -> bool:
+    """Pendang-style owner authority without granting global Owner."""
+    return (
+        is_relationship_manager(user)
+        and workspace_membership_role_of(user) == "workspace_owner"
+    )
+
+
+def has_crm_owner_authority(
+    user: Mapping[str, Any] | None,
+) -> bool:
+    return is_owner(user) or is_workspace_owner_manager(user)
+
+
 def is_personal_user(user: Mapping[str, Any] | None) -> bool:
     return role_of(user) in {OWNER_ROLE, MEMBER_ROLE}
 
@@ -131,6 +179,8 @@ def is_personal_user(user: Mapping[str, Any] | None) -> bool:
 def landing_path_for_user(user: Mapping[str, Any]) -> str:
     if is_personal_user(user):
         return "/"
+    if is_workspace_owner_manager(user):
+        return "/crm"
     if is_relationship_manager(user):
         return "/relationship-manager"
     return "/crm"
@@ -170,6 +220,12 @@ def can_access_request(
     normalized_method = (method or "").upper()
     normalized_path = path or "/"
 
+    if (
+        normalized_path == "/account/password"
+        and normalized_method in {"GET", "HEAD", "POST"}
+    ):
+        return True
+
     if is_member(user):
         if normalized_method in {"GET", "HEAD"}:
             return _member_can_get(normalized_path)
@@ -178,10 +234,25 @@ def can_access_request(
         return False
 
     if is_relationship_manager(user):
+        workspace_owner = is_workspace_owner_manager(user)
         if normalized_method in {"GET", "HEAD"}:
             return (
                 normalized_path in _RELATIONSHIP_MANAGER_GET_PATHS
                 or _LEAD_DETAIL_PATTERN.fullmatch(normalized_path) is not None
+                or (
+                    workspace_owner
+                    and (
+                        normalized_path == "/crm/research-review"
+                        or _WORKSPACE_OWNER_EDIT_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _WORKSPACE_OWNER_DELETE_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                    )
+                )
             )
         if normalized_method == "POST":
             return (
@@ -190,6 +261,41 @@ def can_access_request(
                     normalized_path
                 )
                 is not None
+                or (
+                    workspace_owner
+                    and (
+                        _WORKSPACE_OWNER_EDIT_PATTERN.fullmatch(normalized_path)
+                        is not None
+                        or _WORKSPACE_OWNER_PIPELINE_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _WORKSPACE_OWNER_RELATIONSHIP_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _WORKSPACE_OWNER_DELETE_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _WORKSPACE_OWNER_RESEARCH_REVIEW_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _WORKSPACE_OWNER_OUTREACH_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _LEAD_ACTIVITY_CREATE_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _LEAD_ACTIVITY_ACTION_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                    )
+                )
             )
         return False
 

@@ -108,6 +108,7 @@ def _insert_lead(
     return db.execute(
         """
         INSERT INTO leads (
+            organization_id,
             quest_id,
             created_by_user_id,
             assigned_to_user_id,
@@ -121,9 +122,12 @@ def _insert_lead(
             why_mark_fits,
             next_action
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'linkedin', ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'linkedin', ?, ?, ?)
         """,
         (
+            db.execute(
+                "SELECT id FROM organizations WHERE slug = 'mark-agency'"
+            ).fetchone()[0],
             quest_id,
             owner_id,
             owner_id,

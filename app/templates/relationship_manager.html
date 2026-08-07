@@ -5,8 +5,17 @@
     <div class="columns is-vcentered">
         <div class="column">
             <p class="mark-kicker">
-                Business Development Collaborator
+                {{ current_user.workspace_display_role }}
             </p>
+            {% if current_workspace and current_workspace.membership_role == 'workspace_owner' %}
+            <h1 class="title is-1 mb-2">
+                Pendang operations now run through the shared CRM.
+            </h1>
+            <p class="subtitle is-5 mark-muted">
+                Open the Pendang CRM to review research, approve outreach, and
+                manage workspace pipeline decisions.
+            </p>
+            {% else %}
             <h1 class="title is-1 mb-2">
                 Open qualified relationships and hand
                 strong opportunities to Mark.
@@ -17,6 +26,7 @@
                 technical, pricing, proposal, and closing
                 decisions to Mark.
             </p>
+            {% endif %}
         </div>
         <div class="column is-narrow">
             <div class="buttons">
@@ -37,13 +47,19 @@
 </div>
 {% endif %}
 
-<div class="notification is-warning is-light mb-5">
-    <strong>Phase 6.1J boundary:</strong>
-    prepare and manage approved relationship work, but
-    do not mark a lead Contacted yet. Phase 6.2 will add
-    the required date, channel, message summary,
-    follow-up, responsible staff member, and response log.
+{% if current_workspace and current_workspace.membership_role == 'workspace_owner' %}
+<div class="notification is-mark mb-5">
+    <strong>Pendang workspace owner:</strong> owner-like CRM authority applies
+    only inside Pendang. Global MARK OS administration and private workspaces
+    remain restricted to Mark.
 </div>
+{% else %}
+<div class="notification is-warning is-light mb-5">
+    <strong>Relationship boundary:</strong> prepare and manage approved
+    relationship work, while owner-controlled CRM decisions remain with the
+    workspace owner.
+</div>
+{% endif %}
 
 <div class="columns is-multiline mb-5">
     {% for metric in metric_cards %}

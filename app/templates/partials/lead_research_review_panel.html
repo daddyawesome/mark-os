@@ -1,11 +1,11 @@
 {% if
     current_user
-    and current_user.role == 'owner'
+    and can_manage_crm
     and lead.research_status == 'ready_for_review'
 %}
 <div class="mark-card p-5 mb-5">
     <p class="mark-kicker">
-        Owner Research Review
+        Workspace Research Review
     </p>
     <h2 class="title is-3">
         Decide the research outcome
@@ -20,6 +20,7 @@
         method="post"
         action="/crm/leads/{{ lead.id }}/research/review"
     >
+        <input type="hidden" name="row_version" value="{{ lead.row_version }}">
         <div class="field">
             <label
                 class="label"
@@ -78,7 +79,7 @@
     and lead.research_status != 'ready_for_review'
 %}
 <div class="notification is-info is-light">
-    <strong>Owner review notes</strong>
+    <strong>Workspace review notes</strong>
     <br>
     {{ lead.review_notes }}
     {% if lead.reviewed_at %}
