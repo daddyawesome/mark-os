@@ -12,6 +12,7 @@ from app.db import (
     lead_research,
     leads,
     memory,
+    organizations,
     playbooks,
     quests,
     relationship_manager,
@@ -27,6 +28,7 @@ from app.db import lead_activities
 SCHEMA_SQL = "\n".join(
     (
         users.SCHEMA_SQL,
+        organizations.SCHEMA_SQL,
         playbooks.SCHEMA_SQL,
         goals.SCHEMA_SQL,
         checkins.SCHEMA_SQL,
@@ -45,6 +47,7 @@ SCHEMA_SQL = "\n".join(
 INDEX_SQL = "\n".join(
     (
         users.INDEX_SQL,
+        organizations.INDEX_SQL,
         playbooks.INDEX_SQL,
         checkins.INDEX_SQL,
         memory.INDEX_SQL,
@@ -73,6 +76,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     users.migrate_family_roles(db)
     users.validate_schema(db)
     users.bootstrap_owner_from_environment(db)
+    organizations.validate_schema(db)
     playbooks.validate_schema(db)
     lead_research.migrate(db)
     lead_research.validate_schema(db)
@@ -110,6 +114,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     goals.seed(db)
     quests.seed(db)
     memory.seed(db)
+    organizations.seed(db)
     family_ownership.backfill_owner(db)
     family_workspace.migrate(db)
     family_workspace.ensure_all_workspaces(db)
