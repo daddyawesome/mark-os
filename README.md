@@ -1,30 +1,17 @@
-# MARK OS
+# MARK-OS
 
-[![Tests](https://github.com/daddyawesome/mark-os/actions/workflows/tests.yml/badge.svg)](https://github.com/daddyawesome/mark-os/actions/workflows/tests.yml)
+MARK-OS is a personal and business operating system built with FastAPI, Jinja,
+HTMX, Bulma, and SQLite. It combines private personal workspaces, quests and XP,
+a multi-user CRM, staff workflows, organization-scoped business workspaces,
+production safety, and optional budget-safe AI foundations.
 
-MARK OS is a personal and business operating system for turning real-world
-priorities into clear quests. It combines a transparent daily-direction
-engine, a quest/XP system, a Client Hunting CRM, and multi-user family/staff
-workspaces — currently focused on one goal: help Mark and his brother find,
-review, follow up with, and win clients.
-
-```text
-Find a lead → qualify the fit → choose the next outreach action
-→ do the linked quest → move the pipeline → review results
-```
-
-## Full documentation
-
-**[`PROJECT.md`](./PROJECT.md) is the canonical, detailed project
-document** — product definition, architecture, database rules, roles and
-permissions, the complete phase history, the current roadmap (through Phase
-8), development/migration rules, and full local-setup instructions. Read it
-before making non-trivial changes.
-
-This README is intentionally short. If you're looking for anything beyond a
-quick start, it's in `PROJECT.md`, not here.
+The detailed architecture, roadmap, role model, database rules, release
+procedures, backup/recovery runbooks, decision log, and current phase status live
+in [`PROJECT.md`](PROJECT.md).
 
 ## Quick start
+
+### macOS / Linux
 
 ```bash
 python -m venv .venv
@@ -33,30 +20,55 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Set at minimum `MARK_OS_USERNAME`, `MARK_OS_PASSWORD`, and `SESSION_SECRET`
-in `.env`, then run:
+Configure the required local values in `.env`, then start MARK-OS:
 
 ```bash
 uvicorn --env-file .env app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000`, the CRM at `/crm`, or check `/health`.
+Useful local pages:
 
-On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1` or use
-the existing `run.ps1` helper, which loads `.env` automatically when present.
+```text
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/crm
+http://127.0.0.1:8000/health
+```
+
+### Windows PowerShell
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+uvicorn --env-file .env app.main:app --reload
+```
 
 ## Tests
+
+Run the complete suite:
 
 ```bash
 python -m pytest -q
 ```
 
-Tests always use temporary SQLite databases — never `data/mark_os.db` or the
-Railway volume. GitHub Actions runs the same command on every push and pull
-request.
+Tests must use isolated temporary databases and must never point at the Railway
+production volume.
 
-## Product principle
+## Documentation
 
-> Maximum awareness. Strong recommendations. Controlled autonomy.
+- [`PROJECT.md`](PROJECT.md) — canonical product guide, roadmap, architecture,
+  operations, release, backup, and recovery documentation.
+- [`AGENTS.md`](AGENTS.md) — repository instructions for coding agents.
+- [`.agents/skills/`](.agents/skills/) — project-specific UI and HTMX rules.
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) — third-party attribution
+  and design-inspiration notices.
 
-MARK OS should become more capable without becoming less understandable.
+Do not create new phase-specific roadmap or handoff Markdown files. Add durable
+project information to `PROJECT.md` instead.
+
+## Safety
+
+Do not commit `.env`, passwords, session secrets, SQLite database files,
+generated backups, release-evidence folders, private playbooks, rclone tokens,
+or other credentials.

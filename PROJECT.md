@@ -421,7 +421,7 @@ Use this file to understand:
 - the future agency, product-hardening, and AI plans.
 
 When the project changes, update this file instead of creating another
-standalone roadmap or handoff document.
+standalone roadmap, install guide, release runbook, or handoff document.
 
 ---
 
@@ -562,12 +562,14 @@ mark-os/
 │   ├── database.py
 │   └── main.py
 ├── data/
-├── docs/
 ├── tests/
+├── .agents/
+├── AGENTS.md
+├── PROJECT.md
+├── README.md
+├── THIRD_PARTY_NOTICES.md
 ├── .env.example
 ├── .gitignore
-├── INSTALL.md
-├── README.md
 ├── railway.json
 ├── requirements.txt
 └── run.ps1
@@ -4203,41 +4205,525 @@ Reason:
 
 ---
 
-# 20. Documentation Consolidation Plan
+# 20. Documentation and Operations Runbooks
 
-After reviewing and committing this file, make it the canonical detailed
-documentation.
+## 20.1 Canonical documentation policy
 
-Recommended repository arrangement:
-
-```text
-README.md       # short public introduction with a link to PROJECT.md
-PROJECT.md      # all detailed project documentation
-```
-
-The old detailed files can then be removed after confirming that no unique
-information is missing.
-
-Suggested cleanup candidates:
+The repository uses two human-facing project documents:
 
 ```text
-INSTALL.md
-docs/AI_ARCHITECTURE.md
-docs/AI_ARCHITECTURE_V2.md
-docs/CODEX_CONTINUE_MARK_OS_PHASE_5.md
-docs/MARK_OS_COMPLETE_PROJECT_HANDOFF.md
-docs/PHASE_4_REVISED_DOD.md
-docs/PROJECT_ROADMAP.md
+README.md   # short public entry point and local quick start
+PROJECT.md  # canonical detailed project and operations guide
 ```
 
-Do not delete them before reviewing the `git diff` for `PROJECT.md`.
+Repository-specific coding-agent instructions remain separate because they are
+executable project constraints rather than duplicate product documentation:
 
-A minimal README should retain:
+```text
+AGENTS.md
+.agents/skills/README.md
+.agents/skills/mark-os-ui/SKILL.md
+.agents/skills/mark-os-ui/DESIGN.md
+.agents/skills/mark-os-htmx/SKILL.md
+```
 
-- one-paragraph product description;
-- test badge;
-- quick local-start commands;
-- link to `PROJECT.md`.
+`THIRD_PARTY_NOTICES.md` remains separate for attribution.
+
+Do not create new phase-specific install, roadmap, release-runbook, or handoff
+Markdown files. When durable project information changes, update `PROJECT.md`.
+Temporary release evidence belongs outside Git.
+
+## 20.2 Historical release verifiers that remain useful
+
+The old phase-specific installation documents are retired, but their verifier
+tools remain useful when reviewing legacy data or reproducing an older release
+boundary.
+
+### Family workspace verification
+
+```bash
+python tools/verify_m10_family_release.py
+```
+
+The verifier checks personal ownership, role boundaries, workspace integrity,
+and per-user uniqueness. Personal tables should report no unowned or orphaned
+records.
+
+### Phase 6.1 staff-workflow staging verification
+
+Never run migration rehearsal against the live Railway database. Use a verified
+snapshot or backup:
+
+```bash
+python tools/verify_phase_6_1_release.py \
+  --source-db /path/to/safe-snapshot.sqlite3 \
+  --run-tests
+```
+
+The verifier creates a staging copy, runs migrations and workflow canaries on
+the copy, checks integrity and foreign keys, and preserves the supplied source.
+
+### Relationship Manager / playbook verification
+
+Private sales playbooks remain outside Git. Import or update an approved local
+playbook through the existing importer:
+
+```bash
+python tools/import_playbook.py \
+  --file private_playbooks/JUNMAR_SALES_PLAYBOOK.md \
+  --slug junmar-sales-playbook \
+  --assign-username junmar
+```
+
+For a safe copied-database check:
+
+```bash
+python tools/verify_phase_6_1j_release.py \
+  --source-db /path/to/safe-snapshot.sqlite3 \
+  --output-dir "$HOME/mark-os-release-evidence"
+```
+
+Do not commit private playbook Markdown or generated release evidence.
+
+## 20.3 Standard release and rollback procedure
+
+Before a production deployment:
+
+```bash
+git status
+git log -1 --oneline
+python -m pytest -q
+```
+
+Confirm:
+
+```text
+working tree clean
+full suite passed
+database migration rehearsal passed when schema changed
+verified rollback backup exists
+Railway uses exactly one application instance while SQLite is production
+persistent-volume database path is confirmed
+```
+
+After deployment verify:
+
+```text
+/health returns HTTP 200
+Owner login works
+role-specific login and navigation work
+workspace isolation still holds
+one non-destructive CRM read/smoke check succeeds
+production logs show no new migration/startup failure
+```
+
+### Application-code rollback
+
+When the database remains healthy and a deployment has only an application or
+template defect:
+
+1. stop staff activity temporarily;
+2. record the failing deployment commit;
+3. redeploy the last known-good application commit;
+4. do not restore the database merely because application code was rolled back;
+5. verify `/health`, login, workspace selection, and CRM read access;
+6. preserve failed-state logs and evidence for diagnosis.
+
+### Database rollback
+
+Restore a database only for verified data corruption or a failed migration that
+changed production data incorrectly. Signals include a failed
+`PRAGMA quick_check`, foreign-key errors, or confirmed damaged records.
+
+Before replacing production data:
+
+1. stop application/staff writes;
+2. capture one final backup of the failed state;
+3. record its checksum and deployment commit;
+4. verify the selected recovery backup;
+5. restore into a **new filename**;
+6. inspect and smoke-test that restored database;
+7. switch `MARK_OS_DB_PATH` only after verification;
+8. retain both old and recovered databases until the incident is closed.
+
+## 20.4 Phase 6.2 backup and disaster recovery runbook
+
+MARK-OS production protection has three complementary layers:
+
+```text
+Railway volume snapshots
++ verified SQLite online backups
++ encrypted offsite copies
+```
+
+A backup is not proven until a restore into a new file succeeds.
+
+### Non-negotiable SQLite backup rules
+
+1. Never use plain `cp` on the live SQLite database while MARK-OS is running.
+2. Use SQLite's online backup API through `tools/backup_database.py`.
+3. Never restore directly over the configured live database file.
+4. Restore to a new filename, verify it, then switch `MARK_OS_DB_PATH` in a
+   controlled deployment.
+5. Keep at least one encrypted copy outside the Railway volume.
+6. Railway volume snapshots and logical SQLite backups complement each other.
+
+### Local backup and restore proof
+
+Create a backup:
+
+```bash
+python tools/backup_database.py
+```
+
+Find and verify the newest backup:
+
+```bash
+LATEST_BACKUP="$(ls -t data/backups/mark_os_*.sqlite3 | head -1)"
+echo "$LATEST_BACKUP"
+
+python tools/verify_database_backup.py \
+  --backup "$LATEST_BACKUP"
+```
+
+Restore into a new local database:
+
+```bash
+rm -f data/restore-test.sqlite3
+
+python tools/restore_database.py \
+  --backup "$LATEST_BACKUP" \
+  --destination data/restore-test.sqlite3
+```
+
+Start a temporary restored instance:
+
+```bash
+MARK_OS_DB_PATH="$PWD/data/restore-test.sqlite3" \
+uvicorn --env-file .env app.main:app \
+  --host 127.0.0.1 \
+  --port 8001
+```
+
+Verify `/health`, login, Users, CRM, workspace isolation, then stop the
+temporary instance.
+
+Automated release proof:
+
+```bash
+python tools/verify_phase_6_2_release.py \
+  --source-db data/mark_os.db \
+  --output-dir "$HOME/mark-os-release-evidence" \
+  --run-tests
+```
+
+Expected final status:
+
+```text
+Phase 6.2 verification PASSED
+```
+
+### Railway volume snapshot layer
+
+In Railway, keep the volume and database path aligned:
+
+```text
+RAILWAY_VOLUME_MOUNT_PATH=/app/data
+MARK_OS_DB_PATH=/app/data/mark_os.db
+MARK_OS_BACKUP_DIR=/app/data/backups
+```
+
+Create and retain a known-good manual volume snapshot and keep scheduled volume
+backups enabled. Volume snapshots are the preferred whole-volume rollback
+mechanism.
+
+### Railway verified SQLite online backup
+
+Link the CLI and open SSH:
+
+```bash
+railway login
+railway link
+railway service
+railway ssh
+```
+
+Inside Railway:
+
+```bash
+cd /app
+
+echo "$MARK_OS_DB_PATH"
+echo "$RAILWAY_VOLUME_MOUNT_PATH"
+
+python tools/backup_database.py \
+  --destination /app/data/backups \
+  --keep-last 14
+
+python tools/backup_status.py \
+  --directory /app/data/backups \
+  --max-age-hours 26
+```
+
+Copy the exact backup and manifest names printed by the command, then exit:
+
+```bash
+exit
+```
+
+Download both files:
+
+```bash
+mkdir -p "$HOME/mark-os-offsite/plaintext"
+
+railway service files download \
+  /app/data/backups/EXACT_BACKUP.sqlite3 \
+  "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3"
+
+railway service files download \
+  /app/data/backups/EXACT_BACKUP.sqlite3.json \
+  "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3.json"
+```
+
+Verify locally:
+
+```bash
+python tools/verify_database_backup.py \
+  --backup "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3"
+```
+
+The backup filename must continue to match the manifest.
+
+### Encrypted offsite copy
+
+Install GnuPG once on macOS:
+
+```bash
+brew install gnupg
+```
+
+Encrypt a verified downloaded backup:
+
+```bash
+mkdir -p "$HOME/mark-os-offsite/encrypted"
+
+python tools/encrypt_backup.py \
+  --backup "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3" \
+  --output "$HOME/mark-os-offsite/encrypted/EXACT_BACKUP.sqlite3.gpg"
+```
+
+Keep the `.gpg`, `.gpg.sha256`, and manifest in an offsite encrypted location.
+Never store the passphrase beside the backup.
+
+Test decryption before deleting plaintext:
+
+```bash
+gpg \
+  --output "$HOME/mark-os-offsite/restore-check.sqlite3" \
+  --decrypt "$HOME/mark-os-offsite/encrypted/EXACT_BACKUP.sqlite3.gpg"
+
+cp \
+  "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3.json" \
+  "$HOME/mark-os-offsite/restore-check.sqlite3.json"
+
+python tools/verify_database_backup.py \
+  --backup "$HOME/mark-os-offsite/restore-check.sqlite3"
+```
+
+If a temporary decrypted filename differs from the manifest filename, restore
+using the original filename in a temporary directory or follow the backup tool's
+manifest-validation rules. Do not weaken checksum verification merely to make a
+renamed file pass.
+
+### Production recovery from a logical SQLite backup
+
+Never overwrite `/app/data/mark_os.db` directly.
+
+On the Mac:
+
+```bash
+python tools/restore_database.py \
+  --backup "$HOME/mark-os-offsite/plaintext/EXACT_BACKUP.sqlite3" \
+  --destination "$HOME/mark-os-offsite/mark_os_recovered.sqlite3"
+```
+
+Upload the recovered file into a separate Railway path:
+
+```bash
+railway service files upload \
+  "$HOME/mark-os-offsite/mark_os_recovered.sqlite3" \
+  /app/data/restores/mark_os_recovered.sqlite3
+```
+
+Change the Railway variable to the recovered path:
+
+```text
+MARK_OS_DB_PATH=/app/data/restores/mark_os_recovered.sqlite3
+```
+
+Redeploy and verify `/health`, users, CRM records, playbooks, and workspace
+isolation. Roll back by switching `MARK_OS_DB_PATH` to the previous verified
+file. Do not delete either database until the recovery decision is final.
+
+### Backup freshness and failure visibility
+
+Logical backup events are recorded under the configured backup directory.
+Check freshness and integrity:
+
+```bash
+python tools/backup_status.py \
+  --directory /app/data/backups \
+  --max-age-hours 26
+```
+
+A non-zero result means the backup is missing, stale, corrupt, or inconsistent
+with its manifest and must be investigated.
+
+Keep completion evidence outside Git:
+
+```text
+full pytest result
+verification JSON report
+Railway snapshot date/evidence
+downloaded SQLite backup + manifest
+encrypted offsite copy + checksum
+successful decrypt-and-restore test
+recovery target path
+rollback path
+```
+
+## 20.5 Google Drive offsite backup extension
+
+The Google Drive extension uses the existing verified SQLite backup service and
+`tools/backup_to_google_drive.py`.
+
+### Local rclone setup
+
+Install rclone:
+
+```bash
+brew install rclone
+rclone config
+```
+
+Recommended remote configuration:
+
+```text
+Remote name: gdrive
+Storage: drive
+Client ID: your own Google OAuth desktop client ID
+Client secret: your own Google OAuth client secret
+Scope: drive.file
+Service account: blank
+Browser authorization: yes
+Shared Drive: no
+```
+
+Create the backup folder with rclone so `drive.file` can access it:
+
+```bash
+rclone mkdir gdrive:MARK-OS-Backups
+rclone lsd gdrive:
+```
+
+Test locally:
+
+```bash
+python tools/backup_to_google_drive.py \
+  --source "$PWD/data/mark_os.db"
+```
+
+### Railway configuration
+
+The Railway runtime needs rclone available:
+
+```text
+RAILPACK_DEPLOY_APT_PACKAGES=rclone
+```
+
+Application variables:
+
+```text
+MARK_OS_GDRIVE_REMOTE=gdrive
+MARK_OS_GDRIVE_FOLDER=MARK-OS-Backups
+MARK_OS_GDRIVE_KEEP_LAST=14
+MARK_OS_BACKUP_PREFIX=mark_os
+```
+
+Transfer the values from `rclone config show gdrive` into sealed Railway
+variables:
+
+```text
+RCLONE_CONFIG_GDRIVE_TYPE=drive
+RCLONE_CONFIG_GDRIVE_CLIENT_ID=<client id>
+RCLONE_CONFIG_GDRIVE_CLIENT_SECRET=<client secret>
+RCLONE_CONFIG_GDRIVE_SCOPE=drive.file
+RCLONE_CONFIG_GDRIVE_TOKEN=<complete token JSON>
+```
+
+Never commit the rclone configuration, OAuth client secret, or token.
+
+### Railway manual test
+
+```bash
+railway ssh
+```
+
+Inside Railway:
+
+```bash
+cd /app
+rclone version
+rclone lsd gdrive:
+
+python tools/backup_to_google_drive.py \
+  --source /app/data/mark_os.db
+
+rclone lsl gdrive:MARK-OS-Backups
+```
+
+A successful run must verify the remote transfer and remove temporary Railway
+backup files.
+
+### Scheduling constraint
+
+The production SQLite volume belongs to the MARK-OS web service. Do not assume
+a separate cron service can directly read that mounted volume.
+
+The documented safe future automation pattern is:
+
+```text
+Railway cron service
+        |
+        | authenticated request
+        v
+MARK-OS web service protected backup endpoint
+        |
+        +-- reads /app/data/mark_os.db
+        +-- creates verified temporary backup
+        +-- uploads to Google Drive
+        +-- removes temporary files
+```
+
+Add such an endpoint only as a separate reviewed capability. The current manual
+Google Drive backup procedure does not require it.
+
+## 20.6 Documentation cleanup history
+
+The following legacy documents were consolidated into this section and removed
+from the repository after their durable information was preserved:
+
+```text
+M10_INSTALL.md
+PHASE_6_1J_INSTALL.md
+PHASE_6_1_HI_RELEASE_RUNBOOK.md
+PHASE_6_2_BACKUP_RECOVERY.md
+PHASE_6_2_GOOGLE_DRIVE.md
+```
+
+Historical installer packaging commands, obsolete expected test counts, and
+one-time branch/ZIP extraction instructions were intentionally not retained.
+Git history remains the source for those implementation-era details.
 
 ---
 
