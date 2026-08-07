@@ -44,3 +44,6 @@ offsite_backups/
 
 # Phase 6.6B release rehearsal evidence
 .phase_6_6b_release/
+
+# Local MARK-OS development backups
+.mark_os_backups/
