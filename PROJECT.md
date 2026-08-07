@@ -4,10 +4,10 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.6A — Bulk Lead Import Preview and Row Validation
+**Immediate next milestone:** Phase 6.6B — Pendang CRM Workspace and Staff Launch
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 457 passed after frontend operational polish
+**Last verified full-suite baseline:** 460 passed after Phase 6.6A bulk import preview
 
 ---
 
@@ -864,16 +864,18 @@ timeline history.
 | Tested production backup and restore process | Phase 6.2 |
 | Due, overdue, waiting, and stale-lead command center | Phase 6.4 |
 | Production health and error alerts | Phase 6.5 |
-| Safe bulk preview, assignment, import, and export | Phase 6.6 |
+| Safe bulk preview, assignment, import, and export | Phase 6.6 (6.6C onward) |
+| Pendang CRM workspace and staff launch | Phase 6.6B |
 | Deterministic approved outreach templates | Phase 6.7 |
 | Research effort and webhook intake | Phase 6.8 |
 | Discovery, proposal, onboarding, and billing workflows | Trigger-based Phases 6.9–6.12 |
 | Delegated Relationship Manager outreach | Trigger-based Phase 6.13 |
 
-The next priority is Phase 6.6 Bulk Lead Management. The production system now
-has verified backup, auditable activity, deterministic follow-up, and lightweight
-observability, so the next business need is safe high-volume lead intake with
-preview, row validation, duplicate warnings, and permission-scoped assignment.
+The next priority is Phase 6.6B — Pendang CRM Workspace and Staff Launch.
+Phase 6.6A delivered safe CSV preview and row validation without blind writes.
+The production system now needs organization-scoped CRM workspaces so Pendang
+Research & Analytics can operate inside MARK-OS without a separate application,
+while remaining bulk-import work continues in later Phase 6.6 substeps.
 
 ---
 
@@ -1394,16 +1396,20 @@ correlation ID. Use View in Context only after identifying the safe event.
 7. Follow the Phase 6.2 recovery runbook rather than editing the live SQLite
    file during an incident.
 
-## Phase 6.6 — Bulk Lead Management
+## Phase 6.6 — Bulk Lead Management and CRM Workspaces
 
-**Status:** Active — immediate next milestone
+**Status:** Active — 6.6A complete; 6.6B is the immediate next milestone  
 **MoSCoW:** Should have soon
 
 ### Goal
 
-Allow staff to research and import many leads without unsafe blind writes.
+Allow staff to research and import many leads without unsafe blind writes, and
+operate separate CRM workspaces inside one MARK-OS deployment.
 
-### Workflow
+Pendang Research & Analytics must be implemented as a **workspace inside
+MARK-OS**. Do not create a separate PendangOS application.
+
+### Bulk import workflow
 
 ```text
 Upload CSV
@@ -1422,13 +1428,179 @@ Upload CSV
 - import preview that does not write;
 - row-level validation;
 - duplicate warnings before write;
+- organization-scoped duplicate detection;
 - selective import;
 - bulk researcher assignment;
 - bulk Business Development Owner assignment;
 - bulk submission for review;
 - permission-scoped CSV and JSON export;
 - approved-leads export;
-- downloadable CRM backup.
+- downloadable CRM backup;
+- CRM workspaces with server-side organization isolation.
+
+### Implementation progress
+
+- [x] 6.6A — Bulk lead import preview, row validation, and duplicate warnings
+      without database writes
+- [ ] 6.6B — Pendang CRM workspace and staff launch
+- [ ] 6.6C — Selective row import with permission-scoped assignment
+- [ ] 6.6D — Bulk submission, CSV/JSON export, and approved-leads export
+- [ ] 6.6E — Downloadable CRM backup and phase verification
+
+### Phase 6.6B — Pendang CRM Workspace and Staff Launch
+
+**Status:** Immediate next milestone  
+**MoSCoW:** Should have soon
+
+#### Goal
+
+Launch Pendang Research & Analytics as an organization-scoped CRM workspace
+inside MARK-OS, with the correct staff roles, queues, and server-side data
+isolation from MARK Agency.
+
+#### Required foundation
+
+1. Add `organizations` and `organization_memberships`.
+
+2. Seed these organizations idempotently:
+
+   ```text
+   mark-agency
+   pendang
+   ```
+
+3. Add `organization_id` to leads.
+
+4. Safely backfill every existing lead into `mark-agency`.
+
+   The backfill must preserve:
+
+   - lead IDs;
+   - quest relationships;
+   - ownership fields;
+   - research fields;
+   - timestamps;
+   - soft-delete state;
+   - existing CRM behavior.
+
+5. Enforce organization/workspace access on the server side.
+
+   Every relevant lead list, lead detail, queue, search, filter, mutation,
+   import, and duplicate check must respect organization scope.
+
+   Never depend only on hiding UI controls for isolation.
+
+6. **Mark role model**
+
+   - preserve Mark's existing global owner/admin authority;
+   - `membership_role = workspace_admin` in MARK Agency;
+   - `membership_role = workspace_admin` in Pendang;
+   - Mark may switch between authorized workspaces.
+
+7. **Pendang — Rey**
+
+   Rey must **not** receive the global owner role.
+
+   Use the least-privileged existing global role that allows CRM entry,
+   preferably:
+
+   ```text
+   global role = relationship_manager
+   Pendang membership_role = workspace_owner
+   ```
+
+   UI label:
+
+   ```text
+   Pendang Workspace Owner / Managing Director
+   ```
+
+   Rey is restricted to Pendang.
+
+   Rey must **not** have access to:
+
+   - MARK Agency private CRM data;
+   - Mark's private/family information;
+   - global user administration;
+   - global system settings.
+
+   Within Pendang, Rey may perform the Pendang owner actions defined by the
+   roadmap, including permitted research/outreach approvals and major pipeline
+   decisions.
+
+8. **Pendang — Freddy**
+
+   Freddy:
+
+   ```text
+   global role = lead_sourcer
+   Pendang membership_role = crm_contributor
+   ```
+
+   UI label:
+
+   ```text
+   Pendang Lead Researcher
+   ```
+
+   Freddy is restricted to Pendang and should receive only the CRM/research
+   capabilities required for that role.
+
+9. Keep **Business Development Owner** as a separate lead field.
+
+   Do not replace lead creator, researcher, assignee, or ownership/history
+   fields with the Business Development Owner field.
+
+10. Provide the minimal Pendang workspace-scoped CRM queues required for launch,
+    including the applicable:
+
+    ```text
+    Pending Research
+    Owner Review
+    Contacted
+    Follow-up
+    ```
+
+11. Duplicate detection must be organization-aware.
+
+    A lead in MARK Agency must not incorrectly block the same business from
+    being created in Pendang merely because the identity exists in another
+    organization, unless this document explicitly defines a global duplicate
+    rule.
+
+12. Keep the existing stack:
+
+    ```text
+    FastAPI
+    HTMX
+    Bulma
+    SQLite
+    ```
+
+    Do not migrate to Django, React, PostgreSQL, or another stack.
+
+13. Preserve SQLite production safeguards:
+
+    - WAL journal mode;
+    - busy timeout on every database connection;
+    - short write transactions;
+    - optimistic edit protection where concurrent edits can occur;
+    - exactly one Railway application instance while production uses SQLite.
+
+#### Definition of done
+
+- organizations and memberships exist with idempotent seed data for
+  `mark-agency` and `pendang`;
+- every existing lead is backfilled to `mark-agency` without ID or relationship
+  loss;
+- Mark can switch between authorized workspaces;
+- Rey and Freddy are restricted to Pendang with the defined role model;
+- MARK Agency CRM data is not visible to Pendang-only staff through routes,
+  services, imports, or duplicate checks;
+- Pendang workspace queues render with organization-scoped counts and records;
+- duplicate detection is scoped to the active organization;
+- relevant permission and isolation tests pass;
+- full test suite passes.
 
 ## Phase 6.7 — Outreach Templates and Approval Controls
 
@@ -2729,7 +2901,8 @@ backup.
 
 ## Should have soon
 
-- Phase 6.6 bulk preview, validation, assignment, import, and export;
+- Phase 6.6B Pendang CRM workspace and staff launch;
+- Phase 6.6 bulk selective import, assignment, export, and backup (6.6C onward);
 - Phase 6.7 deterministic approved outreach templates;
 - Phase 6.8 effort tracking and authenticated webhook intake;
 - Phase 7.1 security and audit hardening after the immediate operational risks;
@@ -2802,7 +2975,7 @@ backup.
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
 | Phase 6.4 | Complete | Follow-up Command Center, role-scoped filters, Manila boundaries, and safe empty states |
 | Phase 6.5 | Complete | Structured errors, correlation IDs, database-aware health, backup and uptime alerts, 24-hour count, and Railway runbook |
-| Phase 6.6 | Active — immediate next milestone | Bulk Lead Management |
+| Phase 6.6 | Active — 6.6A complete; 6.6B next | Bulk lead preview (6.6A complete); Pendang CRM workspace launch (6.6B next); remaining bulk import/export work (6.6C onward) |
 | Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
 | Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
 | Phase 6.9 | Trigger-based | Discovery and Qualification |

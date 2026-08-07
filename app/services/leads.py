@@ -272,6 +272,38 @@ def _normalize_lead_fields(
     return values
 
 
+def normalize_lead_field_values(
+    *,
+    company: str,
+    contact_person: str,
+    source: str,
+    problem_opportunity: str,
+    why_mark_fits: str,
+    next_action: str,
+    job_title: str = "",
+    source_url: str = "",
+    pipeline_status: str = "new",
+    priority: str = "medium",
+    next_action_due_date: str | None = None,
+    notes: str = "",
+) -> dict[str, str | None]:
+    """Validate and normalize lead fields without writing to the database."""
+    return _normalize_lead_fields(
+        company=company,
+        contact_person=contact_person,
+        job_title=job_title,
+        source=source,
+        source_url=source_url,
+        problem_opportunity=problem_opportunity,
+        why_mark_fits=why_mark_fits,
+        pipeline_status=pipeline_status,
+        priority=priority,
+        next_action=next_action,
+        next_action_due_date=next_action_due_date,
+        notes=notes,
+    )
+
+
 @contextmanager
 def _write_unit(db: sqlite3.Connection) -> Iterator[None]:
     # Read-after-lock prevents two requests from deriving full lead/quest state
@@ -391,6 +423,13 @@ def _get_active_lead_by_dedupe_key(
         "SELECT * FROM leads WHERE dedupe_key = ? AND deleted_at IS NULL",
         (dedupe_key,),
     ).fetchone()
+
+
+def find_active_lead_by_dedupe_key(
+    db: sqlite3.Connection,
+    dedupe_key: str,
+) -> sqlite3.Row | None:
+    return _get_active_lead_by_dedupe_key(db, dedupe_key)
 
 
 def _existing_create_result(

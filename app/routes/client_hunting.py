@@ -31,6 +31,7 @@ from app.services.lead_csv_import import (
     LeadCsvImportError,
     import_leads_from_csv,
     lead_csv_template_bytes,
+    preview_leads_from_csv,
 )
 from app.services.access_control import (
     is_lead_sourcer,
@@ -310,6 +311,7 @@ def _add_leads_context(
     request: Request,
     *,
     import_result=None,
+    import_preview=None,
     import_error: str | None = None,
 ) -> dict:
     return {
@@ -317,6 +319,7 @@ def _add_leads_context(
         "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
         "error": _message(ERROR_MESSAGES, request.query_params.get("error")),
         "import_result": import_result,
+        "import_preview": import_preview,
         "import_error": import_error,
         "csv_headers": CSV_HEADERS,
         "max_csv_rows": MAX_CSV_ROWS,
@@ -439,6 +442,66 @@ def download_lead_csv_template():
             ),
             "X-Content-Type-Options": "nosniff",
         },
+    )
+
+
+@router.post("/leads/import/preview", response_class=HTMLResponse)
+async def preview_leads_csv(
+    request: Request,
+    csv_file: UploadFile = File(...),
+):
+    filename = (csv_file.filename or "").strip()
+    content = b""
+    import_error: str | None = None
+    import_preview = None
+
+    try:
+        if not filename.lower().endswith(".csv"):
+            raise LeadCsvImportError("Choose a file with a .csv extension.")
+
+        content = await csv_file.read(MAX_CSV_BYTES + 1)
+        if len(content) > MAX_CSV_BYTES:
+            raise LeadCsvImportError(
+                f"The CSV is too large. The maximum size is "
+                f"{MAX_CSV_BYTES // 1_000_000} MB."
+            )
+    except LeadCsvImportError as exc:
+        import_error = str(exc)
+    finally:
+        await csv_file.close()
+
+    with get_db() as db:
+        if import_error is None:
+            try:
+                import_preview = preview_leads_from_csv(
+                    db,
+                    content,
+                    pipeline_status_override=(
+                        "new"
+                        if (
+                            is_lead_sourcer(request.state.current_user)
+                            or is_relationship_manager(
+                                request.state.current_user
+                            )
+                        )
+                        else None
+                    ),
+                )
+            except LeadCsvImportError as exc:
+                import_error = str(exc)
+
+        context = _add_leads_context(
+            db,
+            request,
+            import_preview=import_preview,
+            import_error=import_error,
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="add_leads.html",
+        context=context,
+        status_code=400 if import_error else 200,
     )
 
 

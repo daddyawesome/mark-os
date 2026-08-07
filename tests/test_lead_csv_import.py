@@ -8,6 +8,7 @@ from app.services.lead_csv_import import (
     LeadCsvImportError,
     import_leads_from_csv,
     lead_csv_template_bytes,
+    preview_leads_from_csv,
 )
 
 
@@ -168,3 +169,89 @@ def test_csv_import_rejects_missing_headers(tmp_path, monkeypatch):
     with database.get_db() as db:
         with pytest.raises(LeadCsvImportError, match="Why Mark fits"):
             import_leads_from_csv(db, content)
+
+
+def test_csv_preview_validates_rows_without_writing(tmp_path, monkeypatch):
+    database_path = tmp_path / "preview.db"
+    monkeypatch.setattr(database, "DB_PATH", database_path)
+    database.init_db()
+
+    rows = _valid_rows()
+    rows.append(
+        [
+            "",
+            "Missing Company",
+            "",
+            "LinkedIn",
+            "",
+            "Needs reporting help.",
+            "Good fit.",
+            "New",
+            "High",
+            "Send message",
+            "2026-08-05",
+            "",
+        ]
+    )
+    content = _csv_bytes(rows)
+
+    with database.get_db() as db:
+        lead_count_before = db.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+        preview = preview_leads_from_csv(db, content)
+        lead_count_after = db.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+
+    assert preview.total_rows == 3
+    assert preview.valid_count == 2
+    assert preview.invalid_count == 1
+    assert preview.duplicate_count == 0
+    assert lead_count_before == lead_count_after == 0
+
+    invalid = [row for row in preview.rows if row.status == "invalid"]
+    assert len(invalid) == 1
+    assert invalid[0].row_number == 4
+    assert "Company is required" in (invalid[0].message or "")
+
+
+def test_csv_preview_warns_about_existing_leads(tmp_path, monkeypatch):
+    database_path = tmp_path / "preview-duplicate.db"
+    monkeypatch.setattr(database, "DB_PATH", database_path)
+    database.init_db()
+
+    content = _csv_bytes(_valid_rows())
+
+    with database.get_db() as db:
+        import_leads_from_csv(db, content)
+        preview = preview_leads_from_csv(db, content)
+        lead_count = db.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+
+    assert lead_count == 2
+    assert preview.valid_count == 0
+    assert preview.duplicate_count == 2
+    assert all(row.status == "duplicate_existing" for row in preview.rows)
+    assert all(row.duplicate_lead_id is not None for row in preview.rows)
+
+
+def test_csv_preview_warns_about_repeated_rows_in_file(tmp_path, monkeypatch):
+    database_path = tmp_path / "preview-in-file-duplicate.db"
+    monkeypatch.setattr(database, "DB_PATH", database_path)
+    database.init_db()
+
+    rows = _valid_rows()
+    rows.append(rows[0])
+    content = _csv_bytes(rows)
+
+    with database.get_db() as db:
+        preview = preview_leads_from_csv(db, content)
+        lead_count = db.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+
+    assert preview.total_rows == 3
+    assert preview.valid_count == 2
+    assert preview.duplicate_count == 1
+    assert lead_count == 0
+
+    duplicate_rows = [
+        row for row in preview.rows if row.status == "duplicate_in_file"
+    ]
+    assert len(duplicate_rows) == 1
+    assert duplicate_rows[0].row_number == 4
+    assert duplicate_rows[0].duplicate_row_number == 2

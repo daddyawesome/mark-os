@@ -6,7 +6,11 @@ import io
 import sqlite3
 from dataclasses import dataclass
 
-from app.services.leads import create_lead
+from app.services.leads import (
+    create_lead,
+    find_active_lead_by_dedupe_key,
+    normalize_lead_field_values,
+)
 
 
 MAX_CSV_BYTES = 1_000_000
@@ -61,6 +65,30 @@ class LeadCsvImportResult:
     duplicate_count: int
     invalid_count: int
     errors: tuple[LeadCsvRowError, ...]
+
+
+@dataclass(frozen=True)
+class LeadCsvPreviewRow:
+    row_number: int
+    company: str
+    contact_person: str
+    source: str
+    pipeline_status: str
+    priority: str
+    status: str
+    message: str | None = None
+    duplicate_lead_id: int | None = None
+    duplicate_row_number: int | None = None
+
+
+@dataclass(frozen=True)
+class LeadCsvPreviewResult:
+    file_digest: str
+    total_rows: int
+    valid_count: int
+    invalid_count: int
+    duplicate_count: int
+    rows: tuple[LeadCsvPreviewRow, ...]
 
 
 def _normalized_header(value: str) -> str:
@@ -158,6 +186,123 @@ def _read_rows(content: bytes) -> tuple[list[tuple[int, dict[str, str]]], str]:
 
     file_digest = hashlib.sha256(content).hexdigest()
     return rows, file_digest
+
+
+def preview_leads_from_csv(
+    db: sqlite3.Connection,
+    content: bytes,
+    *,
+    pipeline_status_override: str | None = None,
+) -> LeadCsvPreviewResult:
+    """Parse and validate CSV rows without writing leads or quests."""
+    rows, file_digest = _read_rows(content)
+    preview_rows: list[LeadCsvPreviewRow] = []
+    seen_dedupe_keys: dict[str, int] = {}
+    valid_count = 0
+    invalid_count = 0
+    duplicate_count = 0
+
+    for row_number, values in rows:
+        try:
+            normalized = normalize_lead_field_values(
+                company=values["company"],
+                contact_person=values["contact_person"],
+                job_title=values["job_title"],
+                source=values["source"],
+                source_url=values["source_url"],
+                problem_opportunity=values["problem_opportunity"],
+                why_mark_fits=values["why_mark_fits"],
+                pipeline_status=(
+                    pipeline_status_override
+                    or values["pipeline_status"]
+                    or "new"
+                ),
+                priority=values["priority"] or "medium",
+                next_action=values["next_action"],
+                next_action_due_date=values["next_action_due_date"] or None,
+                notes=values["notes"],
+            )
+        except ValueError as exc:
+            invalid_count += 1
+            preview_rows.append(
+                LeadCsvPreviewRow(
+                    row_number=row_number,
+                    company=values["company"],
+                    contact_person=values["contact_person"],
+                    source=values["source"],
+                    pipeline_status=values["pipeline_status"] or "new",
+                    priority=values["priority"] or "medium",
+                    status="invalid",
+                    message=str(exc),
+                )
+            )
+            continue
+
+        dedupe_key = str(normalized["dedupe_key"])
+        duplicate_in_file = seen_dedupe_keys.get(dedupe_key)
+        if duplicate_in_file is not None:
+            duplicate_count += 1
+            preview_rows.append(
+                LeadCsvPreviewRow(
+                    row_number=row_number,
+                    company=str(normalized["company"]),
+                    contact_person=str(normalized["contact_person"]),
+                    source=str(normalized["source"]),
+                    pipeline_status=str(normalized["pipeline_status"]),
+                    priority=str(normalized["priority"]),
+                    status="duplicate_in_file",
+                    message=(
+                        f"Duplicate of CSV row {duplicate_in_file} "
+                        f"({normalized['company']})."
+                    ),
+                    duplicate_row_number=duplicate_in_file,
+                )
+            )
+            continue
+
+        existing = find_active_lead_by_dedupe_key(db, dedupe_key)
+        if existing is not None:
+            duplicate_count += 1
+            preview_rows.append(
+                LeadCsvPreviewRow(
+                    row_number=row_number,
+                    company=str(normalized["company"]),
+                    contact_person=str(normalized["contact_person"]),
+                    source=str(normalized["source"]),
+                    pipeline_status=str(normalized["pipeline_status"]),
+                    priority=str(normalized["priority"]),
+                    status="duplicate_existing",
+                    message=(
+                        f"Matches existing lead #{existing['id']} "
+                        f"({existing['company']})."
+                    ),
+                    duplicate_lead_id=int(existing["id"]),
+                )
+            )
+            continue
+
+        seen_dedupe_keys[dedupe_key] = row_number
+        valid_count += 1
+        preview_rows.append(
+            LeadCsvPreviewRow(
+                row_number=row_number,
+                company=str(normalized["company"]),
+                contact_person=str(normalized["contact_person"]),
+                source=str(normalized["source"]),
+                pipeline_status=str(normalized["pipeline_status"]),
+                priority=str(normalized["priority"]),
+                status="valid",
+            )
+        )
+
+    return LeadCsvPreviewResult(
+        file_digest=file_digest,
+        total_rows=len(rows),
+        valid_count=valid_count,
+        invalid_count=invalid_count,
+        duplicate_count=duplicate_count,
+        rows=tuple(preview_rows),
+    )
 
 
 def import_leads_from_csv(

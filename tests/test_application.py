@@ -44,6 +44,7 @@ EXPECTED_ROUTES = [
     ("GET", "/crm/follow-ups", "follow_up_command_center_page"),
     ("GET", "/crm/leads/new", "new_lead_page"),
     ("GET", "/crm/leads/import/template", "download_lead_csv_template"),
+    ("POST", "/crm/leads/import/preview", "preview_leads_csv"),
     ("POST", "/crm/leads/import", "import_leads_csv"),
     ("POST", "/crm/leads", "create_lead"),
     ("GET", "/crm/leads/{lead_id}", "lead_detail"),

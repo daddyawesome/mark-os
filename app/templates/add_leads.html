@@ -27,6 +27,115 @@
 </div>
 {% endif %}
 
+{% if import_preview %}
+<div class="notification {% if import_preview.invalid_count or import_preview.duplicate_count %}is-warning is-light{% else %}is-success is-light{% endif %}">
+    <p class="has-text-weight-bold mb-2">CSV preview ready.</p>
+    <p>
+        {{ import_preview.valid_count }} valid ·
+        {{ import_preview.duplicate_count }} duplicate warnings ·
+        {{ import_preview.invalid_count }} invalid ·
+        {{ import_preview.total_rows }} rows parsed
+    </p>
+    <p class="mark-muted is-size-7 mt-2">
+        Nothing has been saved yet. Review the rows below before importing in a later step.
+    </p>
+</div>
+
+{% set valid_rows = import_preview.rows | selectattr('status', 'equalto', 'valid') | list %}
+{% if valid_rows %}
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">Ready to import</p>
+    <h2 class="title is-4">Valid rows</h2>
+    <div class="table-container">
+        <table class="table is-fullwidth is-striped">
+            <thead>
+                <tr>
+                    <th>CSV row</th>
+                    <th>Company</th>
+                    <th>Contact</th>
+                    <th>Source</th>
+                    <th>Pipeline</th>
+                    <th>Priority</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in valid_rows %}
+                <tr>
+                    <td>{{ row.row_number }}</td>
+                    <td>{{ row.company }}</td>
+                    <td>{{ row.contact_person }}</td>
+                    <td>{{ row.source }}</td>
+                    <td>{{ row.pipeline_status | replace('_', ' ') | title }}</td>
+                    <td>{{ row.priority | title }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% set duplicate_rows = import_preview.rows | rejectattr('status', 'equalto', 'valid') | rejectattr('status', 'equalto', 'invalid') | list %}
+{% if duplicate_rows %}
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">Duplicate warnings</p>
+    <h2 class="title is-4">Rows that match existing or repeated leads</h2>
+    <div class="table-container">
+        <table class="table is-fullwidth">
+            <thead>
+                <tr>
+                    <th>CSV row</th>
+                    <th>Company</th>
+                    <th>Contact</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in duplicate_rows %}
+                <tr>
+                    <td>{{ row.row_number }}</td>
+                    <td>{{ row.company }}</td>
+                    <td>{{ row.contact_person }}</td>
+                    <td>{{ row.message }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% set invalid_rows = import_preview.rows | selectattr('status', 'equalto', 'invalid') | list %}
+{% if invalid_rows %}
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">Fix before import</p>
+    <h2 class="title is-4">Invalid rows</h2>
+    <div class="table-container">
+        <table class="table is-fullwidth">
+            <thead>
+                <tr>
+                    <th>CSV row</th>
+                    <th>Company</th>
+                    <th>Contact</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in invalid_rows %}
+                <tr>
+                    <td>{{ row.row_number }}</td>
+                    <td>{{ row.company or "—" }}</td>
+                    <td>{{ row.contact_person or "—" }}</td>
+                    <td>{{ row.message }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
 {% if import_result %}
 <div class="notification {% if import_result.invalid_count %}is-warning is-light{% else %}is-success is-light{% endif %}">
     <p class="has-text-weight-bold mb-2">CSV import finished.</p>
@@ -86,7 +195,7 @@
                 with a maximum size of {{ max_csv_size_mb }} MB.
             </p>
 
-            <form method="post" action="/crm/leads/import" enctype="multipart/form-data">
+            <form method="post" action="/crm/leads/import/preview" enctype="multipart/form-data">
                 <div class="field">
                     <label class="label" for="csv_file">Lead CSV</label>
                     <div class="file has-name is-fullwidth">
@@ -99,7 +208,7 @@
                         </label>
                     </div>
                 </div>
-                <button class="button is-mark is-fullwidth mt-4" type="submit">Import Leads + Create Quests</button>
+                <button class="button is-mark is-fullwidth mt-4" type="submit">Preview CSV</button>
             </form>
 
             <a class="button is-light is-fullwidth mt-3" href="/crm/leads/import/template">
