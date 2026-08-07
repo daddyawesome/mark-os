@@ -41,3 +41,6 @@ data/restore-test.sqlite3
 offsite_backups/
 *.gpg
 *.gpg.sha256
+
+# Phase 6.6B release rehearsal evidence
+.phase_6_6b_release/

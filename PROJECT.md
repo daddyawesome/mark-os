@@ -4,7 +4,61 @@
 **Repository:** `https://github.com/daddyawesome/mark-os`  
 **Reviewed against `main`:** 2026-08-06
 **Current active phase:** Phase 6 — Agency Operations and Production Safety  
-**Immediate next milestone:** Phase 6.6B-8 — Workspace Isolation and Concurrency Acceptance
+**Immediate next milestone:** Phase 6.6B-8B — Production-Copy Migration Rehearsal
+
+<!-- PHASE_6_6B8A_COMPLETION_START -->
+**6.6B-8A Status: ✅ ACCEPTANCE HARNESS READY — Production-Copy Rehearsal Required**
+
+Completed:
+- Added `tools/verify_phase_6_6b_release.py`.
+- Added a bounded Phase 6.6B acceptance pytest gate covering:
+  - organization migrations;
+  - workspace-scoped lead identity;
+  - runtime CRM workspace isolation;
+  - Pendang membership authority;
+  - Pendang launch/workspace UI;
+  - optimistic edit protection;
+  - Follow-up Command Center acceptance;
+  - atomic Contacted transition;
+  - CSV import/preview behavior;
+  - Relationship Manager behavior;
+  - security acceptance;
+  - application/direct-route behavior.
+- The release verifier creates a verified SQLite **online backup** from the
+  supplied source database instead of copying only a live `.db` file.
+- The verifier restores that backup into a new isolated rehearsal database.
+- Current MARK-OS migrations run only against the restored rehearsal copy.
+- Rehearsal verifies:
+  - source/backup/final `PRAGMA quick_check`;
+  - `PRAGMA foreign_key_check`;
+  - backup manifest checksum and file size;
+  - preservation of existing lead business fields, IDs, quest links, activity
+    IDs/lead links, and protected row counts;
+  - `mark-agency` and `pendang` seed state;
+  - non-null lead `organization_id`;
+  - valid lead `row_version`;
+  - workspace-scoped active dedupe index;
+  - independently revocable membership `active` state;
+  - active global Owner `workspace_admin` membership in both core workspaces;
+  - file-backed WAL mode;
+  - non-zero SQLite busy timeout;
+  - application `/health` against the rehearsed database.
+- Rehearsal output is written under `.phase_6_6b_release/`, which is ignored by
+  Git.
+- The verifier report intentionally leaves production-only/manual release gates
+  unchecked rather than falsely marking them complete.
+
+**Required next gate: 6.6B-8B — Production-Copy Migration Rehearsal**
+- Obtain a safe verified copy/backup of the Railway production SQLite database.
+- Run:
+  `python tools/verify_phase_6_6b_release.py --source-db <SAFE_COPY> --run-tests --full-suite`
+- Keep the generated JSON report as release evidence outside Git.
+- Confirm Railway is using exactly one application instance while SQLite is the
+  production database.
+- Confirm the production persistent-volume DB path and rollback backup.
+- Do not onboard Rey or Freddy until this rehearsal passes.
+<!-- PHASE_6_6B8A_COMPLETION_END -->
+
 
 <!-- PHASE_6_6B7_COMPLETION_START -->
 **6.6B-7 Status: ✅ COMPLETE — Optimistic CRM Edit Protection**
@@ -301,7 +355,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 519 passed after Phase 6.6B-7 optimistic CRM edit protection
+**Last verified full-suite baseline:** 522 passed after Phase 6.6B-8A acceptance/rehearsal harness
 
 ---
 
@@ -3301,6 +3355,38 @@ backup.
 
 
 
+
+
+## 2026-08-07 — Require production-copy rehearsal before Pendang onboarding
+
+**Decision:**
+
+- split final Phase 6.6B acceptance into a code/harness gate and a real
+  production-copy rehearsal gate;
+- never mark migration rehearsal complete merely because temporary pytest
+  databases pass;
+- use the existing SQLite online-backup API to capture a source safely,
+  including WAL-backed databases;
+- restore to a new file and run current migrations only on that restored copy;
+- compare existing lead business fields, IDs, quest links, activity links, and
+  protected row counts before and after migration;
+- verify workspace schema, row versions, scoped dedupe protection, revocable
+  memberships, WAL, busy timeout, integrity, foreign keys, and `/health`;
+- keep Railway replica count, production volume/path confirmation, controlled
+  deploy window, actual staff onboarding, real Pendang leads, and post-deploy
+  health as explicit manual gates;
+- store rehearsal artifacts in a Git-ignored local evidence directory.
+
+**Reason:**
+
+- Phase 6.6B changes production schema, authorization, routing, and concurrency
+  behavior at the same time;
+- synthetic test databases cannot prove that the real production dataset will
+  migrate without unexpected legacy state;
+- SQLite WAL databases must be backed up through a verified online-backup path,
+  not by copying only the main database file;
+- explicit unchecked manual gates prevent documentation from claiming a
+  production launch that has not actually happened.
 
 ## 2026-08-07 — Reject stale CRM lead writes with an explicit row version
 
