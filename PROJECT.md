@@ -64,7 +64,7 @@ Completed foundation:
 
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 460 passed after Phase 6.6A bulk import preview
+**Last verified full-suite baseline:** 479 passed after Orbit-inspired Forest Fieldbook UI
 
 ---
 
@@ -3058,6 +3058,39 @@ backup.
 
 
 
+
+
+## 2026-08-07 — Adopt the Orbit-inspired Forest Fieldbook visual system
+
+**Decision:**
+
+- keep the existing FastAPI, Jinja, HTMX, Bulma, SQLite, and server-rendered
+  MARK-OS architecture;
+- add a Forest Fieldbook visual layer inspired by Orbit's human-centered
+  notebook interface;
+- use warm paper surfaces, deep pine navigation, moss/fern accents, subtle
+  paper texture, irregular borders, and solid offset shadows;
+- use small sticky-note treatments for dashboard metrics while keeping tables,
+  forms, permissions, dates, and CRM records visually stable and unrotated;
+- use tactile button press states without changing route or HTMX behavior;
+- add a read-only workspace context strip before Phase 6.6B workspace switching
+  is implemented;
+- preserve the existing responsive CRM hero contract, accessibility focus
+  states, and reduced-motion behavior;
+- record Orbit as design inspiration in `THIRD_PARTY_NOTICES.md`;
+- do not copy Orbit's Astro/Preact runtime, Markdown database, or task
+  drag-and-drop architecture.
+
+**Reason:**
+
+- MARK-OS should feel like a human-owned field notebook rather than a generic
+  enterprise or AI dashboard;
+- the visual language gives MARK Agency and Pendang a memorable shared shell
+  before organization-scoped CRM UI is completed;
+- controlled irregularity adds personality without sacrificing operational
+  readability;
+- the read-only workspace strip makes organization context visible without
+  prematurely introducing authorization-sensitive switching behavior.
 
 ## 2026-08-07 — Adopt a calm operational frontend baseline
 

@@ -19,7 +19,7 @@ def test_operational_ui_css_is_loaded_and_cache_busted():
     )
 
     assert (
-        "/static/css/mark-os-frontend.css?v=20260807-1"
+        "/static/css/mark-os-frontend.css?v=20260807-2"
         in base
     )
     assert (
@@ -52,7 +52,7 @@ def test_login_uses_shared_design_system_and_generic_copy():
     login = _read("app/templates/login.html")
 
     assert (
-        "/static/css/mark-os-frontend.css?v=20260807-1"
+        "/static/css/mark-os-frontend.css?v=20260807-2"
         in login
     )
     assert "<style>" not in login
@@ -71,7 +71,7 @@ def test_sidebar_brand_uses_product_not_release_jargon():
     base = _read("app/templates/base.html")
 
     assert "v0.4.0-family-workspaces" not in base
-    assert "<small>Operating workspace</small>" in base
+    assert "<small>Forest fieldbook</small>" in base
 
 
 def test_crm_copy_is_shorter_and_operational():
