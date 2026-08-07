@@ -7,7 +7,7 @@
 **Immediate next milestone:** Phase 6.6A — Bulk Lead Import Preview and Row Validation
 **Production deployment:** Railway  
 **Primary database:** SQLite on a persistent Railway volume  
-**Last verified full-suite baseline:** 452 passed after Phase 6.5 and CRM hero UI hotfix
+**Last verified full-suite baseline:** 457 passed after frontend operational polish
 
 ---
 
@@ -2827,6 +2827,39 @@ backup.
 
 
 
+
+
+## 2026-08-07 — Adopt a calm operational frontend baseline
+
+**Decision:**
+
+- use the repo-local `mark-os-ui` and `mark-os-htmx` skills as the frontend
+  review contract;
+- keep FastAPI, Jinja, HTMX, Bulma, and project-owned CSS;
+- simplify the application from a glowing, marketing-like dashboard treatment
+  toward a calmer operations interface;
+- remove the decorative grid overlay and reduce gradients, glow, large shadows,
+  oversized radii, and excessive uppercase treatment;
+- preserve the existing sidebar information architecture;
+- use clearer focus states, calmer dark controls, restrained status surfaces,
+  and reduced-motion support;
+- shorten CRM headings and descriptive copy so the page emphasizes business
+  state and actions;
+- make sign-in copy generic for all authorized MARK-OS users rather than
+  addressing Mark specifically;
+- keep the existing responsive CRM hero contract and make the visual pass work
+  at the content width left by the sidebar.
+
+**Reason:**
+
+- MARK-OS is now a multi-user operating tool rather than a single-user visual
+  prototype;
+- the existing green glow, grid background, large rounded surfaces, and
+  marketing copy compete with CRM information;
+- Rey, Freddy, Mark, and future staff need predictable operational screens
+  more than decorative presentation;
+- a shared CSS baseline reduces future one-off styling and gives Phase 6.6
+  workspace UI a stable foundation.
 
 ## 2026-08-06 — Keep CRM hero copy independent from action width
 

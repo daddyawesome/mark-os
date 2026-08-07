@@ -4,7 +4,7 @@
 <section class="mark-hero p-6 mb-5">
     <div class="is-flex is-justify-content-space-between is-align-items-flex-start is-flex-wrap-wrap">
         <div>
-            <p class="mark-kicker">Client Hunting // Lead {{ lead.id }}</p>
+            <p class="mark-kicker">CRM · Lead {{ lead.id }}</p>
             <h1 class="title is-1 mb-2">{{ lead.company }}</h1>
             <p class="subtitle is-5 mark-muted">{{ lead.contact_person }}{% if lead.job_title %} · {{ lead.job_title }}{% endif %}</p>
             <div class="tags">
@@ -100,8 +100,8 @@
     <div class="column is-5">
         {% if can_manage_crm %}
         <div class="mark-card p-5 mb-5">
-            <p class="mark-kicker">Quick Update</p>
-            <h2 class="title is-4">Move the pipeline.</h2>
+            <p class="mark-kicker">Quick update</p>
+            <h2 class="title is-4">Pipeline</h2>
             <form method="post" action="/crm/leads/{{ lead.id }}/pipeline">
                 <div class="field">
                     <label class="label" for="pipeline_status">Pipeline status</label>
@@ -125,8 +125,8 @@
 
         {% if can_update_next_action %}
         <div class="mark-card p-5 mb-5">
-            <p class="mark-kicker">Next Move</p>
-            <h2 class="title is-4">Keep momentum visible.</h2>
+            <p class="mark-kicker">Next move</p>
+            <h2 class="title is-4">Next action</h2>
             <form method="post" action="/crm/leads/{{ lead.id }}/next-action">
                 <div class="field">
                     <label class="label" for="next_action">Next action</label>

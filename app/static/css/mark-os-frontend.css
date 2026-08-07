@@ -667,3 +667,511 @@ a:hover {
         margin-left: 0;
     }
 }
+
+/* MARK-OS operational UI baseline — 2026-08-07.
+   Calm, data-first surfaces for daily work. */
+:root {
+    --mark-bg: #08110c;
+    --mark-surface: #0d1a12;
+    --mark-surface-raised: #112219;
+    --mark-surface-soft: #14281d;
+    --mark-border: rgba(183, 217, 197, 0.16);
+    --mark-border-strong: rgba(183, 217, 197, 0.28);
+    --mark-text: #edf7f0;
+    --mark-text-muted: #a8c5b2;
+    --mark-accent: #56d893;
+    --mark-accent-strong: #6ee3a4;
+    --mark-danger: #ff7f87;
+    --mark-radius-sm: 0.55rem;
+    --mark-radius-md: 0.8rem;
+    --mark-radius-lg: 1rem;
+}
+
+html {
+    background: var(--mark-bg);
+}
+
+body {
+    color: var(--mark-text);
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    background:
+        linear-gradient(
+            180deg,
+            #08110c 0%,
+            #0a1510 42%,
+            #08110c 100%
+        );
+}
+
+body::before {
+    display: none;
+}
+
+a {
+    color: var(--mark-accent-strong);
+}
+
+a:hover {
+    color: #ffffff;
+}
+
+:where(
+    a,
+    button,
+    input,
+    textarea,
+    select,
+    summary
+):focus-visible {
+    outline: 3px solid rgba(110, 227, 164, 0.52);
+    outline-offset: 2px;
+}
+
+.mark-container {
+    max-width: 1320px;
+    padding-top: 1.75rem;
+}
+
+.mark-sidebar {
+    background: #09150f;
+    border-right-color: var(--mark-border);
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.mark-sidebar-brand {
+    min-height: 70px;
+}
+
+.mark-brand-orb {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.7rem;
+    background: var(--mark-accent);
+    box-shadow: none;
+}
+
+.mark-sidebar-brand-copy strong {
+    letter-spacing: 0.035em;
+}
+
+.mark-sidebar-brand-copy small {
+    color: var(--mark-text-muted);
+    letter-spacing: 0.01em;
+}
+
+.mark-sidebar-label {
+    color: var(--mark-text-muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+}
+
+.mark-sidebar-link,
+.mark-sidebar-summary {
+    border-radius: var(--mark-radius-sm);
+    font-weight: 650;
+    transition:
+        color 120ms ease,
+        background-color 120ms ease,
+        border-color 120ms ease;
+}
+
+.mark-sidebar-link:hover,
+.mark-sidebar-summary:hover {
+    transform: none;
+    border-color: var(--mark-border);
+    background: rgba(86, 216, 147, 0.07);
+}
+
+.mark-sidebar-link.is-active,
+.mark-sidebar-summary.is-active {
+    color: #ffffff;
+    border-color: rgba(86, 216, 147, 0.34);
+    background: rgba(86, 216, 147, 0.13);
+    box-shadow: none;
+}
+
+.mark-sidebar-footer {
+    background: #08120d;
+}
+
+.mark-sidebar-level,
+.mark-sidebar-user {
+    border-color: var(--mark-border);
+    border-radius: var(--mark-radius-sm);
+    background: var(--mark-surface);
+}
+
+.mark-sidebar-level {
+    color: var(--mark-text-muted);
+    letter-spacing: 0.03em;
+}
+
+.mark-sidebar-user span {
+    color: var(--mark-text-muted);
+    letter-spacing: 0.035em;
+    text-transform: none;
+}
+
+.mark-hero {
+    border-color: var(--mark-border);
+    border-radius: var(--mark-radius-lg);
+    background: var(--mark-surface);
+    box-shadow: none;
+}
+
+.mark-hero.p-6 {
+    padding: 2rem !important;
+}
+
+.mark-hero .title.is-1 {
+    max-width: 20ch;
+    font-size: clamp(2rem, 4vw, 3.3rem);
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+}
+
+.mark-hero .subtitle {
+    max-width: 66ch;
+    color: var(--mark-text-muted);
+}
+
+.mark-card,
+.box.mark-card,
+.card.mark-card {
+    color: var(--mark-text);
+    border-color: var(--mark-border);
+    border-radius: var(--mark-radius-md);
+    background: var(--mark-surface);
+    box-shadow: none;
+}
+
+.mark-card-2 {
+    background: var(--mark-surface-raised);
+}
+
+.mark-card .title,
+.mark-card .subtitle,
+.mark-hero .title,
+.mark-hero .subtitle {
+    color: var(--mark-text);
+}
+
+.mark-muted {
+    color: var(--mark-text-muted);
+}
+
+.mark-kicker,
+.mark-panel-title {
+    color: var(--mark-text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.035em;
+    text-transform: none;
+}
+
+.mark-chip {
+    gap: 0.3rem;
+    padding: 0.3rem 0.55rem;
+    color: #c7e7d2;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.015em;
+    border-color: var(--mark-border);
+    border-radius: var(--mark-radius-sm);
+    background: rgba(183, 217, 197, 0.06);
+}
+
+.mark-number {
+    color: var(--mark-text);
+    font-size: 1.65rem;
+    font-weight: 750;
+}
+
+.mark-divider {
+    border-color: var(--mark-border);
+    background: var(--mark-border);
+}
+
+.input,
+.textarea,
+.select select {
+    color: var(--mark-text) !important;
+    border-color: var(--mark-border-strong) !important;
+    border-radius: var(--mark-radius-sm) !important;
+    background: #09150f !important;
+    box-shadow: none !important;
+}
+
+.input:hover,
+.textarea:hover,
+.select select:hover {
+    border-color: rgba(110, 227, 164, 0.4) !important;
+}
+
+.input:focus,
+.textarea:focus,
+.select select:focus {
+    border-color: var(--mark-accent) !important;
+    box-shadow: 0 0 0 2px rgba(86, 216, 147, 0.12) !important;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+    color: #789684;
+}
+
+.label {
+    color: var(--mark-text);
+    font-weight: 650;
+}
+
+.help {
+    color: var(--mark-text-muted);
+}
+
+.button {
+    border-radius: var(--mark-radius-sm);
+    font-weight: 650;
+}
+
+.button.is-mark {
+    color: #06130b;
+    font-weight: 750;
+    border: 1px solid var(--mark-accent);
+    background: var(--mark-accent);
+    box-shadow: none;
+}
+
+.button.is-mark:hover {
+    color: #06130b;
+    background: var(--mark-accent-strong);
+    border-color: var(--mark-accent-strong);
+    filter: none;
+}
+
+.button.is-light {
+    color: var(--mark-text) !important;
+    border-color: var(--mark-border-strong) !important;
+    background: var(--mark-surface-raised) !important;
+}
+
+.button.is-light:hover {
+    color: #ffffff !important;
+    border-color: rgba(110, 227, 164, 0.38) !important;
+    background: var(--mark-surface-soft) !important;
+}
+
+.button.is-ghost-forest {
+    color: #c7e7d2;
+    border-color: var(--mark-border-strong);
+    background: transparent;
+}
+
+.button.is-ghost-forest:hover {
+    color: #ffffff;
+    border-color: rgba(110, 227, 164, 0.4);
+    background: rgba(86, 216, 147, 0.08);
+}
+
+.button.is-danger.is-outlined {
+    color: #ffabb0;
+    border-color: rgba(255, 127, 135, 0.42);
+}
+
+.table {
+    color: var(--mark-text);
+}
+
+.table td,
+.table th {
+    color: var(--mark-text);
+    border-color: var(--mark-border);
+    vertical-align: middle;
+}
+
+.table th {
+    color: var(--mark-text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.035em;
+    text-transform: uppercase;
+}
+
+.table.is-hoverable tbody tr:not(.is-selected):hover {
+    background: rgba(183, 217, 197, 0.035);
+}
+
+.table-container {
+    scrollbar-color:
+        rgba(183, 217, 197, 0.25)
+        transparent;
+}
+
+.notification {
+    border-radius: var(--mark-radius-md);
+}
+
+.notification.is-mark {
+    color: var(--mark-text);
+    border-color: rgba(86, 216, 147, 0.28);
+    background: rgba(86, 216, 147, 0.08);
+}
+
+.notification.is-light {
+    color: var(--mark-text) !important;
+    border: 1px solid var(--mark-border) !important;
+    background: var(--mark-surface-raised) !important;
+}
+
+.notification.is-danger.is-light {
+    color: #ffd7da !important;
+    border-color: rgba(255, 127, 135, 0.32) !important;
+    background: rgba(255, 127, 135, 0.09) !important;
+}
+
+.notification.is-warning.is-light {
+    color: #f7e6bd !important;
+    border-color: rgba(226, 184, 91, 0.34) !important;
+    background: rgba(226, 184, 91, 0.09) !important;
+}
+
+code {
+    color: #c8f3d8;
+    border-radius: 0.3rem;
+    background: rgba(183, 217, 197, 0.08);
+}
+
+.crm-hero-copy .title {
+    max-width: 20ch;
+    font-size: clamp(2rem, 4vw, 3.3rem);
+    line-height: 1.08;
+}
+
+.crm-hero-buttons {
+    flex-basis: 28rem;
+}
+
+.crm-hero-buttons .button {
+    min-height: 2.5rem;
+}
+
+/* Shared secure sign-in. */
+.mark-login-page {
+    min-height: 100vh;
+    color: var(--mark-text);
+    background:
+        linear-gradient(
+            180deg,
+            #08110c 0%,
+            #0b1710 100%
+        );
+}
+
+.mark-login-page::before {
+    display: none;
+}
+
+.login-wrap {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 28rem;
+    overflow: hidden;
+    color: var(--mark-text);
+    border: 1px solid var(--mark-border);
+    border-radius: var(--mark-radius-lg);
+    background: var(--mark-surface);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+}
+
+.login-orb {
+    display: flex;
+    width: 3rem;
+    height: 3rem;
+    margin: 0 auto 1rem;
+    align-items: center;
+    justify-content: center;
+    color: #06130b;
+    font-size: 1.2rem;
+    font-weight: 800;
+    border-radius: 0.75rem;
+    background: var(--mark-accent);
+}
+
+.login-card .kicker {
+    color: var(--mark-text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.035em;
+}
+
+.login-card .title,
+.login-card .subtitle,
+.login-card .label {
+    color: var(--mark-text);
+}
+
+.login-card .muted {
+    color: var(--mark-text-muted);
+}
+
+.login-card .box {
+    color: var(--mark-text);
+    border: 1px solid var(--mark-border);
+    border-radius: var(--mark-radius-md);
+    background: var(--mark-surface-raised);
+    box-shadow: none;
+}
+
+.login-footer {
+    color: var(--mark-text-muted);
+    font-size: 0.75rem;
+    border-top: 1px solid var(--mark-border);
+}
+
+@media (max-width: 640px) {
+    .mark-container {
+        padding-right: 0.9rem;
+        padding-left: 0.9rem;
+    }
+
+    .mark-hero.p-6 {
+        padding: 1.4rem !important;
+    }
+
+    .mark-hero .title.is-1,
+    .crm-hero-copy .title {
+        max-width: none;
+        font-size: clamp(1.85rem, 10vw, 2.6rem);
+    }
+
+    .mark-card.p-5 {
+        padding: 1.25rem !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
