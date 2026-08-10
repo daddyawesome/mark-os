@@ -2,18 +2,19 @@
 
 **Canonical project document**
 **Repository:** `https://github.com/daddyawesome/mark-os`
-**Reviewed against `main`:** 2026-08-08
+**Reviewed against `main`:** 2026-08-10
 **Current active phase:** Phase 6 — Agency Operations and Production Safety
-**Immediate next milestone:** Deploy Phase 6.6C and finish Pendang real-user acceptance
+**Immediate next milestone:** Finish Pendang real-user acceptance
 **Production deployment:** Railway
 **Primary database:** SQLite on a persistent Railway volume
-**Last verified full-suite baseline:** 531 passed after Phase 6.6C Pendang Company Knowledge and Marketing
+**Last verified full-suite baseline:** 534 passed after the Phase 6.6B–6.6C release-verifier extension and production-copy rehearsal
 
 ## Current status: Phase 6.6
 
 Phase 6.6 (Bulk Lead Management and CRM Workspaces) is implemented in
-substeps 6.6A through 6.6C. All are locally complete and test-verified;
-production acceptance is the remaining gate.
+substeps 6.6A through 6.6C. Deployment, technical smoke, and safe-copy
+production verification are complete; real-user Pendang acceptance is the
+remaining gate.
 
 | Substep | What it added | Status |
 |---|---|---|
@@ -25,15 +26,16 @@ production acceptance is the remaining gate.
 | 6.6B-6 | Workspace switching UI, Pendang launch surface, forced password rotation | ✅ Complete |
 | 6.6B-7 | Optimistic `row_version` edit protection on leads | ✅ Complete |
 | 6.6B-8A | Release-verification harness (`tools/verify_phase_6_6b_release.py`) with rehearsal backup/restore | ✅ Complete |
-| 6.6B-8B | Production-copy migration rehearsal | ⏳ Required before Rey/Freddy onboarding |
-| 6.6C | `/pendang` company home: organization-scoped company knowledge, services/pricing, case studies, content drafts | ✅ Implementation complete locally — production acceptance required |
+| 6.6B-8B | Production-copy migration rehearsal | ✅ Complete — verified offsite Railway backup rehearsal |
+| 6.6C | `/pendang` company home: organization-scoped company knowledge, services/pricing, case studies, content drafts | ✅ Implementation, deployment, technical smoke, and safe-copy verification complete — real-user acceptance pending |
 
 **Outstanding before Pendang is operationally complete:**
-- Run `tools/verify_phase_6_6b_release.py` against a real Railway production-DB copy (6.6B-8B).
-- Deploy the 6.6C migration through the standard Railway release process; confirm `/health`.
 - Rey and Freddy replace their temporary passwords and land on `/pendang`.
-- Smoke-test Rey's company-content write authority and Freddy's read-only view.
-- Complete real Pendang lead/review/next-action acceptance gates.
+- Rey verifies permitted Pendang company-knowledge write authority; Freddy
+  verifies read-only company-knowledge access.
+- Freddy researches and submits at least one real Pendang lead; Rey reviews it;
+  a real next action and due date are set.
+- Pendang reaches at least three real leads.
 
 Full substep-by-substep implementation notes for 6.6B-1 through 6.6B-8A live in
 the [Decision Log](#19-decision-log) and git history; they are intentionally
@@ -1472,7 +1474,7 @@ Upload CSV
 
 ### Phase 6.6B — Pendang CRM Workspace and Staff Launch
 
-**Status:** Immediate next milestone  
+**Status:** Technical acceptance complete; real-user acceptance pending
 **MoSCoW:** Should have soon
 
 #### Goal
@@ -1628,7 +1630,8 @@ isolation from MARK Agency.
 
 ### Phase 6.6C — Pendang Company Knowledge and Marketing
 
-**Status:** Implementation complete — production acceptance required
+**Status:** Implementation, production deployment, technical smoke, and
+safe-copy production verification complete — real-user acceptance pending
 
 Delivered inside the existing Pendang workspace:
 
@@ -1648,8 +1651,12 @@ Delivered inside the existing Pendang workspace:
 - Pendang staff now land on `/pendang` after completing the required temporary
   password change.
 
-Production acceptance still requires deploying the additive migration, checking
-`/health`, and completing the real Rey/Freddy login and role smoke tests.
+Production deployment and technical acceptance are complete: Railway is running
+one application replica, `/health` passed, Mark's Pendang Home and Pendang CRM
+smoke tests passed, and the downloaded verified Railway SQLite backup passed the
+Phase 6.6B–6.6C isolated rehearsal. Real-user acceptance remains pending: Rey
+and Freddy must complete their first sign-in/password change and authority
+checks, then complete the real Pendang lead, review, and next-action gates.
 
 ## Phase 6.7 — Outreach Templates and Approval Controls
 

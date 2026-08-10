@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app import database
+from app.db import pendang_company
 from app.services.database_backup import (
     create_sqlite_backup,
     restore_sqlite_backup,
@@ -28,6 +29,8 @@ ACCEPTANCE_TEST_FILES = (
     "tests/test_workspace_scoped_lead_core.py",
     "tests/test_workspace_scoped_crm_workflows.py",
     "tests/test_pendang_workspace_authority.py",
+    "tests/test_pendang_company_workspace.py",
+    "tests/test_pendang_founder_plan_surface.py",
     "tests/test_pendang_launch_surface.py",
     "tests/test_lead_optimistic_edit_protection.py",
     "tests/test_follow_up_command_center_acceptance.py",
@@ -70,6 +73,7 @@ LEAD_STABLE_FIELDS = (
     "outreach_approved_by_user_id",
     "outreach_approved_at",
     "business_development_owner_user_id",
+    "organization_id",
 )
 
 
@@ -128,10 +132,22 @@ def _snapshot_rehearsal_state(path: Path) -> dict[str, Any]:
         "table_counts": _table_counts(path),
         "lead_columns": [],
         "lead_rows": [],
+        "organization_rows": [],
         "activity_rows": [],
         "membership_rows": [],
     }
     with _connect(path) as db:
+        if _table_exists(db, "organizations"):
+            snapshot["organization_rows"] = [
+                dict(row)
+                for row in db.execute(
+                    """
+                    SELECT id, slug, name, created_at, updated_at
+                    FROM organizations
+                    ORDER BY id
+                    """
+                )
+            ]
         lead_columns = _columns(db, "leads")
         snapshot["lead_columns"] = lead_columns
         stable = [field for field in LEAD_STABLE_FIELDS if field in lead_columns]
@@ -175,6 +191,17 @@ def _snapshot_rehearsal_state(path: Path) -> dict[str, Any]:
                     )
                 ]
     return snapshot
+
+
+def _verify_repeated_initialization(
+    first: dict[str, Any],
+    second: dict[str, Any],
+) -> dict[str, Any]:
+    if first != second:
+        raise VerificationFailure(
+            "A second initialization changed the rehearsal database state."
+        )
+    return {"status": "passed"}
 
 
 def _run_migrations(rehearsal_path: Path) -> None:
@@ -324,6 +351,8 @@ def _verify_phase_schema(path: Path) -> dict[str, Any]:
     if busy_timeout_ms <= 0:
         raise VerificationFailure("SQLite busy_timeout is not configured")
 
+    pendang_company_verification = _verify_pendang_company_schema(path)
+
     return {
         "organizations": organizations,
         "lead_columns": sorted(lead_columns),
@@ -333,10 +362,227 @@ def _verify_phase_schema(path: Path) -> dict[str, Any]:
         "busy_timeout_ms": busy_timeout_ms,
         "quick_check": quick_check,
         "foreign_key_errors": 0,
+        "pendang_company": pendang_company_verification,
+    }
+
+
+def _verify_pendang_company_schema(path: Path) -> dict[str, Any]:
+    required_indexes = {
+        "idx_organization_knowledge_workspace_type": (
+            "organization_id",
+            "item_type",
+            "deleted_at",
+            "status",
+            "id",
+        ),
+        "uq_organization_knowledge_active_title": (
+            "organization_id",
+            "item_type",
+            "title",
+        ),
+    }
+
+    with _connect(path) as db:
+        for table in (
+            "organization_company_profiles",
+            "organization_knowledge_items",
+        ):
+            if not _table_exists(db, table):
+                raise VerificationFailure(f"Required Phase 6.6C table is missing: {table}")
+
+        profile_columns = set(_columns(db, "organization_company_profiles"))
+        missing_profile_columns = pendang_company.REQUIRED_PROFILE_COLUMNS - profile_columns
+        if missing_profile_columns:
+            raise VerificationFailure(
+                "Pendang company profile schema is incomplete: "
+                + ", ".join(sorted(missing_profile_columns))
+            )
+
+        item_columns = set(_columns(db, "organization_knowledge_items"))
+        missing_item_columns = pendang_company.REQUIRED_ITEM_COLUMNS - item_columns
+        if missing_item_columns:
+            raise VerificationFailure(
+                "Pendang company knowledge schema is incomplete: "
+                + ", ".join(sorted(missing_item_columns))
+            )
+
+        expected_constraints = {
+            "organization_company_profiles": (
+                "organization_id integer primary key",
+                "row_version integer not null default 1 check (row_version >= 1)",
+            ),
+            "organization_knowledge_items": (
+                "item_type text not null check (item_type in ('service', 'project', "
+                "'case_study', 'relationship', 'content_draft', "
+                "'meeting_preparation', 'document'))",
+                "title text not null check (trim(title) <> '')",
+                "status text not null default 'draft' check (status in ('draft', 'active'))",
+                "row_version integer not null default 1 check (row_version >= 1)",
+            ),
+        }
+        for table_name, fragments in expected_constraints.items():
+            schema_sql_row = db.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (table_name,),
+            ).fetchone()
+            schema_sql = " ".join(str(schema_sql_row["sql"] or "").lower().split())
+            schema_sql = schema_sql.replace("( ", "(").replace(" )", ")")
+            if any(fragment not in schema_sql for fragment in fragments):
+                raise VerificationFailure(
+                    f"Phase 6.6C table constraints are invalid: {table_name}"
+                )
+
+        profile_primary_key = next(
+            (
+                row
+                for row in db.execute("PRAGMA table_info(organization_company_profiles)")
+                if row["name"] == "organization_id"
+            ),
+            None,
+        )
+        if profile_primary_key is None or int(profile_primary_key["pk"]) != 1:
+            raise VerificationFailure(
+                "Pendang company profile organization_id must be the primary key."
+            )
+
+        required_foreign_keys = {
+            "organization_company_profiles": {"organization_id"},
+            "organization_knowledge_items": {"organization_id"},
+        }
+        for table_name, required_columns in required_foreign_keys.items():
+            foreign_keys = {
+                str(row["from"]): (str(row["table"]), str(row["on_delete"]))
+                for row in db.execute(f"PRAGMA foreign_key_list({table_name})")
+            }
+            for column_name in required_columns:
+                if foreign_keys.get(column_name) != ("organizations", "CASCADE"):
+                    raise VerificationFailure(
+                        f"Phase 6.6C organization foreign key is invalid: "
+                        f"{table_name}.{column_name}"
+                    )
+
+        index_rows = db.execute(
+            "PRAGMA index_list(organization_knowledge_items)"
+        ).fetchall()
+        for index_name, expected_columns in required_indexes.items():
+            index = next(
+                (row for row in index_rows if row["name"] == index_name), None
+            )
+            if index is None:
+                raise VerificationFailure(
+                    f"Required Phase 6.6C index is missing: {index_name}"
+                )
+            actual_columns = tuple(
+                str(row["name"])
+                for row in db.execute(f"PRAGMA index_info({index_name})")
+            )
+            if actual_columns != expected_columns:
+                raise VerificationFailure(
+                    f"Phase 6.6C index columns are invalid: {index_name}"
+                )
+            if index_name.startswith("uq_") and int(index["unique"]) != 1:
+                raise VerificationFailure(
+                    f"Phase 6.6C index must be unique: {index_name}"
+                )
+            if index_name.startswith("uq_") and int(index["partial"]) != 1:
+                raise VerificationFailure(
+                    f"Phase 6.6C unique index must be partial: {index_name}"
+                )
+
+        pendang = db.execute(
+            "SELECT id FROM organizations WHERE slug = 'pendang'"
+        ).fetchone()
+        mark_agency = db.execute(
+            "SELECT id FROM organizations WHERE slug = 'mark-agency'"
+        ).fetchone()
+        if pendang is None or mark_agency is None:
+            raise VerificationFailure("Required workspaces are missing for Phase 6.6C")
+
+        pendang_id = int(pendang["id"])
+        mark_agency_id = int(mark_agency["id"])
+        profile_count = int(
+            db.execute(
+                "SELECT COUNT(*) FROM organization_company_profiles WHERE organization_id = ?",
+                (pendang_id,),
+            ).fetchone()[0]
+        )
+        seed_verification = _verify_pendang_company_seed(
+            db,
+            pendang_id=pendang_id,
+            mark_agency_id=mark_agency_id,
+            profile_count=profile_count,
+        )
+
+    return {
+        "profile_count": profile_count,
+        **seed_verification,
+    }
+
+
+def _verify_pendang_company_seed(
+    db: sqlite3.Connection,
+    *,
+    pendang_id: int,
+    mark_agency_id: int,
+    profile_count: int,
+) -> dict[str, Any]:
+    if profile_count != 1:
+        raise VerificationFailure(
+            "Pendang must have exactly one company profile after initialization."
+        )
+
+    expected_service_titles = {title for title, _ in pendang_company.SEED_SERVICES}
+    title_placeholders = ", ".join("?" for _ in expected_service_titles)
+    service_rows = db.execute(
+        f"""
+        SELECT title, COUNT(*) AS count
+        FROM organization_knowledge_items
+        WHERE organization_id = ?
+          AND item_type = 'service'
+          AND deleted_at IS NULL
+          AND title IN ({title_placeholders})
+        GROUP BY title COLLATE NOCASE
+        ORDER BY title COLLATE NOCASE
+        """,
+        (pendang_id, *sorted(expected_service_titles)),
+    ).fetchall()
+    service_counts = {str(row["title"]): int(row["count"]) for row in service_rows}
+    if set(service_counts) != expected_service_titles or any(
+        count != 1 for count in service_counts.values()
+    ):
+        raise VerificationFailure(
+            "Pendang generic service seeds are missing or duplicated."
+        )
+
+    mark_profile_count = int(
+        db.execute(
+            "SELECT COUNT(*) FROM organization_company_profiles WHERE organization_id = ?",
+            (mark_agency_id,),
+        ).fetchone()[0]
+    )
+    mark_item_count = int(
+        db.execute(
+            "SELECT COUNT(*) FROM organization_knowledge_items WHERE organization_id = ?",
+            (mark_agency_id,),
+        ).fetchone()[0]
+    )
+    if mark_profile_count or mark_item_count:
+        raise VerificationFailure(
+            "MARK Agency received Pendang company profile or knowledge data."
+        )
+
+    return {
+        "seeded_service_count": len(service_counts),
+        "seeded_service_titles": sorted(service_counts),
+        "mark_agency_profile_count": mark_profile_count,
+        "mark_agency_knowledge_item_count": mark_item_count,
     }
 
 
 def _compare_before_after(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    if before.get("organization_rows", []) != after.get("organization_rows", []):
+        raise VerificationFailure("Rehearsal changed existing organization rows.")
+
     before_leads = before.get("lead_rows", [])
     after_leads = after.get("lead_rows", [])
     if before_leads != after_leads:
@@ -359,6 +605,7 @@ def _compare_before_after(before: dict[str, Any], after: dict[str, Any]) -> dict
                 )
 
     return {
+        "organization_rows_preserved": len(before.get("organization_rows", [])),
         "lead_rows_preserved": len(before_leads),
         "activity_links_preserved": len(before.get("activity_rows", [])),
         "protected_table_counts": {
@@ -400,7 +647,7 @@ def run_rehearsal(
     run_dir.mkdir(parents=True, exist_ok=True)
 
     report: dict[str, Any] = {
-        "phase": "6.6B",
+        "phase": "6.6B-6.6C",
         "source_database": str(source),
         "run_directory": str(run_dir),
         "started_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -410,7 +657,9 @@ def run_rehearsal(
             "production_volume_path_confirmed": False,
             "controlled_deploy_window_confirmed": False,
             "rey_onboarded_and_password_changed": False,
+            "rey_company_knowledge_write_verified": False,
             "freddy_onboarded_and_password_changed": False,
+            "freddy_company_knowledge_read_only_verified": False,
             "three_real_pendang_leads_created": False,
             "one_pendang_lead_reviewed_by_rey": False,
             "pendang_next_action_due_date_verified": False,
@@ -452,9 +701,20 @@ def run_rehearsal(
 
         _run_migrations(rehearsal_path)
 
-        after = _snapshot_rehearsal_state(rehearsal_path)
-        report["after_migration"] = after
-        report["preservation"] = _compare_before_after(before, after)
+        after_first_initialization = _snapshot_rehearsal_state(rehearsal_path)
+        report["after_first_initialization"] = after_first_initialization
+        report["preservation"] = _compare_before_after(
+            before,
+            after_first_initialization,
+        )
+
+        _run_migrations(rehearsal_path)
+        after_second_initialization = _snapshot_rehearsal_state(rehearsal_path)
+        report["after_second_initialization"] = after_second_initialization
+        report["double_initialization"] = _verify_repeated_initialization(
+            after_first_initialization,
+            after_second_initialization,
+        )
         report["schema_verification"] = _verify_phase_schema(rehearsal_path)
         report["health"] = _verify_health(rehearsal_path)
 
@@ -498,8 +758,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Create a verified SQLite online backup, restore it into an isolated "
-            "rehearsal database, run the current Phase 6.6B migrations against "
-            "that copy, and verify workspace/concurrency release invariants."
+            "rehearsal database, run the current Phase 6.6B-6.6C migrations "
+            "against that copy, and verify workspace, company-data, and "
+            "concurrency release invariants."
         )
     )
     parser.add_argument("--source-db", required=True, type=Path)
@@ -511,7 +772,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-tests",
         action="store_true",
-        help="Run the Phase 6.6B acceptance test gate after the DB rehearsal.",
+        help="Run the Phase 6.6B-6.6C acceptance test gate after the DB rehearsal.",
     )
     parser.add_argument(
         "--full-suite",
@@ -535,10 +796,10 @@ def main() -> int:
             full_suite=args.full_suite,
         )
     except Exception as error:
-        print(f"Phase 6.6B rehearsal FAILED: {error}", file=sys.stderr)
+        print(f"Phase 6.6B-6.6C rehearsal FAILED: {error}", file=sys.stderr)
         return 1
 
-    print("Phase 6.6B database rehearsal PASSED")
+    print("Phase 6.6B-6.6C database rehearsal PASSED")
     print(f"Backup: {result['backup_path']}")
     print(f"Rehearsal DB: {result['rehearsal_database']}")
     print(f"Report: {result['report_path']}")
