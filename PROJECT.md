@@ -1468,7 +1468,8 @@ Upload CSV
 - [x] 6.6B — Pendang CRM workspace foundation, staff authority, isolation,
       optimistic edits, and release rehearsal harness
 - [x] 6.6C — Pendang Company Knowledge and Marketing workspace
-- [ ] 6.6D — Selective row import with permission-scoped assignment
+- [ ] 6.6D — Planned: 6.6D-A Selective Lead Import and 6.6D-B Markdown
+      Content Editing
 - [ ] 6.6E — Bulk submission, CSV/JSON export, and approved-leads export
 - [ ] 6.6F — Downloadable CRM backup and phase verification
 
@@ -1657,6 +1658,74 @@ smoke tests passed, and the downloaded verified Railway SQLite backup passed the
 Phase 6.6B–6.6C isolated rehearsal. Real-user acceptance remains pending: Rey
 and Freddy must complete their first sign-in/password change and authority
 checks, then complete the real Pendang lead, review, and next-action gates.
+
+### Phase 6.6D — Selective Lead Import and Markdown Content Editing
+
+**Status:** Planned
+
+#### 6.6D-A — Selective Lead Import
+
+Keep the existing selective-row-import scope: import only user-selected valid
+rows from the existing non-writing CSV preview, with organization-scoped
+duplicate protection and permission-scoped researcher and Business Development
+Owner assignment.
+
+Acceptance requirements:
+
+- preview remains non-writing and shows validation and duplicate results before
+  import;
+- only selected valid rows are written;
+- assignment authority and CRM visibility remain enforced by the service layer;
+- imports, duplicate checks, and assignments stay organization-scoped;
+- focused import/permission/isolation tests and the full pytest suite pass when
+  implemented.
+
+#### 6.6D-B — Markdown Content Editing
+
+**Purpose:** Allow authorized users to create and edit long-form MARK-OS /
+Pendang content using Markdown.
+
+**Initial surfaces:**
+
+- Pendang Content Studio posts and drafts;
+- case studies;
+- meeting preparation;
+- company knowledge or other appropriate long-form notes.
+
+**Requirements:**
+
+- raw Markdown remains the database source of truth;
+- reuse existing content fields when safe; inspect the organization-knowledge
+  model before deciding whether a `body_markdown` column is necessary;
+- provide Write / Preview editing, where preview never saves or mutates data;
+- render Markdown server-side through reusable application functionality rather
+  than duplicating rendering logic in routes;
+- sanitize generated HTML before it is passed through Jinja `|safe`; raw HTML,
+  script execution, inline JavaScript, and unsafe URL protocols are not
+  allowed;
+- support headings, bold, italic, ordered and unordered lists, links,
+  blockquotes, inline code, fenced code blocks, tables, and horizontal rules;
+- preserve current organization/workspace permissions and optimistic
+  `row_version` protection for editable organization content;
+- Pendang CRM contributors gain no new write authority, while existing
+  plain-text content remains readable;
+- do not introduce React, Vue, a large WYSIWYG editor, AI content generation,
+  external publishing, or other external actions.
+
+**Acceptance criteria:**
+
+- an authorized user can create Markdown content and later reopen and edit the
+  original Markdown;
+- saved Markdown renders correctly, while preview renders without database
+  mutation;
+- unsafe HTML/scripts are stripped or escaped and unsafe URL protocols are
+  rejected;
+- unauthorized users cannot edit and contributor read-only behavior remains
+  intact;
+- stale `row_version` writes fail safely;
+- existing plain-text records remain compatible;
+- focused rendering and security tests, plus the full pytest suite, pass when
+  implemented.
 
 ## Phase 6.7 — Outreach Templates and Approval Controls
 
