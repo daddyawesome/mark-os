@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Template' if template else 'New Template' }} · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">CRM · Outreach templates</p>
+            <h1 class="title is-1 mb-2">{{ 'Edit template' if template else 'New template' }}</h1>
+            <p class="subtitle is-5 mark-muted">
+                Use <code>{{ '{{variable_name}}' }}</code> placeholders. Saving does not approve the template.
+            </p>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-light" href="/crm/templates">← Back to templates</a>
+        </div>
+    </div>
+</section>
+
+{% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
+{% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+
+<div class="mark-card p-5">
+    <form method="post" action="{{ '/crm/templates/' + template.id|string + '/edit' if template else '/crm/templates' }}">
+        {% if template %}
+        <input type="hidden" name="row_version" value="{{ template.row_version }}">
+        {% endif %}
+        <div class="field">
+            <label class="label" for="title">Title</label>
+            <div class="control">
+                <input class="input" type="text" id="title" name="title" required maxlength="200" value="{{ template.title if template else '' }}">
+            </div>
+        </div>
+        <div class="field">
+            <label class="label" for="category">Category</label>
+            <div class="control">
+                <div class="select is-fullwidth">
+                    <select id="category" name="category" required>
+                        {% for value in categories %}
+                        <option value="{{ value }}" {% if template and template.category == value %}selected{% endif %}>
+                            {{ category_labels.get(value, value) }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="field">
+            <label class="label" for="body">Body</label>
+            <div class="control">
+                <textarea class="textarea" id="body" name="body" rows="8" required maxlength="5000">{{ template.body if template else '' }}</textarea>
+            </div>
+        </div>
+        <button class="button is-mark" type="submit">Save</button>
+    </form>
+</div>
+{% endblock %}

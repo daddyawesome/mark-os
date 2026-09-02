@@ -49,33 +49,79 @@
 {% if valid_rows %}
 <div class="mark-card p-5 mb-5">
     <p class="mark-kicker">Ready to import</p>
-    <h2 class="title is-4">Valid rows</h2>
-    <div class="table-container">
-        <table class="table is-fullwidth is-striped">
-            <thead>
-                <tr>
-                    <th>CSV row</th>
-                    <th>Company</th>
-                    <th>Contact</th>
-                    <th>Source</th>
-                    <th>Pipeline</th>
-                    <th>Priority</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in valid_rows %}
-                <tr>
-                    <td>{{ row.row_number }}</td>
-                    <td>{{ row.company }}</td>
-                    <td>{{ row.contact_person }}</td>
-                    <td>{{ row.source }}</td>
-                    <td>{{ row.pipeline_status | replace('_', ' ') | title }}</td>
-                    <td>{{ row.priority | title }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <h2 class="title is-4">Select rows to import</h2>
+    <p class="mark-muted mb-3">
+        Nothing is written until you choose rows below and submit. Duplicate
+        and invalid rows are never imported.
+    </p>
+    <form method="post" action="/crm/leads/import">
+        <input type="hidden" name="csv_content_b64" value="{{ csv_content_b64 }}">
+        <div class="table-container">
+            <table class="table is-fullwidth is-striped">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="select-all-rows" checked></th>
+                        <th>CSV row</th>
+                        <th>Company</th>
+                        <th>Contact</th>
+                        <th>Source</th>
+                        <th>Pipeline</th>
+                        <th>Priority</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in valid_rows %}
+                    <tr>
+                        <td><input type="checkbox" name="selected_rows" value="{{ row.row_number }}" class="row-select" checked></td>
+                        <td>{{ row.row_number }}</td>
+                        <td>{{ row.company }}</td>
+                        <td>{{ row.contact_person }}</td>
+                        <td>{{ row.source }}</td>
+                        <td>{{ row.pipeline_status | replace('_', ' ') | title }}</td>
+                        <td>{{ row.priority | title }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if can_manage_crm %}
+        <div class="columns">
+            <div class="column">
+                <div class="field">
+                    <label class="label" for="researcher_user_id">Assign researcher (optional)</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="researcher_user_id" name="researcher_user_id">
+                                <option value="">Default (unassigned researcher)</option>
+                                {% for sourcer in active_lead_sourcers %}
+                                <option value="{{ sourcer.id }}">{{ sourcer.display_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="column">
+                <div class="field">
+                    <label class="label" for="business_development_owner_user_id">Assign Business Development Owner (optional)</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="business_development_owner_user_id" name="business_development_owner_user_id">
+                                <option value="">Default (unassigned)</option>
+                                {% for manager in active_relationship_managers %}
+                                <option value="{{ manager.id }}">{{ manager.display_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <button class="button is-mark mt-2" type="submit">Import selected rows</button>
+    </form>
 </div>
 {% endif %}
 
@@ -147,6 +193,7 @@
         {{ import_result.created_count }} created ·
         {{ import_result.duplicate_count }} duplicates skipped ·
         {{ import_result.invalid_count }} invalid ·
+        {{ import_result.skipped_count }} not selected ·
         {{ import_result.total_rows }} rows processed
     </p>
 </div>
@@ -252,6 +299,15 @@ document.addEventListener("DOMContentLoaded", function () {
             name.textContent = input.files && input.files.length
                 ? input.files[0].name
                 : "No file selected";
+        });
+    }
+
+    const selectAll = document.getElementById("select-all-rows");
+    if (selectAll) {
+        selectAll.addEventListener("change", function () {
+            document.querySelectorAll(".row-select").forEach(function (box) {
+                box.checked = selectAll.checked;
+            });
         });
     }
 });

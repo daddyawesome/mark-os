@@ -237,6 +237,28 @@ def get_primary_owner_id(
     return int(row["id"]) if row is not None else None
 
 
+def list_active_lead_sourcers(
+    db: sqlite3.Connection,
+    *,
+    organization_id: int,
+) -> list[dict[str, Any]]:
+    rows = db.execute(
+        """
+        SELECT id, username, display_name
+        FROM users
+        JOIN organization_memberships AS membership
+          ON membership.user_id = users.id
+         AND membership.organization_id = ?
+        WHERE role = 'lead_sourcer'
+          AND users.active = 1
+          AND membership.active = 1
+        ORDER BY display_name COLLATE NOCASE, id
+        """,
+        (_positive_id(organization_id, "Organization ID"),),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def list_users_with_stats(
     db: sqlite3.Connection,
 ) -> list[dict[str, Any]]:

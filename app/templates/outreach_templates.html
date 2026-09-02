@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Outreach Templates · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">CRM · Outreach templates</p>
+            <h1 class="title is-1 mb-2">Outreach templates.</h1>
+            <p class="subtitle is-5 mark-muted">
+                {% if can_manage_templates %}
+                Approved wording only. Nothing here sends automatically.
+                {% else %}
+                Approved wording you can prepare or copy. Nothing sends automatically.
+                {% endif %}
+            </p>
+        </div>
+        {% if can_manage_templates %}
+        <div class="column is-narrow">
+            <a class="button is-mark" href="/crm/templates/new">+ New Template</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+{% if notice %}<div class="notification is-mark">{{ notice }}</div>{% endif %}
+{% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+
+<div class="columns is-multiline">
+    {% for template in templates %}
+    <div class="column is-half">
+        <div class="mark-card p-5" style="height: 100%;">
+            <div class="is-flex is-justify-content-space-between is-align-items-flex-start mb-2">
+                <div>
+                    <p class="mark-kicker">{{ category_labels.get(template.category, template.category) }}</p>
+                    <h2 class="title is-4 mb-1">{{ template.title }}</h2>
+                </div>
+                <span class="mark-chip {% if template.approved %}is-success{% else %}is-warning{% endif %}">
+                    {{ 'APPROVED' if template.approved else 'DRAFT' }}
+                </span>
+            </div>
+            <p class="mark-muted is-size-7 mb-3">
+                Variables: {{ template.variables | join(', ') if template.variables else 'none' }}
+            </p>
+            <div class="buttons">
+                {% if template.approved or can_manage_templates %}
+                <a class="button is-small is-mark" href="/crm/templates/{{ template.id }}/use{% if lead_id %}?lead_id={{ lead_id }}{% endif %}">Prepare / Copy</a>
+                {% endif %}
+                {% if can_manage_templates %}
+                <a class="button is-small is-ghost-forest" href="/crm/templates/{{ template.id }}/edit">Edit</a>
+                {% if template.approved %}
+                <form method="post" action="/crm/templates/{{ template.id }}/unapprove" style="display:inline;">
+                    <input type="hidden" name="row_version" value="{{ template.row_version }}">
+                    <button class="button is-small is-warning is-light" type="submit">Revoke approval</button>
+                </form>
+                {% else %}
+                <form method="post" action="/crm/templates/{{ template.id }}/approve" style="display:inline;">
+                    <input type="hidden" name="row_version" value="{{ template.row_version }}">
+                    <button class="button is-small is-success is-light" type="submit">Approve</button>
+                </form>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="column">
+        <p class="mark-muted p-6 has-text-centered">
+            {% if can_manage_templates %}
+            No templates yet. Create one to get started.
+            {% else %}
+            No approved templates are available yet.
+            {% endif %}
+        </p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

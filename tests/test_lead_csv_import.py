@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app import database
+from app.db.organizations import organization_id_by_slug
 from app.services.lead_csv_import import (
     CSV_HEADERS,
     LeadCsvImportError,
@@ -10,6 +11,7 @@ from app.services.lead_csv_import import (
     lead_csv_template_bytes,
     preview_leads_from_csv,
 )
+from app.services.team_users import create_lead_sourcer
 
 
 def _csv_bytes(rows: list[list[str]], headers: tuple[str, ...] = CSV_HEADERS) -> bytes:
@@ -255,3 +257,102 @@ def test_csv_preview_warns_about_repeated_rows_in_file(tmp_path, monkeypatch):
     assert len(duplicate_rows) == 1
     assert duplicate_rows[0].row_number == 4
     assert duplicate_rows[0].duplicate_row_number == 2
+
+
+def test_csv_import_only_writes_selected_rows(tmp_path, monkeypatch):
+    database_path = tmp_path / "selective-import.db"
+    monkeypatch.setattr(database, "DB_PATH", database_path)
+    database.init_db()
+
+    content = _csv_bytes(_valid_rows())
+
+    with database.get_db() as db:
+        result = import_leads_from_csv(
+            db,
+            content,
+            selected_row_numbers=frozenset({2}),
+        )
+        leads = db.execute(
+            "SELECT company FROM leads ORDER BY id"
+        ).fetchall()
+
+    assert result.total_rows == 2
+    assert result.created_count == 1
+    assert result.skipped_count == 1
+    assert result.duplicate_count == 0
+    assert result.invalid_count == 0
+    assert [row["company"] for row in leads] == ["Northstar Analytics"]
+
+
+def test_csv_import_with_empty_selection_writes_nothing(tmp_path, monkeypatch):
+    database_path = tmp_path / "selective-import-empty.db"
+    monkeypatch.setattr(database, "DB_PATH", database_path)
+    database.init_db()
+
+    content = _csv_bytes(_valid_rows())
+
+    with database.get_db() as db:
+        result = import_leads_from_csv(
+            db,
+            content,
+            selected_row_numbers=frozenset(),
+        )
+        lead_count = db.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+
+    assert result.created_count == 0
+    assert result.skipped_count == 2
+    assert lead_count == 0
+
+
+def test_csv_import_assigns_selected_rows_to_active_researcher(
+    tmp_path,
+    monkeypatch,
+):
+    database_path = tmp_path / "researcher-import.db"
+    monkeypatch.setattr(database, "DB_PATH", database_path)
+    database.init_db()
+
+    with database.get_db() as db:
+        organization_id = organization_id_by_slug(db, "mark-agency")
+        sourcer = create_lead_sourcer(
+            db,
+            username="researcher-one",
+            display_name="Researcher One",
+            password="temporary-pass-123",
+            password_confirmation="temporary-pass-123",
+        )
+
+        result = import_leads_from_csv(
+            db,
+            _csv_bytes(_valid_rows()),
+            organization_id=organization_id,
+            researcher_user_id=sourcer["id"],
+        )
+        leads = db.execute(
+            "SELECT assigned_to_user_id FROM leads"
+        ).fetchall()
+
+    assert result.created_count == 2
+    assert all(row["assigned_to_user_id"] == sourcer["id"] for row in leads)
+
+
+def test_csv_import_rejects_researcher_outside_workspace(
+    tmp_path,
+    monkeypatch,
+):
+    database_path = tmp_path / "researcher-outside.db"
+    monkeypatch.setattr(database, "DB_PATH", database_path)
+    database.init_db()
+
+    with database.get_db() as db:
+        organization_id = organization_id_by_slug(db, "mark-agency")
+        with pytest.raises(LeadCsvImportError, match="active Lead Sourcer"):
+            import_leads_from_csv(
+                db,
+                _csv_bytes(_valid_rows()),
+                organization_id=organization_id,
+                researcher_user_id=999_999,
+            )
+        lead_count = db.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+
+    assert lead_count == 0

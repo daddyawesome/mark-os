@@ -9,6 +9,7 @@ from app.services.lead_research_permissions import (
     can_submit_for_review,
 )
 from app.services.lead_research_workflow import (
+    bulk_submit_research_for_review,
     list_research_review_queue,
     submit_research_for_review,
     update_research_details,
@@ -442,6 +443,67 @@ def test_owner_queue_contains_only_pending_active_research(
             row["company"]
             for row in queue
         }
+
+
+def test_bulk_submit_reports_success_and_skips_permission_failures(
+    submission_database,
+):
+    with database.get_db() as db:
+        own_lead = _create_lead(db, company="Owned By Brother")
+        others_lead = create_lead(
+            db,
+            company="Owned By Other",
+            contact_person="Dana Buyer",
+            job_title="Founder",
+            source="LinkedIn",
+            source_url="https://example.com/other",
+            problem_opportunity="Reporting is manual.",
+            why_mark_fits="Mark can automate reporting.",
+            pipeline_status="new",
+            priority="medium",
+            next_action="Complete research.",
+            next_action_due_date="2026-08-10",
+            notes="Initial note.",
+            created_by_user_id=OTHER_SOURCER["id"],
+            assigned_to_user_id=OWNER["id"],
+        ).lead
+
+        result = bulk_submit_research_for_review(
+            db,
+            [own_lead["id"], others_lead["id"]],
+            actor=BROTHER,
+        )
+
+        assert result.submitted_lead_ids == (own_lead["id"],)
+        assert len(result.errors) == 1
+        assert result.errors[0].lead_id == others_lead["id"]
+
+        own_reloaded = db.execute(
+            "SELECT research_status FROM leads WHERE id = ?",
+            (own_lead["id"],),
+        ).fetchone()
+        others_reloaded = db.execute(
+            "SELECT research_status FROM leads WHERE id = ?",
+            (others_lead["id"],),
+        ).fetchone()
+        assert own_reloaded["research_status"] == "ready_for_review"
+        assert others_reloaded["research_status"] == "draft"
+
+
+def test_bulk_submit_deduplicates_repeated_lead_ids(
+    submission_database,
+):
+    with database.get_db() as db:
+        lead = _create_lead(db)
+
+        result = bulk_submit_research_for_review(
+            db,
+            [lead["id"], lead["id"]],
+            actor=BROTHER,
+        )
+
+        assert result.submitted_lead_ids == (lead["id"],)
+        assert result.errors == ()
 
 
 def test_approved_state_cannot_be_submitted(

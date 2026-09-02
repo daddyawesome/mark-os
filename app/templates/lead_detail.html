@@ -18,6 +18,9 @@
         </div>
         <div class="buttons">
             <a class="button is-ghost-forest" href="/crm">Back to CRM</a>
+            {% if current_user and current_user.role in ['owner', 'relationship_manager'] %}
+            <a class="button is-ghost-forest" href="/crm/templates?lead_id={{ lead.id }}">Outreach templates</a>
+            {% endif %}
             {% if can_edit_research %}
             <a class="button is-ghost-forest" href="/crm/leads/{{ lead.id }}/research/edit">Edit research</a>
             {% endif %}

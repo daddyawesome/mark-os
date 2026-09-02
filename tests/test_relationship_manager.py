@@ -349,7 +349,11 @@ def test_relationship_manager_access_surface_is_narrow(
         ("GET", "/crm"),
         ("GET", "/crm/leads/new"),
         ("GET", "/crm/leads/import/template"),
+        ("GET", "/crm/leads/export"),
         ("GET", "/crm/leads/7"),
+        ("GET", "/crm/templates"),
+        ("GET", "/crm/templates/1/use"),
+        ("POST", "/crm/templates/1/use"),
         ("POST", "/crm/leads"),
         ("POST", "/crm/leads/import"),
         ("POST", "/crm/leads/7/next-action"),
@@ -369,6 +373,13 @@ def test_relationship_manager_access_surface_is_narrow(
         ("POST", "/crm/leads/7/relationship-owner"),
         ("GET", "/crm/leads/7/delete"),
         ("POST", "/crm/leads/7/delete"),
+        ("GET", "/crm/templates/new"),
+        ("POST", "/crm/templates"),
+        ("GET", "/crm/templates/1/edit"),
+        ("POST", "/crm/templates/1/edit"),
+        ("POST", "/crm/templates/1/approve"),
+        ("POST", "/crm/templates/1/unapprove"),
+        ("POST", "/crm/templates/1/archive"),
     )
 
     assert all(

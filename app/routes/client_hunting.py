@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import os
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from app.database import get_db
 from app.db.lead_activities import (
@@ -61,7 +65,10 @@ from app.services.follow_up_command_center import (
     FollowUpPermissionError,
     build_follow_up_command_center,
 )
-from app.services.team_users import get_primary_owner_id
+from app.services.team_users import (
+    get_primary_owner_id,
+    list_active_lead_sourcers,
+)
 from app.services.workspace_context import require_request_organization_id
 from app.services.relationship_manager import (
     assign_relationship_manager,
@@ -78,6 +85,7 @@ from app.services.leads import (
     get_crm_dashboard_metrics,
     get_lead,
 )
+from app.services.lead_export import export_leads_csv, export_leads_json
 
 router = APIRouter(prefix="/crm")
 PIPELINE_LABELS = {
@@ -113,6 +121,9 @@ NOTICE_MESSAGES = {
     "activity_created": "Lead activity recorded.",
     "activity_corrected": "Lead activity corrected with an audit reason.",
     "activity_deleted": "Lead activity soft deleted with an audit reason.",
+    "research_bulk_submitted": "Selected research submitted for workspace-owner review.",
+    "research_bulk_partial": "Some selected leads were submitted; others could not be and were left untouched.",
+    "research_bulk_failed": "None of the selected leads could be submitted. They were left untouched.",
 }
 ERROR_MESSAGES = {
     "invalid": "The lead could not be saved. Check the required fields and allowed values.",
@@ -122,6 +133,7 @@ ERROR_MESSAGES = {
     "invalid_review": 'The research review decision could not be saved.',
     "pipeline_rule": "That pipeline move is not allowed. Contacted requires approved research, outreach approval, and a complete contact audit; Proposal requires Meeting; Won requires Proposal.",
     "stale": "This lead changed in another session. Reload the latest version and try again.",
+    "research_bulk_empty": "Select at least one lead to submit for review.",
 }
 METRIC_DEFINITIONS = (
     ("Total leads", "total_leads"),
@@ -346,6 +358,7 @@ def _shared_context(db, request: Request) -> dict:
         "current_user": user,
         "can_manage_crm": has_crm_owner_authority(user),
         "can_view_linked_quest": global_owner,
+        "is_global_owner": global_owner,
     }
 
 
@@ -356,7 +369,21 @@ def _add_leads_context(
     import_result=None,
     import_preview=None,
     import_error: str | None = None,
+    csv_content_b64: str | None = None,
 ) -> dict:
+    shared = _shared_context(db, request)
+    active_lead_sourcers: list[dict] = []
+    active_relationship_managers: list[dict] = []
+    if shared["can_manage_crm"]:
+        organization_id = _request_organization_id(db, request)
+        active_lead_sourcers = list_active_lead_sourcers(
+            db,
+            organization_id=organization_id,
+        )
+        active_relationship_managers = list_active_relationship_managers(
+            db,
+            organization_id=organization_id,
+        )
     return {
         "request_key": uuid4().hex,
         "notice": _message(NOTICE_MESSAGES, request.query_params.get("notice")),
@@ -364,10 +391,13 @@ def _add_leads_context(
         "import_result": import_result,
         "import_preview": import_preview,
         "import_error": import_error,
+        "csv_content_b64": csv_content_b64,
+        "active_lead_sourcers": active_lead_sourcers,
+        "active_relationship_managers": active_relationship_managers,
         "csv_headers": CSV_HEADERS,
         "max_csv_rows": MAX_CSV_ROWS,
         "max_csv_size_mb": MAX_CSV_BYTES // 1_000_000,
-        **_shared_context(db, request),
+        **shared,
     }
 
 
@@ -482,6 +512,95 @@ def new_lead_page(request: Request):
     )
 
 
+@router.get("/leads/export")
+def export_leads(
+    request: Request,
+    format: str = "csv",
+    scope: str = "visible",
+):
+    normalized_format = (format or "csv").strip().casefold()
+    if normalized_format not in {"csv", "json"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported export format.",
+        )
+    approved_only = (scope or "visible").strip().casefold() == "approved"
+
+    with get_db() as db:
+        organization_id = _request_organization_id(db, request)
+        if normalized_format == "csv":
+            content = export_leads_csv(
+                db,
+                request.state.current_user,
+                organization_id=organization_id,
+                approved_only=approved_only,
+            )
+            media_type = "text/csv; charset=utf-8"
+        else:
+            content = export_leads_json(
+                db,
+                request.state.current_user,
+                organization_id=organization_id,
+                approved_only=approved_only,
+            )
+            media_type = "application/json"
+
+    filename_scope = "approved-leads" if approved_only else "leads"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": (
+                "attachment; filename="
+                f'"mark_os_{filename_scope}_export.{normalized_format}"'
+            ),
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/backup/download")
+def download_crm_backup(request: Request):
+    """Create and stream a fresh, verified SQLite backup to the Owner.
+
+    Restricted to the global Owner: the backup covers the entire MARK-OS
+    database, including every organization workspace, so it must never be
+    reachable by workspace-scoped CRM or Pendang authority.
+    """
+    if not is_owner(request.state.current_user):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    from app import database
+    from app.services.database_backup import create_sqlite_backup
+
+    source = Path(database.DB_PATH).expanduser().resolve()
+    destination = Path(
+        os.getenv("MARK_OS_BACKUP_DIR", "")
+        or source.parent / "backups"
+    ).expanduser().resolve()
+    prefix = os.getenv("MARK_OS_BACKUP_PREFIX", "mark_os")
+
+    try:
+        result = create_sqlite_backup(
+            source_path=source,
+            backup_directory=destination,
+            backup_prefix=prefix,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The backup could not be created.",
+        ) from exc
+
+    backup_path = Path(result.backup_path)
+    return FileResponse(
+        backup_path,
+        media_type="application/x-sqlite3",
+        filename=backup_path.name,
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
+
+
 @router.get("/leads/import/template")
 def download_lead_csv_template(request: Request):
     with get_db() as db:
@@ -555,6 +674,11 @@ async def preview_leads_csv(
             request,
             import_preview=import_preview,
             import_error=import_error,
+            csv_content_b64=(
+                base64.b64encode(content).decode("ascii")
+                if import_error is None
+                else None
+            ),
         )
 
     return templates.TemplateResponse(
@@ -565,30 +689,43 @@ async def preview_leads_csv(
     )
 
 
+def _optional_selected_user_id(value: str) -> int | None:
+    clean = (value or "").strip()
+    if not clean:
+        return None
+    try:
+        parsed = int(clean)
+    except ValueError:
+        return None
+    return parsed if parsed > 0 else None
+
+
 @router.post("/leads/import", response_class=HTMLResponse)
 async def import_leads_csv(
     request: Request,
-    csv_file: UploadFile = File(...),
+    csv_content_b64: str = Form(...),
+    selected_rows: list[int] = Form(default=[]),
+    researcher_user_id: str = Form(default=""),
+    business_development_owner_user_id: str = Form(default=""),
 ):
-    filename = (csv_file.filename or "").strip()
-    content = b""
     import_error: str | None = None
     import_result = None
+    content = b""
 
     try:
-        if not filename.lower().endswith(".csv"):
-            raise LeadCsvImportError("Choose a file with a .csv extension.")
-
-        content = await csv_file.read(MAX_CSV_BYTES + 1)
+        content = base64.b64decode(csv_content_b64, validate=True)
+    except (binascii.Error, ValueError):
+        import_error = (
+            "The previewed CSV could not be read. Preview the file again."
+        )
+    else:
         if len(content) > MAX_CSV_BYTES:
-            raise LeadCsvImportError(
+            import_error = (
                 f"The CSV is too large. The maximum size is "
                 f"{MAX_CSV_BYTES // 1_000_000} MB."
             )
-    except LeadCsvImportError as exc:
-        import_error = str(exc)
-    finally:
-        await csv_file.close()
+        elif not selected_rows:
+            import_error = "Select at least one row to import."
 
     with get_db() as db:
         organization_id = _request_organization_id(db, request)
@@ -598,7 +735,21 @@ async def import_leads_csv(
             else get_primary_owner_id(db)
         )
         if owner_id is None:
-            import_error = "No owner account is available for lead assignment."
+            import_error = import_error or (
+                "No owner account is available for lead assignment."
+            )
+
+        can_assign = has_crm_owner_authority(request.state.current_user)
+        selected_researcher_id = (
+            _optional_selected_user_id(researcher_user_id)
+            if can_assign
+            else None
+        )
+        selected_bd_owner_id = (
+            _optional_selected_user_id(business_development_owner_user_id)
+            if can_assign
+            else None
+        )
 
         if import_error is None:
             try:
@@ -618,13 +769,19 @@ async def import_leads_csv(
                     created_by_user_id=request.state.current_user["id"],
                     assigned_to_user_id=owner_id,
                     business_development_owner_user_id=(
-                        request.state.current_user["id"]
-                        if is_relationship_manager(
-                            request.state.current_user
+                        selected_bd_owner_id
+                        if selected_bd_owner_id is not None
+                        else (
+                            request.state.current_user["id"]
+                            if is_relationship_manager(
+                                request.state.current_user
+                            )
+                            else None
                         )
-                        else None
                     ),
                     organization_id=organization_id,
+                    selected_row_numbers=frozenset(selected_rows),
+                    researcher_user_id=selected_researcher_id,
                 )
             except LeadCsvImportError as exc:
                 import_error = str(exc)

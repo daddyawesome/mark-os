@@ -15,6 +15,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app import database
+from app.db.pendang_company import (
+    SEED_SERVICES,
+    validate_schema as validate_pendang_company_schema,
+)
 from app.services.database_backup import (
     create_sqlite_backup,
     restore_sqlite_backup,
@@ -336,6 +340,90 @@ def _verify_phase_schema(path: Path) -> dict[str, Any]:
     }
 
 
+def _verify_pendang_company_boundary(path: Path) -> dict[str, Any]:
+    """Verify the Phase 6.6C Pendang company-knowledge boundary.
+
+    Confirms the additive 6.6C schema is present and idempotent, exactly one
+    Pendang company profile and the four generic seed services exist, and
+    MARK Agency carries zero Pendang company-knowledge contamination.
+    """
+    with _connect(path) as db:
+        validate_pendang_company_schema(db)
+
+        organizations = {
+            str(row["slug"]): int(row["id"])
+            for row in db.execute(
+                "SELECT id, slug FROM organizations "
+                "WHERE slug IN ('mark-agency', 'pendang')"
+            )
+        }
+        pendang_id = organizations.get("pendang")
+        mark_agency_id = organizations.get("mark-agency")
+        if pendang_id is None or mark_agency_id is None:
+            raise VerificationFailure(
+                "Required workspace missing for Pendang boundary check."
+            )
+
+        profile_count = int(
+            db.execute(
+                "SELECT COUNT(*) FROM organization_company_profiles "
+                "WHERE organization_id = ?",
+                (pendang_id,),
+            ).fetchone()[0]
+        )
+        if profile_count != 1:
+            raise VerificationFailure(
+                "Expected exactly one Pendang company profile, found "
+                f"{profile_count}."
+            )
+
+        service_count = int(
+            db.execute(
+                """
+                SELECT COUNT(*)
+                FROM organization_knowledge_items
+                WHERE organization_id = ?
+                  AND item_type = 'service'
+                  AND deleted_at IS NULL
+                """,
+                (pendang_id,),
+            ).fetchone()[0]
+        )
+        if service_count != len(SEED_SERVICES):
+            raise VerificationFailure(
+                f"Expected exactly {len(SEED_SERVICES)} Pendang service "
+                f"seed records, found {service_count}."
+            )
+
+        mark_agency_profiles = int(
+            db.execute(
+                "SELECT COUNT(*) FROM organization_company_profiles "
+                "WHERE organization_id = ?",
+                (mark_agency_id,),
+            ).fetchone()[0]
+        )
+        mark_agency_items = int(
+            db.execute(
+                "SELECT COUNT(*) FROM organization_knowledge_items "
+                "WHERE organization_id = ?",
+                (mark_agency_id,),
+            ).fetchone()[0]
+        )
+        if mark_agency_profiles or mark_agency_items:
+            raise VerificationFailure(
+                "MARK Agency has Pendang company-knowledge contamination: "
+                f"{mark_agency_profiles} profile(s), "
+                f"{mark_agency_items} knowledge item(s)."
+            )
+
+    return {
+        "pendang_company_profile_count": profile_count,
+        "pendang_service_seed_count": service_count,
+        "mark_agency_company_profile_count": mark_agency_profiles,
+        "mark_agency_knowledge_item_count": mark_agency_items,
+    }
+
+
 def _compare_before_after(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
     before_leads = before.get("lead_rows", [])
     after_leads = after.get("lead_rows", [])
@@ -351,7 +439,14 @@ def _compare_before_after(before: dict[str, Any], after: dict[str, Any]) -> dict
 
     before_counts = before.get("table_counts", {})
     after_counts = after.get("table_counts", {})
-    for protected_table in ("leads", "lead_activities", "tasks", "xp_ledger"):
+    for protected_table in (
+        "leads",
+        "lead_activities",
+        "tasks",
+        "xp_ledger",
+        "organization_company_profiles",
+        "organization_knowledge_items",
+    ):
         if protected_table in before_counts:
             if before_counts[protected_table] != after_counts.get(protected_table):
                 raise VerificationFailure(
@@ -400,7 +495,7 @@ def run_rehearsal(
     run_dir.mkdir(parents=True, exist_ok=True)
 
     report: dict[str, Any] = {
-        "phase": "6.6B",
+        "phase": "6.6B-6.6C",
         "source_database": str(source),
         "run_directory": str(run_dir),
         "started_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -456,6 +551,9 @@ def run_rehearsal(
         report["after_migration"] = after
         report["preservation"] = _compare_before_after(before, after)
         report["schema_verification"] = _verify_phase_schema(rehearsal_path)
+        report["pendang_company_boundary"] = _verify_pendang_company_boundary(
+            rehearsal_path
+        )
         report["health"] = _verify_health(rehearsal_path)
 
         final_check = verify_sqlite_database(rehearsal_path)

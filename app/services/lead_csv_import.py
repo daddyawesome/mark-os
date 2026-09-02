@@ -11,6 +11,7 @@ from app.services.leads import (
     find_active_lead_by_dedupe_key,
     normalize_lead_field_values,
 )
+from app.services.team_users import list_active_lead_sourcers
 
 
 MAX_CSV_BYTES = 1_000_000
@@ -65,6 +66,7 @@ class LeadCsvImportResult:
     duplicate_count: int
     invalid_count: int
     errors: tuple[LeadCsvRowError, ...]
+    skipped_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -319,6 +321,8 @@ def import_leads_from_csv(
     assigned_to_user_id: int | None = None,
     business_development_owner_user_id: int | None = None,
     organization_id: int | None = None,
+    selected_row_numbers: frozenset[int] | None = None,
+    researcher_user_id: int | None = None,
 ) -> LeadCsvImportResult:
     """Import valid rows while reporting duplicates and row-level errors.
 
@@ -326,14 +330,48 @@ def import_leads_from_csv(
     CRM duplicate handling, linked-quest creation, pipeline synchronization,
     and zero-XP behavior identical to manual lead creation. A role-aware route
     may force all imported rows to a safe review status.
+
+    ``selected_row_numbers``, when given, restricts the import to that subset
+    of previewed CSV rows; every other row is reported as skipped rather than
+    imported. ``researcher_user_id`` bulk-assigns the imported rows to one
+    active Lead Sourcer in the workspace instead of the default assignee,
+    which grants that sourcer visibility through the same ``assigned_to``
+    matching CRM permissions already use elsewhere.
     """
     rows, file_digest = _read_rows(content)
 
+    effective_assigned_to_user_id = assigned_to_user_id
+    if researcher_user_id is not None:
+        if organization_id is None:
+            raise LeadCsvImportError(
+                "Researcher assignment requires a workspace context."
+            )
+        sourcers = list_active_lead_sourcers(
+            db,
+            organization_id=organization_id,
+        )
+        if not any(
+            sourcer["id"] == researcher_user_id for sourcer in sourcers
+        ):
+            raise LeadCsvImportError(
+                "Researcher must be an active Lead Sourcer in this "
+                "workspace."
+            )
+        effective_assigned_to_user_id = researcher_user_id
+
     created_count = 0
     duplicate_count = 0
+    skipped_count = 0
     errors: list[LeadCsvRowError] = []
 
     for row_number, values in rows:
+        if (
+            selected_row_numbers is not None
+            and row_number not in selected_row_numbers
+        ):
+            skipped_count += 1
+            continue
+
         request_key = f"csv:{file_digest[:40]}:{row_number}"
         try:
             result = create_lead(
@@ -356,7 +394,7 @@ def import_leads_from_csv(
                 notes=values["notes"],
                 request_key=request_key,
                 created_by_user_id=created_by_user_id,
-                assigned_to_user_id=assigned_to_user_id,
+                assigned_to_user_id=effective_assigned_to_user_id,
                 business_development_owner_user_id=(
                     business_development_owner_user_id
                 ),
@@ -382,4 +420,5 @@ def import_leads_from_csv(
         duplicate_count=duplicate_count,
         invalid_count=len(errors),
         errors=tuple(errors),
+        skipped_count=skipped_count,
     )

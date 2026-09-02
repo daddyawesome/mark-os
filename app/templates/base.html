@@ -140,6 +140,14 @@
             >
                 <span>Follow-up Command Center</span>
             </a>
+            {% if current_user.role in ['owner', 'relationship_manager'] %}
+            <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/crm/templates') %}is-active{% endif %}"
+                href="/crm/templates"
+            >
+                <span>Outreach Templates</span>
+            </a>
+            {% endif %}
         </div>
         {% endif %}
 

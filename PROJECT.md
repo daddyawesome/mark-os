@@ -9,11 +9,13 @@
 **Primary database:** SQLite on a persistent Railway volume
 **Last verified full-suite baseline:** 531 passed after Phase 6.6C Pendang Company Knowledge and Marketing
 
-## Current status: Phase 6.6
+## Current status: Phase 6.6 / 6.7
 
-Phase 6.6 (Bulk Lead Management and CRM Workspaces) is implemented in
-substeps 6.6A through 6.6C. All are locally complete and test-verified;
-production acceptance is the remaining gate.
+Phase 6.6 (Bulk Lead Management and CRM Workspaces) is implemented in full,
+substeps 6.6A through 6.6F. Phase 6.7 (Outreach Templates and Approval
+Controls) is also implemented. All are locally complete and test-verified;
+production acceptance for the Pendang-facing surfaces remains the outstanding
+gate.
 
 | Substep | What it added | Status |
 |---|---|---|
@@ -27,10 +29,14 @@ production acceptance is the remaining gate.
 | 6.6B-8A | Release-verification harness (`tools/verify_phase_6_6b_release.py`) with rehearsal backup/restore | ✅ Complete |
 | 6.6B-8B | Production-copy migration rehearsal | ⏳ Required before Rey/Freddy onboarding |
 | 6.6C | `/pendang` company home: organization-scoped company knowledge, services/pricing, case studies, content drafts | ✅ Implementation complete locally — production acceptance required |
+| 6.6D | Selective CSV row import with permission-scoped researcher/BD-owner assignment | ✅ Complete |
+| 6.6E | Bulk research submission for review, permission-scoped CSV/JSON export, approved-leads export | ✅ Complete |
+| 6.6F | Owner-only downloadable full-database backup; release verifier extended to the 6.6C Pendang company-knowledge boundary | ✅ Complete |
+| 6.7 | Owner/workspace-owner-authored, approval-gated outreach templates with safe `{{variable}}` preview rendering for Relationship Managers | ✅ Complete |
 
 **Outstanding before Pendang is operationally complete:**
 - Run `tools/verify_phase_6_6b_release.py` against a real Railway production-DB copy (6.6B-8B).
-- Deploy the 6.6C migration through the standard Railway release process; confirm `/health`.
+- Deploy the additive 6.6C–6.7 migrations through the standard Railway release process; confirm `/health`.
 - Rey and Freddy replace their temporary passwords and land on `/pendang`.
 - Smoke-test Rey's company-content write authority and Freddy's read-only view.
 - Complete real Pendang lead/review/next-action acceptance gates.
@@ -38,6 +44,57 @@ production acceptance is the remaining gate.
 Full substep-by-substep implementation notes for 6.6B-1 through 6.6B-8A live in
 the [Decision Log](#19-decision-log) and git history; they are intentionally
 not repeated here now that each substep is complete and superseded by the next.
+
+### Phase 6.6D–F and 6.7 implementation notes
+
+- **6.6D — Selective import.** `import_leads_from_csv` now accepts
+  `selected_row_numbers` (rows not selected are reported as `skipped_count`,
+  never written) and an optional `researcher_user_id`, validated against
+  active Lead Sourcers in the workspace and applied as `assigned_to_user_id`
+  so that sourcer immediately gains visibility through the existing
+  `_actor_matches_lead` rule. The CSV preview page now carries the previewed
+  file forward as a hidden base64 field, renders a checkbox per valid row,
+  and — only for actors with CRM owner authority — optional researcher /
+  Business Development Owner dropdowns scoped to the active workspace.
+- **6.6E — Bulk submission and export.** `bulk_submit_research_for_review`
+  reuses the single-lead `submit_research_for_review` per lead so
+  permission/state failures on one lead never block or corrupt the rest of
+  the batch; the CRM dashboard's lead table gained sourcer-only checkboxes
+  and a bulk "Submit selected for review" action. `app/services/lead_export.py`
+  reuses the existing `list_visible_leads` role/organization visibility query
+  for CSV and JSON export (`GET /crm/leads/export?format=&scope=`), with
+  spreadsheet-formula-injection neutralization on exported text cells and an
+  `approved`-only scope for approved-leads export.
+- **6.6F — Downloadable backup and verifier extension.** `GET
+  /crm/backup/download` (global Owner only — the backup spans every
+  workspace) creates a fresh online SQLite backup via the existing
+  `database_backup` service and streams it. While wiring this up, two
+  pre-existing Windows-only bugs in `app/services/database_backup.py` were
+  found and fixed: `verify_sqlite_database` was never closing its read-only
+  connection (`with connection:` only commits/rolls back, it does not
+  close), and `_atomic_write_text` reopened its just-written manifest file
+  in read-only mode to `fsync` it, which Windows rejects. Both are fixed
+  with an explicit `contextlib.closing()` and a single write-mode handle
+  respectively; this also fixed 8 pre-existing Windows-only failures in
+  `tests/test_database_backup.py` and `tests/test_phase_6_6b_release_verifier.py`
+  that predate this work. `tools/verify_phase_6_6b_release.py` now also
+  asserts the Phase 6.6C boundary: exactly one Pendang company profile,
+  exactly four active Pendang service seed items, and zero Pendang
+  company-knowledge rows under MARK Agency.
+- **6.7 — Outreach templates.** New `outreach_templates` table
+  (workspace-scoped, additive) seeded with six draft, unapproved starter
+  templates per workspace using only generic `{{variable}}` wording — no
+  invented client, pricing, or relationship content. `app/services/outreach_templates.py`
+  gates create/update/approve/archive behind `has_crm_owner_authority`
+  (global Owner or Pendang workspace-owner authority) with optimistic
+  `row_version` protection; `render_template` is a fixed regex substitution
+  over `{{name}}` tokens only (never a template-engine `.render()` call over
+  Owner-authored text), leaving unresolved placeholders visible rather than
+  blank. Relationship Managers can list and render only `approved` templates
+  at `/crm/templates` and `/crm/templates/{id}/use`; the preview page has a
+  copy-to-clipboard button and no send action of any kind. Template usage is
+  intentionally not auto-logged — the existing Phase 6.3 lead-activity form
+  remains the place staff record that outreach happened.
 
 ---
 
@@ -729,6 +786,28 @@ Current rules:
 - Relationship Manager queues are scoped by Business Development ownership;
 - playbook and CRM access do not grant private personal-workspace access.
 
+#### Outreach templates
+
+Current table:
+
+```text
+outreach_templates
+```
+
+Current rules:
+
+- workspace-scoped (`organization_id`), never shared across `mark-agency`
+  and `pendang`;
+- create/update/approve/archive require `has_crm_owner_authority`
+  (global Owner or Pendang workspace-owner authority);
+- Relationship Managers may only list and render `approved = 1` rows;
+- rendering is a fixed `{{variable}}` regex substitution, never a
+  template-engine `.render()` call over stored text;
+- optimistic `row_version` protection on every write;
+- seeded starter content is intentionally generic and unapproved by
+  default — Mark must review and approve before it reaches a
+  Relationship Manager.
+
 #### CRM leads
 
 The current lead schema includes:
@@ -880,23 +959,30 @@ timeline history.
 
 ### Immediate operational gaps
 
+This table predates several now-complete phases; it is left largely as
+written historically except for the rows this session's work closes. See
+[Current status: Phase 6.6 / 6.7](#current-status-phase-66--67) for the
+authoritative, up-to-date picture — Phase 6.2, 6.4, 6.5, and 6.6B are
+already ✅ Complete per the [Phase Completion Log](#18-phase-completion-log)
+even though they still appear below as "next phase" rows.
+
 | Requirement | Next phase |
 |---|---|
 | Tested production backup and restore process | Phase 6.2 |
 | Due, overdue, waiting, and stale-lead command center | Phase 6.4 |
 | Production health and error alerts | Phase 6.5 |
-| Safe bulk preview, assignment, import, and export | Phase 6.6 (6.6D onward) |
+| Safe bulk preview, assignment, import, and export | ✅ Implemented (Phase 6.6, all substeps) |
 | Pendang CRM workspace and staff launch | Phase 6.6B |
-| Deterministic approved outreach templates | Phase 6.7 |
+| Deterministic approved outreach templates | ✅ Implemented (Phase 6.7) |
 | Research effort and webhook intake | Phase 6.8 |
 | Discovery, proposal, onboarding, and billing workflows | Trigger-based Phases 6.9–6.12 |
 | Delegated Relationship Manager outreach | Trigger-based Phase 6.13 |
 
-The next priority is Phase 6.6B — Pendang CRM Workspace and Staff Launch.
-Phase 6.6A delivered safe CSV preview and row validation without blind writes.
-The production system now needs organization-scoped CRM workspaces so Pendang
-Research & Analytics can operate inside MARK-OS without a separate application,
-while remaining bulk-import work continues in later Phase 6.6 substeps.
+The next priority is production acceptance of Phases 6.6 and 6.7: the
+6.6B-8B production-copy rehearsal, the Railway deploy of the accumulated
+additive migrations, and the real Rey/Freddy onboarding and lead-acceptance
+gates described above. No further implementation work is required to reach
+that gate.
 
 ---
 
@@ -1419,7 +1505,7 @@ correlation ID. Use View in Context only after identifying the safe event.
 
 ## Phase 6.6 — Bulk Lead Management and CRM Workspaces
 
-**Status:** Active — 6.6A–6.6C implementation complete; production acceptance next
+**Status:** Implementation complete (6.6A–6.6F); production acceptance next
 **MoSCoW:** Should have soon
 
 ### Goal
@@ -1466,9 +1552,9 @@ Upload CSV
 - [x] 6.6B — Pendang CRM workspace foundation, staff authority, isolation,
       optimistic edits, and release rehearsal harness
 - [x] 6.6C — Pendang Company Knowledge and Marketing workspace
-- [ ] 6.6D — Selective row import with permission-scoped assignment
-- [ ] 6.6E — Bulk submission, CSV/JSON export, and approved-leads export
-- [ ] 6.6F — Downloadable CRM backup and phase verification
+- [x] 6.6D — Selective row import with permission-scoped assignment
+- [x] 6.6E — Bulk submission, CSV/JSON export, and approved-leads export
+- [x] 6.6F — Downloadable CRM backup and phase verification
 
 ### Phase 6.6B — Pendang CRM Workspace and Staff Launch
 
@@ -3024,8 +3110,8 @@ backup.
 | Phase 6.3 | Complete | Lead Activity Timeline, auditable corrections, and atomic Contacted transition |
 | Phase 6.4 | Complete | Follow-up Command Center, role-scoped filters, Manila boundaries, and safe empty states |
 | Phase 6.5 | Complete | Structured errors, correlation IDs, database-aware health, backup and uptime alerts, 24-hour count, and Railway runbook |
-| Phase 6.6 | Active — 6.6A complete; 6.6B next | Bulk lead preview (6.6A complete); Pendang CRM workspace launch (6.6B next); remaining bulk import/export work (6.6D onward) |
-| Phase 6.7 | Should soon | Outreach Templates and Approval Controls |
+| Phase 6.6 | Implementation complete (6.6A–6.6F); production acceptance next | Bulk lead preview, Pendang CRM workspace, Pendang company knowledge, selective import, bulk submission/export, downloadable backup |
+| Phase 6.7 | Complete | Outreach Templates and Approval Controls |
 | Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
 | Phase 6.9 | Trigger-based | Discovery and Qualification |
 | Phase 6.10 | Trigger-based | Proposal Management |

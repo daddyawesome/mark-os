@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ template.title }} · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">{{ category_labels.get(template.category, template.category) }}</p>
+            <h1 class="title is-1 mb-2">{{ template.title }}</h1>
+            <p class="subtitle is-5 mark-muted">
+                {% if lead %}
+                Preparing this for <strong>{{ lead.company }}</strong>. Fill in the remaining details, preview the text, then copy it manually. This never sends anything automatically.
+                {% else %}
+                Fill in the details, preview the text, then copy it manually. This never sends anything automatically.
+                {% endif %}
+            </p>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-light" href="/crm/templates">← Back to templates</a>
+        </div>
+    </div>
+</section>
+
+{% if not template.approved %}
+<div class="notification is-warning is-light">
+    This template is still a draft and is not yet approved for outreach use.
+</div>
+{% endif %}
+
+<div class="columns is-variable is-5">
+    <div class="column is-6">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Fill in details</p>
+            <h2 class="title is-4">Variables</h2>
+            <form method="post" action="/crm/templates/{{ template.id }}/use">
+                <input type="hidden" name="lead_id" value="{{ lead.id if lead else '' }}">
+                {% for name in template.variables %}
+                <div class="field">
+                    <label class="label" for="var_{{ name }}">{{ name | replace('_', ' ') | title }}</label>
+                    <div class="control">
+                        <input class="input" type="text" id="var_{{ name }}" name="var_{{ name }}" value="{{ submitted_variables.get(name, '') if submitted_variables else '' }}">
+                    </div>
+                </div>
+                {% else %}
+                <p class="mark-muted">This template has no variables.</p>
+                {% endfor %}
+                <button class="button is-mark mt-2" type="submit">Preview</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="column is-6">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Preview</p>
+            <h2 class="title is-4">Ready to copy</h2>
+            <pre id="template-preview" class="p-4" style="white-space: pre-wrap; word-break: break-word;">{{ rendered_preview if rendered_preview is not none else template.body }}</pre>
+            <button class="button is-small is-ghost-forest mt-2" type="button" id="copy-preview-button">Copy to clipboard</button>
+            {% if lead and rendered_preview is not none %}
+            <a
+                class="button is-small is-mark mt-2"
+                href="/crm/leads/{{ lead.id }}?message_summary={{ rendered_preview | urlencode }}#lead-activity-timeline"
+            >
+                Log this on {{ lead.company }}
+            </a>
+            {% endif %}
+            <p class="mark-muted is-size-7 mt-3">
+                {% if lead %}
+                Sending happens outside MARK-OS. After you send it, use "Log
+                this on {{ lead.company }}" to record it as a lead activity.
+                {% else %}
+                To keep a record, open the lead this is for and log it as an
+                activity from the lead's own page after you send it.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const button = document.getElementById("copy-preview-button");
+    const preview = document.getElementById("template-preview");
+    if (button && preview && navigator.clipboard) {
+        button.addEventListener("click", function () {
+            navigator.clipboard.writeText(preview.textContent).then(function () {
+                button.textContent = "Copied";
+                setTimeout(function () {
+                    button.textContent = "Copy to clipboard";
+                }, 1500);
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

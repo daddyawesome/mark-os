@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from app.db.organizations import organization_id_by_slug
@@ -15,6 +16,18 @@ from app.services.workspace_context import load_crm_actor_for_workspace
 
 
 Record = Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class BulkSubmitError:
+    lead_id: int
+    message: str
+
+
+@dataclass(frozen=True)
+class BulkSubmitResult:
+    submitted_lead_ids: tuple[int, ...]
+    errors: tuple[BulkSubmitError, ...]
 
 RESEARCH_EDIT_FIELDS = tuple(
     sorted(SOURCER_RESEARCH_EDIT_FIELDS)
@@ -382,6 +395,48 @@ def submit_research_for_review(
             "Submitted lead could not be reloaded"
         )
     return result
+
+
+def bulk_submit_research_for_review(
+    db: sqlite3.Connection,
+    lead_ids: Iterable[int],
+    *,
+    actor: Record,
+    organization_id: int | None = None,
+) -> BulkSubmitResult:
+    """Submit several eligible leads for review in one actor-scoped batch.
+
+    Each lead reuses the fully authorized single-lead submission, so a
+    permission or state failure on one lead is reported and skipped without
+    blocking or partially applying the rest of the batch.
+    """
+    submitted: list[int] = []
+    errors: list[BulkSubmitError] = []
+    seen: set[int] = set()
+
+    for lead_id in lead_ids:
+        safe_lead_id = int(lead_id)
+        if safe_lead_id in seen:
+            continue
+        seen.add(safe_lead_id)
+        try:
+            submit_research_for_review(
+                db,
+                safe_lead_id,
+                actor=actor,
+                organization_id=organization_id,
+            )
+        except (LeadPermissionError, ValueError) as exc:
+            errors.append(
+                BulkSubmitError(lead_id=safe_lead_id, message=str(exc))
+            )
+            continue
+        submitted.append(safe_lead_id)
+
+    return BulkSubmitResult(
+        submitted_lead_ids=tuple(submitted),
+        errors=tuple(errors),
+    )
 
 
 def list_research_review_queue(

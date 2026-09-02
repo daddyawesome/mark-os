@@ -24,6 +24,7 @@ from app.routes import (
     client_hunting,
     lead_research,
     goals,
+    outreach_templates,
     pages,
     pendang,
     quests,
@@ -227,6 +228,7 @@ app.include_router(quests.router)
 app.include_router(goals.router)
 app.include_router(client_hunting.router)
 app.include_router(lead_research.router)
+app.include_router(outreach_templates.router)
 app.include_router(relationship_manager.router)
 app.include_router(users.router)
 app.include_router(workspaces.router)

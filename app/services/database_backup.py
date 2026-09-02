@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import sqlite3
+from contextlib import closing
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -152,8 +153,12 @@ def event_log_path_for_directory(
 def _atomic_write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(text, encoding="utf-8")
-    with temporary.open("rb") as file_handle:
+    # fsync the same handle the text was written through. Reopening the
+    # file read-only just to fsync it fails on Windows, which requires a
+    # writable handle for the underlying flush-to-disk call.
+    with temporary.open("w", encoding="utf-8") as file_handle:
+        file_handle.write(text)
+        file_handle.flush()
         os.fsync(file_handle.fileno())
     os.replace(temporary, path)
 
@@ -208,7 +213,12 @@ def verify_sqlite_database(
             f"Database path is not a file: {path}"
         )
 
-    with _read_only_connection(path) as connection:
+    # sqlite3.Connection's own context-manager protocol only commits or
+    # rolls back the transaction on exit; it does not close the connection.
+    # An unclosed read-only handle can keep the OS file lock held long
+    # enough that a subsequent os.replace/unlink of this same path fails
+    # on Windows, so this is closed explicitly rather than left to GC.
+    with closing(_read_only_connection(path)) as connection:
         quick_check_row = connection.execute(
             "PRAGMA quick_check"
         ).fetchone()

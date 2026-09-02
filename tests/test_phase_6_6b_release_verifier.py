@@ -100,6 +100,12 @@ def test_release_rehearsal_never_mutates_source_database(
     assert "row_version" in schema["lead_columns"]
     assert "organization_id, dedupe_key" in schema["workspace_dedupe_index_sql"]
 
+    pendang_boundary = result["report"]["pendang_company_boundary"]
+    assert pendang_boundary["pendang_company_profile_count"] == 1
+    assert pendang_boundary["pendang_service_seed_count"] == 4
+    assert pendang_boundary["mark_agency_company_profile_count"] == 0
+    assert pendang_boundary["mark_agency_knowledge_item_count"] == 0
+
     manual = result["report"]["manual_release_gates"]
     assert manual
     assert all(value is False for value in manual.values())

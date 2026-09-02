@@ -199,6 +199,16 @@ def test_workspace_owner_manager_gets_crm_owner_routes_but_not_global_admin(pend
         ("POST", "/crm/leads/1/relationship-owner"),
         ("GET", "/crm/leads/1/delete"),
         ("POST", "/crm/leads/1/delete"),
+        ("GET", "/crm/templates"),
+        ("GET", "/crm/templates/new"),
+        ("POST", "/crm/templates"),
+        ("GET", "/crm/templates/1/edit"),
+        ("POST", "/crm/templates/1/edit"),
+        ("POST", "/crm/templates/1/approve"),
+        ("POST", "/crm/templates/1/unapprove"),
+        ("POST", "/crm/templates/1/archive"),
+        ("GET", "/crm/templates/1/use"),
+        ("POST", "/crm/templates/1/use"),
     )
     denied = (
         ("GET", "/"),

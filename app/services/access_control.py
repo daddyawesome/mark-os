@@ -45,6 +45,11 @@ _WORKSPACE_OWNER_RESEARCH_REVIEW_PATTERN = re.compile(
 _WORKSPACE_OWNER_OUTREACH_PATTERN = re.compile(
     r"^/crm/leads/[1-9][0-9]*/outreach/approve$"
 )
+_TEMPLATE_USE_PATTERN = re.compile(r"^/crm/templates/[1-9][0-9]*/use$")
+_TEMPLATE_EDIT_PATTERN = re.compile(r"^/crm/templates/[1-9][0-9]*/edit$")
+_TEMPLATE_MANAGE_ACTION_PATTERN = re.compile(
+    r"^/crm/templates/[1-9][0-9]*/(?:approve|unapprove|archive)$"
+)
 
 _QUEST_DETAIL_PATTERN = re.compile(r"^/quests/[1-9][0-9]*$")
 _HISTORY_EDIT_PATTERN = re.compile(
@@ -67,6 +72,7 @@ _LEAD_SOURCER_GET_PATHS = frozenset(
         "/crm/follow-ups",
         "/crm/leads/new",
         "/crm/leads/import/template",
+        "/crm/leads/export",
     }
 )
 
@@ -74,6 +80,7 @@ _LEAD_SOURCER_POST_PATHS = frozenset(
     {
         "/crm/leads",
         "/crm/leads/import",
+        "/crm/leads/research/bulk-submit",
         "/logout",
     }
 )
@@ -86,6 +93,8 @@ _RELATIONSHIP_MANAGER_GET_PATHS = frozenset(
         "/crm/follow-ups",
         "/crm/leads/new",
         "/crm/leads/import/template",
+        "/crm/leads/export",
+        "/crm/templates",
     }
 )
 
@@ -272,15 +281,21 @@ def can_access_request(
             return (
                 normalized_path in _RELATIONSHIP_MANAGER_GET_PATHS
                 or _LEAD_DETAIL_PATTERN.fullmatch(normalized_path) is not None
+                or _TEMPLATE_USE_PATTERN.fullmatch(normalized_path) is not None
                 or (
                     workspace_owner
                     and (
                         normalized_path == "/crm/research-review"
+                        or normalized_path == "/crm/templates/new"
                         or _WORKSPACE_OWNER_EDIT_PATTERN.fullmatch(
                             normalized_path
                         )
                         is not None
                         or _WORKSPACE_OWNER_DELETE_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _TEMPLATE_EDIT_PATTERN.fullmatch(
                             normalized_path
                         )
                         is not None
@@ -294,10 +309,18 @@ def can_access_request(
                     normalized_path
                 )
                 is not None
+                or _TEMPLATE_USE_PATTERN.fullmatch(normalized_path) is not None
                 or (
                     workspace_owner
                     and (
-                        _WORKSPACE_OWNER_EDIT_PATTERN.fullmatch(normalized_path)
+                        normalized_path == "/crm/templates"
+                        or _TEMPLATE_EDIT_PATTERN.fullmatch(normalized_path)
+                        is not None
+                        or _TEMPLATE_MANAGE_ACTION_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _WORKSPACE_OWNER_EDIT_PATTERN.fullmatch(normalized_path)
                         is not None
                         or _WORKSPACE_OWNER_PIPELINE_PATTERN.fullmatch(
                             normalized_path

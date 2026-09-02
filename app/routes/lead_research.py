@@ -266,6 +266,42 @@ def submit_lead_research_for_review(
     )
 
 
+@router.post("/leads/research/bulk-submit")
+def bulk_submit_lead_research(
+    request: Request,
+    lead_ids: list[int] = Form(default=[]),
+):
+    from app.services.lead_research_workflow import (
+        bulk_submit_research_for_review,
+    )
+
+    if not lead_ids:
+        return RedirectResponse(
+            url="/crm?error=research_bulk_empty",
+            status_code=303,
+        )
+
+    with get_db() as db:
+        organization_id = _request_organization_id(db, request)
+        result = bulk_submit_research_for_review(
+            db,
+            lead_ids,
+            actor=request.state.current_user,
+            organization_id=organization_id,
+        )
+
+    if not result.errors:
+        notice = "research_bulk_submitted"
+    elif result.submitted_lead_ids:
+        notice = "research_bulk_partial"
+    else:
+        notice = "research_bulk_failed"
+    return RedirectResponse(
+        url=f"/crm?notice={notice}",
+        status_code=303,
+    )
+
+
 @router.get(
     "/research-review",
     response_class=HTMLResponse,

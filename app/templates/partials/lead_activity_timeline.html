@@ -19,7 +19,7 @@
     </div>
 
     {% if can_create_activity %}
-    <details class="mb-5" {% if not activities %}open{% endif %}>
+    <details class="mb-5" {% if not activities or request.query_params.get('message_summary') %}open{% endif %}>
         <summary class="has-text-weight-bold">Record an activity</summary>
         <form
             class="mt-4"
@@ -132,7 +132,7 @@
                             name="message_summary"
                             rows="3"
                             required
-                        ></textarea>
+                        >{{ request.query_params.get('message_summary', '') }}</textarea>
                     </div>
                 </div>
                 <div class="column is-full">

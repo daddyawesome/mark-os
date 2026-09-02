@@ -51,6 +51,8 @@ EXPECTED_ROUTES = [
     ("GET", "/crm", "crm_dashboard"),
     ("GET", "/crm/follow-ups", "follow_up_command_center_page"),
     ("GET", "/crm/leads/new", "new_lead_page"),
+    ("GET", "/crm/leads/export", "export_leads"),
+    ("GET", "/crm/backup/download", "download_crm_backup"),
     ("GET", "/crm/leads/import/template", "download_lead_csv_template"),
     ("POST", "/crm/leads/import/preview", "preview_leads_csv"),
     ("POST", "/crm/leads/import", "import_leads_csv"),
@@ -62,6 +64,7 @@ EXPECTED_ROUTES = [
     ("GET", "/crm/leads/{lead_id}/research/edit", "edit_lead_research_page"),
     ("POST", "/crm/leads/{lead_id}/research/edit", "edit_lead_research"),
     ("POST", "/crm/leads/{lead_id}/research/submit", "submit_lead_research_for_review"),
+    ("POST", "/crm/leads/research/bulk-submit", "bulk_submit_lead_research"),
     ("POST", "/crm/leads/{lead_id}/research/review", "review_lead_research"),
     ("POST", "/crm/leads/{lead_id}/outreach/approve", "approve_lead_outreach"),
     ("GET", "/crm/research-review", "research_review_queue"),
@@ -70,6 +73,16 @@ EXPECTED_ROUTES = [
     ("POST", "/crm/leads/{lead_id}/pipeline", "update_pipeline"),
     ("POST", "/crm/leads/{lead_id}/next-action", "update_next_action"),
     ("POST", "/crm/leads/{lead_id}/relationship-owner", "update_relationship_owner"),
+    ("GET", "/crm/templates", "list_outreach_templates"),
+    ("GET", "/crm/templates/new", "new_outreach_template_page"),
+    ("POST", "/crm/templates", "create_outreach_template"),
+    ("GET", "/crm/templates/{template_id}/edit", "edit_outreach_template_page"),
+    ("POST", "/crm/templates/{template_id}/edit", "edit_outreach_template"),
+    ("POST", "/crm/templates/{template_id}/approve", "approve_outreach_template"),
+    ("POST", "/crm/templates/{template_id}/unapprove", "unapprove_outreach_template"),
+    ("POST", "/crm/templates/{template_id}/archive", "delete_outreach_template"),
+    ("GET", "/crm/templates/{template_id}/use", "use_outreach_template_page"),
+    ("POST", "/crm/templates/{template_id}/use", "render_outreach_template_preview"),
     ("GET", "/crm/leads/{lead_id}/delete", "delete_lead_page"),
     ("POST", "/crm/leads/{lead_id}/delete", "delete_lead"),
     ("GET", "/settings/users/new", "new_user_page"),
@@ -427,6 +440,69 @@ def test_authenticated_pages_render_with_temporary_database(
     ):
         status, _, _ = asyncio.run(_request(target, headers=[(b"cookie", cookie)]))
         assert status == 200, target
+
+
+def test_owner_can_download_a_fresh_verified_backup(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "backup-download.db")
+    cookie, _ = _login_cookie(monkeypatch)
+
+    status, headers, body = asyncio.run(
+        _request("/crm/backup/download", headers=[(b"cookie", cookie)])
+    )
+
+    assert status == 200
+    assert _header_values(headers, b"content-type") == [
+        b"application/x-sqlite3"
+    ]
+    assert body.startswith(b"SQLite format 3\x00")
+
+    backup_files = list((tmp_path / "backups").glob("mark_os_*.sqlite3"))
+    assert len(backup_files) == 1
+
+
+def test_lead_sourcer_cannot_download_backup(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "backup-denied.db")
+    database.init_db()
+    with database.get_db() as db:
+        db.execute(
+            """
+            INSERT INTO users (
+                username, display_name, password_hash,
+                role, active, must_change_password
+            )
+            VALUES (?, ?, ?, 'lead_sourcer', 1, 0)
+            """,
+            (
+                "sourcer-user",
+                "Sourcer User",
+                hash_password("sourcer-password-123"),
+            ),
+        )
+
+    body = urlencode(
+        {
+            "username": "sourcer-user",
+            "password": "sourcer-password-123",
+        }
+    ).encode()
+    _, login_headers, _ = asyncio.run(
+        _request(
+            "/login",
+            method="POST",
+            headers=[
+                (b"content-type", b"application/x-www-form-urlencoded")
+            ],
+            body=body,
+        )
+    )
+    set_cookie = _header_values(login_headers, b"set-cookie")[0]
+    cookie = set_cookie.split(b";", 1)[0]
+
+    status, headers, _ = asyncio.run(
+        _request("/crm/backup/download", headers=[(b"cookie", cookie)])
+    )
+    assert status == 303
+    assert _header_values(headers, b"location") == [b"/crm?error=forbidden"]
 
 
 def test_representative_post_routes_persist_to_temporary_database(

@@ -220,6 +220,25 @@
             <span class="mark-chip">
                 {{ leads|length }} SHOWN
             </span>
+            <div class="dropdown is-hoverable is-right">
+                <div class="dropdown-trigger">
+                    <button class="button is-small is-ghost-forest" type="button">
+                        Export
+                    </button>
+                </div>
+                <div class="dropdown-menu">
+                    <div class="dropdown-content">
+                        <a class="dropdown-item" href="/crm/leads/export?format=csv">Visible leads · CSV</a>
+                        <a class="dropdown-item" href="/crm/leads/export?format=json">Visible leads · JSON</a>
+                        <a class="dropdown-item" href="/crm/leads/export?format=csv&scope=approved">Approved leads · CSV</a>
+                        <a class="dropdown-item" href="/crm/leads/export?format=json&scope=approved">Approved leads · JSON</a>
+                        {% if is_global_owner %}
+                        <hr class="dropdown-divider">
+                        <a class="dropdown-item" href="/crm/backup/download">Full database backup (.sqlite3)</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
             <a
                 class="button is-small is-mark"
                 href="/crm/leads/new"
@@ -229,10 +248,16 @@
         </div>
     </div>
 
+    {% set is_sourcer = current_user and current_user.role == 'lead_sourcer' %}
+    <form
+        method="post"
+        action="/crm/leads/research/bulk-submit"
+    >
     <div class="table-container">
         <table class="table is-fullwidth is-hoverable">
             <thead>
                 <tr>
+                    {% if is_sourcer %}<th></th>{% endif %}
                     <th>Lead</th>
                     <th>Research</th>
                     <th>Status</th>
@@ -248,6 +273,24 @@
             <tbody>
                 {% for lead in leads %}
                 <tr>
+                    {% if is_sourcer %}
+                    <td>
+                        {% if
+                            lead.research_status
+                            in [
+                                'draft',
+                                'researching',
+                                'changes_requested'
+                            ]
+                        %}
+                        <input
+                            type="checkbox"
+                            name="lead_ids"
+                            value="{{ lead.id }}"
+                        >
+                        {% endif %}
+                    </td>
+                    {% endif %}
                     <td>
                         <a
                             class="has-text-weight-bold"
@@ -350,7 +393,7 @@
                 {% else %}
                 <tr>
                     <td
-                        colspan="{{ 10 if can_manage_crm else 9 }}"
+                        colspan="{{ (10 if can_manage_crm else 9) + (1 if is_sourcer else 0) }}"
                         class="has-text-centered
                                mark-muted
                                p-6"
@@ -364,5 +407,14 @@
             </tbody>
         </table>
     </div>
+    {% if is_sourcer %}
+    <button
+        class="button is-small is-mark mt-3"
+        type="submit"
+    >
+        Submit selected for review
+    </button>
+    {% endif %}
+    </form>
 </div>
 {% endblock %}

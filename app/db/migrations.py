@@ -13,6 +13,7 @@ from app.db import (
     leads,
     memory,
     organizations,
+    outreach_templates,
     pendang_company,
     playbooks,
     quests,
@@ -43,6 +44,7 @@ SCHEMA_SQL = "\n".join(
         lead_research.SCHEMA_SQL,
         relationship_manager.SCHEMA_SQL,
         lead_activities.SCHEMA_SQL,
+        outreach_templates.SCHEMA_SQL,
     )
 )
 
@@ -61,6 +63,7 @@ INDEX_SQL = "\n".join(
         lead_research.INDEX_SQL,
         relationship_manager.INDEX_SQL,
         lead_activities.INDEX_SQL,
+        outreach_templates.INDEX_SQL,
     )
 )
 
@@ -86,6 +89,8 @@ def initialize_database(db: sqlite3.Connection) -> None:
     organizations.validate_schema(db)
     pendang_company.seed(db)
     pendang_company.validate_schema(db)
+    outreach_templates.seed(db)
+    outreach_templates.validate_schema(db)
     playbooks.validate_schema(db)
     lead_research.migrate(db)
     lead_research.validate_schema(db)
