@@ -17,6 +17,37 @@ _LEAD_RESEARCH_EDIT_PATTERN = re.compile(
 _LEAD_RESEARCH_SUBMIT_PATTERN = re.compile(
     r"^/crm/leads/[1-9][0-9]*/research/submit$"
 )
+_LEAD_QUALIFICATION_EDIT_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/qualification/edit$"
+)
+_LEAD_QUALIFICATION_DECIDE_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/qualification/decide$"
+)
+_LEAD_PROPOSALS_LIST_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/proposals$"
+)
+_LEAD_PROPOSAL_DETAIL_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/proposals/[1-9][0-9]*$"
+)
+_LEAD_PROPOSAL_ACTION_PATTERN = re.compile(
+    r"^/crm/leads/[1-9][0-9]*/proposals/[1-9][0-9]*/"
+    r"(?:edit|submit-review|approve|send|decision)$"
+)
+_LEAD_ONBOARD_PATTERN = re.compile(r"^/crm/leads/[1-9][0-9]*/onboard$")
+_CLIENT_DETAIL_PATTERN = re.compile(r"^/crm/clients/[1-9][0-9]*$")
+_CLIENT_ENGAGEMENTS_CREATE_PATTERN = re.compile(
+    r"^/crm/clients/[1-9][0-9]*/engagements$"
+)
+_ENGAGEMENT_DETAIL_PATTERN = re.compile(r"^/crm/engagements/[1-9][0-9]*$")
+_ENGAGEMENT_DELIVERY_ACTION_PATTERN = re.compile(
+    r"^/crm/engagements/[1-9][0-9]*/(?:notes|complete|items)$"
+)
+_ENGAGEMENT_OWNER_ACTION_PATTERN = re.compile(
+    r"^/crm/engagements/[1-9][0-9]*/(?:edit|cancel)$"
+)
+_ENGAGEMENT_ITEM_STATUS_PATTERN = re.compile(
+    r"^/crm/engagements/[1-9][0-9]*/items/[1-9][0-9]*/status$"
+)
 _LEAD_ACTIVITY_CREATE_PATTERN = re.compile(
     r"^/crm/leads/[1-9][0-9]*/activities$"
 )
@@ -50,6 +81,9 @@ _TEMPLATE_EDIT_PATTERN = re.compile(r"^/crm/templates/[1-9][0-9]*/edit$")
 _TEMPLATE_MANAGE_ACTION_PATTERN = re.compile(
     r"^/crm/templates/[1-9][0-9]*/(?:approve|unapprove|archive)$"
 )
+_WEBHOOK_TOKEN_REVOKE_PATTERN = re.compile(
+    r"^/crm/webhooks/[1-9][0-9]*/revoke$"
+)
 
 _QUEST_DETAIL_PATTERN = re.compile(r"^/quests/[1-9][0-9]*$")
 _HISTORY_EDIT_PATTERN = re.compile(
@@ -73,6 +107,7 @@ _LEAD_SOURCER_GET_PATHS = frozenset(
         "/crm/leads/new",
         "/crm/leads/import/template",
         "/crm/leads/export",
+        "/crm/effort",
     }
 )
 
@@ -95,6 +130,7 @@ _RELATIONSHIP_MANAGER_GET_PATHS = frozenset(
         "/crm/leads/import/template",
         "/crm/leads/export",
         "/crm/templates",
+        "/crm/effort",
     }
 )
 
@@ -282,11 +318,27 @@ def can_access_request(
                 normalized_path in _RELATIONSHIP_MANAGER_GET_PATHS
                 or _LEAD_DETAIL_PATTERN.fullmatch(normalized_path) is not None
                 or _TEMPLATE_USE_PATTERN.fullmatch(normalized_path) is not None
+                or _LEAD_QUALIFICATION_EDIT_PATTERN.fullmatch(
+                    normalized_path
+                )
+                is not None
+                or _LEAD_PROPOSALS_LIST_PATTERN.fullmatch(
+                    normalized_path
+                )
+                is not None
+                or _LEAD_PROPOSAL_DETAIL_PATTERN.fullmatch(
+                    normalized_path
+                )
+                is not None
+                or _CLIENT_DETAIL_PATTERN.fullmatch(normalized_path) is not None
+                or _ENGAGEMENT_DETAIL_PATTERN.fullmatch(normalized_path) is not None
                 or (
                     workspace_owner
                     and (
-                        normalized_path == "/crm/research-review"
+                        normalized_path == "/crm/clients"
+                        or normalized_path == "/crm/research-review"
                         or normalized_path == "/crm/templates/new"
+                        or normalized_path == "/crm/webhooks"
                         or _WORKSPACE_OWNER_EDIT_PATTERN.fullmatch(
                             normalized_path
                         )
@@ -310,13 +362,52 @@ def can_access_request(
                 )
                 is not None
                 or _TEMPLATE_USE_PATTERN.fullmatch(normalized_path) is not None
+                or _LEAD_QUALIFICATION_EDIT_PATTERN.fullmatch(
+                    normalized_path
+                )
+                is not None
+                or _ENGAGEMENT_DELIVERY_ACTION_PATTERN.fullmatch(
+                    normalized_path
+                )
+                is not None
+                or _ENGAGEMENT_ITEM_STATUS_PATTERN.fullmatch(
+                    normalized_path
+                )
+                is not None
                 or (
                     workspace_owner
                     and (
                         normalized_path == "/crm/templates"
+                        or _ENGAGEMENT_OWNER_ACTION_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or normalized_path == "/crm/webhooks"
+                        or _LEAD_ONBOARD_PATTERN.fullmatch(normalized_path)
+                        is not None
+                        or _CLIENT_ENGAGEMENTS_CREATE_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _LEAD_PROPOSALS_LIST_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _LEAD_PROPOSAL_ACTION_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
                         or _TEMPLATE_EDIT_PATTERN.fullmatch(normalized_path)
                         is not None
                         or _TEMPLATE_MANAGE_ACTION_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _WEBHOOK_TOKEN_REVOKE_PATTERN.fullmatch(
+                            normalized_path
+                        )
+                        is not None
+                        or _LEAD_QUALIFICATION_DECIDE_PATTERN.fullmatch(
                             normalized_path
                         )
                         is not None
@@ -363,6 +454,7 @@ def can_access_request(
             normalized_path in _LEAD_SOURCER_GET_PATHS
             or _LEAD_DETAIL_PATTERN.fullmatch(normalized_path) is not None
             or _LEAD_RESEARCH_EDIT_PATTERN.fullmatch(normalized_path) is not None
+            or _ENGAGEMENT_DETAIL_PATTERN.fullmatch(normalized_path) is not None
         )
 
     if normalized_method == "POST":
@@ -372,6 +464,14 @@ def can_access_request(
             or _LEAD_RESEARCH_SUBMIT_PATTERN.fullmatch(normalized_path) is not None
             or _LEAD_ACTIVITY_CREATE_PATTERN.fullmatch(normalized_path) is not None
             or _LEAD_ACTIVITY_ACTION_PATTERN.fullmatch(normalized_path) is not None
+            or _ENGAGEMENT_DELIVERY_ACTION_PATTERN.fullmatch(
+                normalized_path
+            )
+            is not None
+            or _ENGAGEMENT_ITEM_STATUS_PATTERN.fullmatch(
+                normalized_path
+            )
+            is not None
         )
 
     return False

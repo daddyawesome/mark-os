@@ -49,6 +49,12 @@ from app.services.lead_research_permissions import (
     can_edit_research,
     can_view_lead,
 )
+from app.services.lead_qualification_permissions import (
+    can_decide_qualification,
+    can_edit_qualification,
+)
+from app.services.client_delivery import get_client_by_lead
+from app.services.client_delivery_permissions import can_manage_clients
 from app.services.lead_pipeline_workflow import (
     CONTACT_ACTIVITY_TYPES,
     CONTACT_CHANNELS,
@@ -124,6 +130,8 @@ NOTICE_MESSAGES = {
     "research_bulk_submitted": "Selected research submitted for workspace-owner review.",
     "research_bulk_partial": "Some selected leads were submitted; others could not be and were left untouched.",
     "research_bulk_failed": "None of the selected leads could be submitted. They were left untouched.",
+    "qualification_updated": "Qualification notes saved.",
+    "qualification_decided": "Qualification decision recorded.",
 }
 ERROR_MESSAGES = {
     "invalid": "The lead could not be saved. Check the required fields and allowed values.",
@@ -948,6 +956,20 @@ def lead_detail(request: Request, lead_id: int):
                 if has_crm_owner_authority(user)
                 else []
             ),
+            "can_edit_qualification": can_edit_qualification(
+                user,
+                lead,
+            ),
+            "can_decide_qualification": can_decide_qualification(
+                user,
+                lead,
+            ),
+            "existing_client": get_client_by_lead(
+                db,
+                lead_id,
+                organization_id=organization_id,
+            ),
+            "can_manage_clients": can_manage_clients(user),
             "notice": _message(
                 NOTICE_MESSAGES,
                 request.query_params.get("notice"),

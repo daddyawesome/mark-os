@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ client.company }} · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">CRM · Client</p>
+            <h1 class="title is-1 mb-2">{{ client.company }}</h1>
+            <p class="subtitle is-5 mark-muted">{{ client.contact_person or '—' }}</p>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-light" href="/crm/leads/{{ client.lead_id }}">← Originating lead</a>
+        </div>
+    </div>
+</section>
+
+{% if request.query_params.get('error') == 'invalid' %}
+<div class="notification is-danger is-light">That action could not be completed.</div>
+{% endif %}
+
+<div class="columns is-multiline mb-5">
+    {% for engagement in engagements %}
+    <div class="column is-half">
+        <div class="mark-card p-5" style="height: 100%;">
+            <div class="is-flex is-justify-content-space-between is-align-items-flex-start mb-2">
+                <h2 class="title is-4 mb-1">{{ engagement.title }}</h2>
+                <span class="mark-chip {% if engagement.status == 'completed' %}is-success{% elif engagement.status == 'cancelled' %}is-danger{% endif %}">
+                    {{ engagement.status|upper }}
+                </span>
+            </div>
+            <p class="mark-muted is-size-7 mb-3">Started {{ engagement.started_at }}</p>
+            <a class="button is-small is-mark" href="/crm/engagements/{{ engagement.id }}">Open</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="column"><p class="mark-muted p-6 has-text-centered">No engagements yet.</p></div>
+    {% endfor %}
+</div>
+
+{% if can_manage %}
+<div class="mark-card p-5">
+    <p class="mark-kicker">New engagement</p>
+    <h2 class="title is-4">Start another engagement</h2>
+    <form method="post" action="/crm/clients/{{ client.id }}/engagements">
+        <div class="columns is-multiline">
+            <div class="column is-full">
+                <div class="field">
+                    <label class="label" for="title">Title</label>
+                    <input class="input" type="text" id="title" name="title" required maxlength="500">
+                </div>
+            </div>
+            <div class="column is-full">
+                <div class="field">
+                    <label class="label" for="success_criteria">Success criteria</label>
+                    <textarea class="textarea" id="success_criteria" name="success_criteria" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="column is-full">
+                <div class="field">
+                    <label class="label" for="deliverables">Deliverables</label>
+                    <textarea class="textarea" id="deliverables" name="deliverables" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="column is-full">
+                <div class="field">
+                    <label class="label" for="contract_url">Contract link</label>
+                    <input class="input" type="url" id="contract_url" name="contract_url">
+                </div>
+            </div>
+        </div>
+        <button class="button is-mark" type="submit">Create engagement</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

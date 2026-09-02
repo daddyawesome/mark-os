@@ -4,11 +4,14 @@ import sqlite3
 
 from app.db import (
     agent_audit,
+    billing,
     chat,
     checkins,
+    client_delivery,
     family_ownership,
     family_workspace,
     goals,
+    lead_qualification,
     lead_research,
     leads,
     memory,
@@ -16,9 +19,11 @@ from app.db import (
     outreach_templates,
     pendang_company,
     playbooks,
+    proposals,
     quests,
     relationship_manager,
     users,
+    webhook_intake,
 )
 from app.db import family_integrity
 from app.db import lead_activities
@@ -45,6 +50,10 @@ SCHEMA_SQL = "\n".join(
         relationship_manager.SCHEMA_SQL,
         lead_activities.SCHEMA_SQL,
         outreach_templates.SCHEMA_SQL,
+        webhook_intake.SCHEMA_SQL,
+        proposals.SCHEMA_SQL,
+        client_delivery.SCHEMA_SQL,
+        billing.SCHEMA_SQL,
     )
 )
 
@@ -64,6 +73,10 @@ INDEX_SQL = "\n".join(
         relationship_manager.INDEX_SQL,
         lead_activities.INDEX_SQL,
         outreach_templates.INDEX_SQL,
+        webhook_intake.INDEX_SQL,
+        proposals.INDEX_SQL,
+        client_delivery.INDEX_SQL,
+        billing.INDEX_SQL,
     )
 )
 
@@ -91,6 +104,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     pendang_company.validate_schema(db)
     outreach_templates.seed(db)
     outreach_templates.validate_schema(db)
+    webhook_intake.validate_schema(db)
     playbooks.validate_schema(db)
     lead_research.migrate(db)
     lead_research.validate_schema(db)
@@ -104,6 +118,11 @@ def initialize_database(db: sqlite3.Connection) -> None:
         require_organization=True,
         require_row_version=True,
     )
+    lead_qualification.migrate(db)
+    lead_qualification.validate_schema(db)
+    proposals.validate_schema(db)
+    client_delivery.validate_schema(db)
+    billing.validate_schema(db)
     lead_activities.validate_schema(db)
 
     # Safe additive migrations for already-live SQLite databases.

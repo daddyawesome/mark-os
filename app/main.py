@@ -20,16 +20,22 @@ from app.db.family_workspace import ensure_personal_workspace
 from app.routes import auth as auth_routes
 from app.routes import (
     family,
+    billing,
     checkins,
+    client_delivery,
     client_hunting,
+    lead_qualification,
     lead_research,
+    lead_sourcing_effort,
     goals,
     outreach_templates,
     pages,
     pendang,
+    proposals,
     quests,
     relationship_manager,
     users,
+    webhook_intake,
     workspaces,
 )
 from app.services.access_control import (
@@ -98,7 +104,7 @@ app = FastAPI(
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
-PUBLIC_PATHS = {"/login", "/health"}
+PUBLIC_PATHS = {"/login", "/health", "/api/leads/intake"}
 
 
 @app.middleware("http")
@@ -227,8 +233,15 @@ app.include_router(checkins.router)
 app.include_router(quests.router)
 app.include_router(goals.router)
 app.include_router(client_hunting.router)
+app.include_router(client_delivery.router)
+app.include_router(billing.router)
+app.include_router(lead_qualification.router)
 app.include_router(lead_research.router)
+app.include_router(lead_sourcing_effort.router)
 app.include_router(outreach_templates.router)
+app.include_router(proposals.router)
+app.include_router(webhook_intake.router)
+app.include_router(webhook_intake.admin_router)
 app.include_router(relationship_manager.router)
 app.include_router(users.router)
 app.include_router(workspaces.router)

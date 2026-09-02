@@ -20,6 +20,7 @@
             <a class="button is-ghost-forest" href="/crm">Back to CRM</a>
             {% if current_user and current_user.role in ['owner', 'relationship_manager'] %}
             <a class="button is-ghost-forest" href="/crm/templates?lead_id={{ lead.id }}">Outreach templates</a>
+            <a class="button is-ghost-forest" href="/crm/leads/{{ lead.id }}/proposals">Proposals</a>
             {% endif %}
             {% if can_edit_research %}
             <a class="button is-ghost-forest" href="/crm/leads/{{ lead.id }}/research/edit">Edit research</a>
@@ -72,6 +73,70 @@
         </div>
     </div>
 </div>
+
+{% if can_edit_qualification or lead.qualification_status != 'not_started' %}
+<div class="mark-card p-5 mb-5">
+    <div class="is-flex is-justify-content-space-between is-align-items-flex-start is-flex-wrap-wrap mb-3">
+        <div>
+            <p class="mark-kicker">Discovery &amp; Qualification</p>
+            <h2 class="title is-4 mb-1">
+                {{ lead.qualification_status|replace('_', ' ')|title }}
+            </h2>
+        </div>
+        <div class="buttons">
+            {% if can_edit_qualification %}
+            <a class="button is-small is-ghost-forest" href="/crm/leads/{{ lead.id }}/qualification/edit">
+                {% if lead.qualification_status == 'not_started' %}Start qualification{% else %}Edit notes{% endif %}
+            </a>
+            {% endif %}
+            {% if can_decide_qualification %}
+            <form method="post" action="/crm/leads/{{ lead.id }}/qualification/decide" style="display:inline;">
+                <input type="hidden" name="row_version" value="{{ lead.row_version }}">
+                <input type="hidden" name="decision" value="qualified">
+                <button class="button is-small is-success is-light" type="submit">Mark qualified</button>
+            </form>
+            <form method="post" action="/crm/leads/{{ lead.id }}/qualification/decide" style="display:inline;">
+                <input type="hidden" name="row_version" value="{{ lead.row_version }}">
+                <input type="hidden" name="decision" value="disqualified">
+                <button class="button is-small is-danger is-light" type="submit">Mark disqualified</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% if lead.qualification_status != 'not_started' %}
+    <div class="content is-size-7">
+        <p><strong>Business problem</strong><br>{{ lead.business_problem or '—' }}</p>
+        <p><strong>Business impact</strong><br>{{ lead.business_impact or '—' }}</p>
+        <p><strong>Urgency</strong><br>{{ lead.urgency or '—' }}</p>
+        <p><strong>Budget range</strong><br>{{ lead.budget_range or '—' }}</p>
+        <p><strong>Decision maker</strong><br>{{ lead.decision_maker or '—' }}</p>
+        <p><strong>Recommended service</strong><br>{{ lead.recommended_service or '—' }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if lead.pipeline_status == 'won' %}
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">Client Onboarding</p>
+    {% if existing_client %}
+    <h2 class="title is-4 mb-2">Onboarded as a client</h2>
+    <a class="button is-mark" href="/crm/clients/{{ existing_client.id }}">Open client record</a>
+    {% elif can_manage_clients %}
+    <h2 class="title is-4 mb-2">Onboard as a client</h2>
+    <form method="post" action="/crm/leads/{{ lead.id }}/onboard">
+        <div class="field has-addons">
+            <div class="control is-expanded">
+                <input class="input" type="text" name="engagement_title" placeholder="Initial engagement title" required maxlength="500">
+            </div>
+            <div class="control">
+                <button class="button is-mark" type="submit">Onboard</button>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
 
 <div class="columns is-variable is-5">
     <div class="column is-7">

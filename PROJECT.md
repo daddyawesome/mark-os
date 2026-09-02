@@ -808,6 +808,119 @@ Current rules:
   default — Mark must review and approve before it reaches a
   Relationship Manager.
 
+#### Webhook intake
+
+Current tables:
+
+```text
+webhook_intake_tokens
+webhook_intake_events
+```
+
+Current rules:
+
+- `webhook_intake_tokens` stores only a SHA-256 hash of the bearer token
+  (never the raw value) plus its last four characters for identification in
+  the UI; issue/revoke require `has_crm_owner_authority`;
+- one token belongs to exactly one organization; the ingested lead's
+  `source` field is always the token's registered `source_name`, never
+  client-supplied;
+- `webhook_intake_events` is append-only audit evidence (`created`,
+  `duplicate`, or `rejected` per attempt) with a unique
+  `(token_id, external_id)` index that makes redelivery idempotent at the
+  database layer, not just in application logic;
+- ingestion always goes through the same `create_lead` service every other
+  lead-creation path uses — no parallel validation or write path exists.
+
+#### Proposals
+
+Current table:
+
+```text
+proposals
+```
+
+Current rules:
+
+- workspace- and lead-scoped (`organization_id`, `lead_id`); a lead may have
+  any number of proposals, so a revised proposal is a new row, not an edit
+  to a decided one;
+- all money is `INTEGER` minor units plus an explicit `currency` column,
+  never floating point;
+- lifecycle status (`draft → internal_review → approved → sent`) and
+  decision outcome (`accepted`/`rejected`/`expired`) are separate columns —
+  a decision can only be recorded once, only after `sent`;
+- create/edit/every lifecycle transition requires `has_crm_owner_authority`;
+  a Relationship Manager may only view proposals on their own leads;
+- editable only while `draft` or `internal_review`; locked after `approved`;
+- never writes to `leads.pipeline_status` — the existing `proposal` pipeline
+  stage gate in `lead_pipeline_workflow.py` is untouched and independent.
+
+#### Client delivery
+
+Current tables:
+
+```text
+organization_clients
+client_engagements
+engagement_items
+```
+
+Current rules:
+
+- `organization_clients.lead_id` is `UNIQUE` with `ON DELETE RESTRICT` —
+  one client per lead, enforced by the database, and the originating lead
+  can never be deleted out from under an onboarded client;
+- onboarding requires the lead to already be `pipeline_status = 'won'` and
+  Owner/workspace-owner authority; calling it again on the same lead is a
+  no-op that returns the existing client;
+- a client may have any number of `client_engagements` over time (renewals,
+  follow-on work);
+- `engagement_items` holds both milestones and tasks
+  (`item_type IN ('milestone', 'task')`) in one table — same shape, so no
+  separate schema for each;
+- the assigned `delivery_owner_user_id` (any active workspace user) may
+  update notes and manage items on an active engagement; only
+  Owner/workspace-owner authority may edit scope, reassign the delivery
+  owner, or cancel;
+- a `completed` or `cancelled` engagement's scope is locked;
+- entirely separate from the personal quest/XP engine — no `organization_id`
+  exists on `tasks`, and reusing it would leak business delivery work into
+  personal `/quests` views.
+
+#### Billing
+
+Current tables:
+
+```text
+billing_arrangements
+invoices
+payments
+engagement_costs
+```
+
+Current rules:
+
+- financial data is the literal global Owner only
+  (`can_view_private_finance` / `is_owner`), not
+  `has_crm_owner_authority` — Pendang's workspace-owner delegate does not
+  see Pendang's own financial data;
+- every money field is `INTEGER` minor units plus an explicit `currency`
+  column, never a float;
+- `invoices.status` and `payments` are entirely independent — recording a
+  payment never changes an invoice's status; Mark sets status explicitly;
+- `payments` is append-only; corrections are voids
+  (`voided_at`/`voided_by_user_id`/`void_reason`), never edits or deletes,
+  and a voided payment is excluded from revenue but never removed from the
+  table;
+- `invoice_reference` is manually entered and unique per workspace — never
+  auto-generated;
+- collected revenue, gross profit, margin, and commission are computed
+  fresh from the ledger on every read (`compute_engagement_profitability`)
+  — nothing is cached or stored as a derived column;
+- commission is informational only, derived from the active billing
+  arrangement's `commission_rate_basis_points` — never an automatic payout.
+
 #### CRM leads
 
 The current lead schema includes:
@@ -974,8 +1087,11 @@ even though they still appear below as "next phase" rows.
 | Safe bulk preview, assignment, import, and export | ✅ Implemented (Phase 6.6, all substeps) |
 | Pendang CRM workspace and staff launch | Phase 6.6B |
 | Deterministic approved outreach templates | ✅ Implemented (Phase 6.7) |
-| Research effort and webhook intake | Phase 6.8 |
-| Discovery, proposal, onboarding, and billing workflows | Trigger-based Phases 6.9–6.12 |
+| Research effort and webhook intake | ✅ Implemented (Phase 6.8) |
+| Discovery and qualification | ✅ Implemented (Phase 6.9) |
+| Proposal management | ✅ Implemented (Phase 6.10) |
+| Client onboarding and delivery | ✅ Implemented (Phase 6.11) |
+| Billing workflows | ✅ Implemented (Phase 6.12) |
 | Delegated Relationship Manager outreach | Trigger-based Phase 6.13 |
 
 The next priority is production acceptance of Phases 6.6 and 6.7: the
@@ -1768,49 +1884,94 @@ Common-objection response
 
 ## Phase 6.8 — Lead-Sourcing Effort Tracking and Webhook Intake
 
-**Status:** Planned after Phase 6.6 is stable  
+**Status:** Complete — implementation and tests verified locally; production
+acceptance pending alongside Phase 6.6/6.7
 **MoSCoW:** Should have soon
 
 ### Effort tracking
 
-Track:
+`app/services/lead_sourcing_effort.py` derives every figure from records
+that already exist for other reasons — nothing here is a new, independently
+editable number:
 
 ```text
-research_minutes
-leads_researched
-leads_submitted
-changes_requested_count
-approval_rate
-relationship_actions
-period_start
-period_end
+leads_researched          leads.researched_by_user_id, filtered by leads.updated_at
+leads_submitted           leads.submitted_for_review_at IS NOT NULL, filtered by that timestamp
+changes_requested_count   quest_updates event log (crm_research_changes_requested), joined to leads.researched_by_user_id
+approved_count            quest_updates event log (crm_research_approved), joined to leads.researched_by_user_id
+approval_rate             approved_count / leads_submitted for the period (None if nothing was submitted)
+relationship_actions      lead_activities.performed_by_user_id, filtered by activity_at
+period_start / period_end caller-supplied date range, not stored
 ```
+
+`research_minutes` is deliberately **not implemented**: no time-tracking
+mechanism exists anywhere in MARK-OS for CRM research work, and this session
+chose not to fabricate or approximate it. The summary reports it as `None`
+with an explicit `research_minutes_note` explaining why, rather than
+inventing a number. If explicit time-logging is wanted later, that is a new
+write surface and a separate decision.
+
+Visibility: a user may always view their own summary; viewing another
+user's requires `has_crm_owner_authority`. `GET /crm/effort` renders this
+for Owner, Lead Sourcer, and Relationship Manager roles (Owner/workspace-owner
+get a staff picker).
 
 This is operational measurement, not payroll authority.
 
 ### Webhook intake
 
-Add a narrow authenticated endpoint for external lead sources:
-
 ```text
 POST /api/leads/intake
 ```
 
-Requirements:
+Implemented as a bearer-token-authenticated endpoint, added to the
+application's public-path allowlist so the session-cookie middleware does
+not gate it — the route performs its own token authentication instead.
+`app/services/webhook_intake.py`:
 
-- per-source revocable token;
-- payload validation;
-- duplicate protection;
-- same ownership, review, and approval rules as manual leads;
-- no AI dependency;
-- invalid and expired token tests.
+- tokens are `secrets.token_urlsafe(32)`, stored only as a SHA-256 hash
+  (a fast hash is correct here — unlike login passwords, the token itself
+  already carries 256 bits of entropy, so a slow KDF adds only per-request
+  latency with no security benefit); issued and revoked only by
+  `has_crm_owner_authority` (Mark or Pendang's workspace-owner authority),
+  scoped to one organization, revocation takes effect immediately;
+- payload validation requires `external_id`, `company`, `contact_person`,
+  and a `message` (mapped to `problem_opportunity`); `why_mark_fits` and
+  `next_action` default to clearly-labeled "pending research" placeholder
+  text if the external source does not supply them — never fabricated
+  business content;
+- `source` is always the token's own registered `source_name`, never
+  client-supplied, so provenance cannot be spoofed by payload content;
+- duplicate protection and idempotency reuse the exact same `request_key`
+  mechanism every manual and CSV-import lead already uses
+  (`webhook:{token_id}:{external_id}`), so a retried delivery returns the
+  original result instead of creating a second lead;
+- every attempt — created, duplicate, or rejected — is recorded in
+  `webhook_intake_events` with a redacted error summary, satisfying the
+  audit-evidence requirement without ever storing raw payloads or the token;
+- ingestion calls the same `create_lead` service every other intake path
+  uses, so the created lead starts at `pipeline_status='new'`,
+  `research_status='draft'` — identical to a manual lead. Webhook intake
+  cannot approve research, outreach, pipeline movement, proposals, or any
+  financial action, because nothing in this phase touches those code paths
+  at all.
+- `GET /crm/webhooks` (Owner/workspace-owner authority) issues and revokes
+  tokens; the raw token is shown exactly once at creation and is not
+  recoverable afterward.
+
+Tests cover: valid/invalid/revoked token; missing Authorization header;
+malformed JSON; incomplete payload (rejected, nothing written); duplicate
+`external_id` (idempotent, no second lead); cross-organization scoping; the
+route requires no session cookie at all.
 
 ## Phase 6.9 — Discovery and Qualification
 
-**Status:** Trigger-based  
+**Status:** Complete — implementation and tests verified locally; production
+acceptance pending alongside Phases 6.6–6.8
 **Start condition:** Prospects reply or discovery meetings begin.
 
-Required data:
+Required data (implemented as additive columns directly on `leads`, the
+same place `research_status` and its fields already live — no new table):
 
 ```text
 business_problem
@@ -1835,18 +1996,49 @@ Problem → Business Impact → Authority → Budget → Timing → Fit
 
 Mark controls the final technical-fit and qualification decision.
 
+### Implementation notes
+
+- `qualification_status` is `not_started` → `in_progress` (auto-transitions
+  on first edit, mirroring how research auto-transitions to `researching`)
+  → `qualified` / `disqualified` (terminal, Owner/workspace-owner authority
+  only, via `decide_qualification`).
+- Editing the discovery/qualification fields
+  (`app/services/lead_qualification_workflow.py::update_qualification_details`)
+  is available to `has_crm_owner_authority` always, and to the lead's own
+  assigned Relationship Manager (`business_development_owner_user_id` match)
+  only while the status is `not_started` or `in_progress` — once decided,
+  the RM is locked out and only Mark/workspace-owner can change it further.
+  This is enforced in `app/services/lead_qualification_permissions.py`, not
+  just hidden in the template.
+- `decide_qualification` only ever writes the qualification columns. It
+  never touches `pipeline_status` and never creates anything resembling a
+  proposal — a `qualified` decision is a recorded fact on the lead, not a
+  trigger. Covered explicitly by
+  `test_deciding_qualification_never_changes_pipeline_status`.
+- Every write bumps `row_version` and is audited via the existing
+  `quest_updates` event log (`crm_qualification_updated`,
+  `crm_qualification_decided`), the same mechanism research review already
+  uses — no new audit table was needed.
+- `GET/POST /crm/leads/{id}/qualification/edit` and
+  `POST /crm/leads/{id}/qualification/decide`; a qualification summary card
+  with edit/decide actions appears on the lead detail page, gated by the
+  same `can_edit_qualification`/`can_decide_qualification` checks the
+  routes use, not merely hidden.
+
 ## Phase 6.10 — Proposal Management
 
-**Status:** Trigger-based  
+**Status:** Complete — implementation and tests verified locally; production
+acceptance pending alongside Phases 6.6–6.9
 **Start condition:** A qualified opportunity needs a proposal.
 
-Required data:
+Required data (new `proposals` table, many-per-lead, `organization_id` +
+`lead_id` scoped):
 
 ```text
 service_offered
 engagement_type
-proposed_price
-expected_monthly_value
+proposed_price                → proposed_price_amount_minor_units (integer) + currency
+expected_monthly_value        → expected_monthly_value_amount_minor_units (integer) + currency
 proposal_sent_at
 proposal_url
 proposal_expires_at
@@ -1859,9 +2051,46 @@ decision_reason
 First version uses a proposal link rather than a full document generator.
 Mark retains pricing and proposal authority.
 
+### Implementation notes
+
+- Money is stored as an integer count of minor units (cents) with an
+  explicit `currency` column, never a float — applying the discipline
+  Phase 6.12 will require everywhere else, even though this isn't the
+  dedicated financial-safety phase.
+- Lifecycle is a strict one-directional chain, each step its own
+  Owner/workspace-owner-authority-gated action:
+  `draft → internal_review → approved → sent`, verified in
+  `test_cannot_skip_lifecycle_steps`. `decision_status`
+  (`accepted`/`rejected`/`expired`) can only be recorded once, only after
+  `sent`, and is a separate axis from the lifecycle `status` — matching
+  PROJECT.md's explicit `decision_status`/`decision_reason` fields without
+  making them redundant with the lifecycle itself.
+- Editing (`update_proposal`) is only possible while `status` is `draft` or
+  `internal_review`; once `approved`, the commercial terms are locked —
+  verified in `test_cannot_edit_after_approval`. `send_proposal` refuses to
+  run without both a price and a proposal link already set.
+- Deliberately **not** coupled to `leads.pipeline_status` — creating,
+  approving, sending, or deciding a proposal never changes the lead's
+  pipeline stage (verified in `test_full_lifecycle_draft_to_sent_to_accepted`
+  and the HTTP round-trip test). The existing `proposal` pipeline stage
+  already has its own independent gate in
+  `lead_pipeline_workflow._validate_major_transition` (requires the lead to
+  already be in `meeting`); this phase does not touch that function. If
+  the two should eventually drive each other, that is a separate decision.
+- Visibility follows the same shape as lead visibility:
+  `has_crm_owner_authority` sees everything in the workspace; a
+  Relationship Manager can view (but not create, edit, or advance) proposals
+  on leads they created or are the Business Development Owner for.
+  Lead Sourcers have no access — proposals are downstream RM/Owner
+  territory, consistent with Phase 6.9's qualification scoping.
+- `GET/POST /crm/leads/{lead_id}/proposals` (list/create),
+  `GET /crm/leads/{lead_id}/proposals/{id}` (detail/edit),
+  `POST .../submit-review`, `.../approve`, `.../send`, `.../decision`.
+
 ## Phase 6.11 — Client Onboarding and Delivery
 
-**Status:** Trigger-based  
+**Status:** Complete — implementation and tests verified locally; production
+acceptance pending alongside Phases 6.6–6.10
 **Start condition:** Client #1 is won.
 
 Agency loop:
@@ -1883,9 +2112,68 @@ Lead
 Add client profiles, contacts, contract links, success criteria, deliverables,
 tasks, approvals, change requests, and completion evidence.
 
+### Implementation notes
+
+New organization-scoped tables — `organization_clients`,
+`client_engagements`, `engagement_items` — deliberately **not** built on
+the personal quest/XP engine (`tasks`/`goals`/`projects`). That engine has
+no `organization_id` at all and CRM leads' existing zero-XP-quest linkage
+already surfaces in the owning user's personal `/quests` list; reusing it
+for multi-person business delivery work would either leak business tasks
+into personal views or require retrofitting organization scoping and XP
+suppression onto a system built for a different purpose. A fresh, small,
+explicitly-scoped schema was the safer call.
+
+- **No duplicate clients, enforced at the database layer**:
+  `organization_clients.lead_id` is `UNIQUE`, not just checked in
+  application code — `onboard_client_from_lead` is idempotent and returns
+  the existing client on a repeat call rather than erroring or duplicating
+  (verified via `test_onboarding_twice_is_idempotent_not_duplicated` and an
+  HTTP-level repeat-call test). Onboarding requires
+  `lead.pipeline_status == 'won'` and Owner/workspace-owner authority.
+  `organization_clients.lead_id` has `ON DELETE RESTRICT`, so a lead with a
+  client can never be deleted out from under it — traceability back to the
+  originating lead is structural, not just a UI link.
+- **Delivery ownership is a real, checked permission boundary**, not just an
+  assignment label: the assigned `delivery_owner_user_id` — any active
+  workspace user, any role — can update an active engagement's working
+  notes, mark milestones/tasks complete, and add new milestones/tasks.
+  Reassigning the delivery owner, editing scope (title, success criteria,
+  deliverables, contract link), and cancelling an engagement stay
+  Owner/workspace-owner-only. Once an engagement is `completed` or
+  `cancelled`, its scope locks — verified in
+  `test_cannot_edit_scope_after_completion`.
+  `client_delivery_permissions.py` enforces all of this; the route-level
+  access-control table is coarser (any Relationship Manager or Lead Sourcer
+  can reach an engagement's notes/complete/item routes) precisely because
+  the service layer is the real, tested boundary — matching the existing
+  project rule that hiding a control is never the authorization boundary.
+- **No external client action of any kind** — nothing here emails,
+  invoices, or notifies a client; this phase is internal record-keeping
+  only, consistent with "no automatic external client action."
+- Deliberately scoped to your brief's shorter concept list (client record,
+  engagement, onboarding checklist, delivery owner, milestones, tasks, due
+  dates, status, notes, handoff from CRM) plus the cheap, purely-data
+  fields from PROJECT.md's own longer list (contract link, success
+  criteria, deliverables). **Not implemented**: formal approval workflows
+  and change-request tracking as their own state machines — PROJECT.md's
+  "approvals" and "change requests" phrase, which would need their own
+  permission model and audit trail. Flagging this explicitly rather than
+  silently claiming full coverage of that list.
+- Milestones and tasks share one `engagement_items` table
+  (`item_type IN ('milestone', 'task')`) rather than two near-identical
+  tables — same fields (title, status, due date, optional assignee), so a
+  discriminator column was simpler than a second schema.
+- `POST /crm/leads/{lead_id}/onboard` (handoff from the lead's own page),
+  `GET /crm/clients` (Owner list), `GET /crm/clients/{id}` (engagements),
+  `GET /crm/engagements/{id}` (scope, notes, milestones/tasks),
+  `POST .../edit`, `.../notes`, `.../complete`, `.../cancel`,
+  `.../items`, `.../items/{item_id}/status`.
+
 ## Phase 6.12 — Retainers, Invoicing, and Profitability
 
-**Status:** Trigger-based  
+**Status:** Complete — implementation and tests verified locally; production
+acceptance pending alongside Phases 6.6–6.11
 **Start condition:** Active delivery and billing begin.
 
 Add:
@@ -1900,6 +2188,72 @@ Add:
 - commission calculation based on collected revenue.
 
 Financial data remains Owner-only.
+
+### Design approval (2026-09-03)
+
+This phase carried a mandatory pre-implementation design review. The user
+confirmed both open questions before any code was written:
+
+1. **"Owner-only" means the literal global Owner (Mark), not
+   `has_crm_owner_authority`.** Pendang's workspace-owner delegate (Rey)
+   does not see Pendang's own financial data, even though he has broad
+   operational authority everywhere else in that workspace. This reuses
+   `app.services.lead_research_permissions.can_view_private_finance`
+   (`is_owner`) — a function that already existed in the codebase, unused,
+   clearly planted for this phase and never wired up until now.
+2. **`invoice_reference` is typed by Mark, never auto-generated.** No
+   sequence, no auto-numbering — every invoice reference is a value a human
+   chose, enforced unique per workspace at the database layer.
+
+### Implementation notes
+
+Four new additive tables — `billing_arrangements`, `invoices`, `payments`,
+`engagement_costs` — all FK-chained through `client_engagements` (Phase
+6.11) back to `leads`, preserving the same traceability chain every prior
+phase maintained. Every money field is `INTEGER` minor units plus an
+explicit `currency` column; nothing is a Python float or SQLite `REAL`,
+extending the discipline Phase 6.10 established for proposal pricing.
+
+- **Every financial fact is a value Mark typed in — nothing is derived or
+  automatic.** Recording a payment does not flip an invoice's status;
+  `status` is a separate, explicit field Mark sets himself
+  (`test_invoice_status_is_explicit_not_derived` asserts a fully-paid
+  invoice stays `draft` until Mark explicitly marks it `paid`). Creating an
+  engagement never spawns a billing arrangement; a billing arrangement
+  never spawns an invoice. No payment processor, no external invoice
+  delivery — every route is Mark filling in a form.
+- **Payments are append-only.** There is no update or delete function for
+  a payment row — a data-entry mistake is corrected by voiding
+  (`voided_at`/`voided_by_user_id`/`void_reason`), which excludes it from
+  revenue totals while leaving the original row permanently in the audit
+  trail (`test_voided_payment_excluded_from_revenue`,
+  `test_payment_cannot_be_voided_twice`).
+- **Collected revenue, gross profit, margin, and commission are computed
+  fresh on every read, never stored.** `compute_engagement_profitability`
+  sums non-voided payments and non-deleted costs directly from the ledger
+  each time it's called — there is no cached aggregate column anywhere
+  that could drift out of sync with the underlying rows. Margin is `None`
+  (not zero, not a divide-by-zero) when there's no revenue yet
+  (`test_margin_is_none_without_revenue`). Commission is derived from the
+  active billing arrangement's `commission_rate_basis_points` and reported
+  as informational only — mirroring how Phase 6.8 framed effort tracking,
+  this is explicitly not an automatic payroll trigger.
+- **Single-tier authority.** Unlike Phases 6.10/6.11's Owner-plus-delegate
+  split, every financial route uses the exact same gate for both viewing
+  and managing: `can_view_private_finance`. No route pattern for these
+  paths exists anywhere in `access_control.py`'s Relationship Manager or
+  Lead Sourcer branches — they fall through to the default deny, and this
+  is verified directly (`test_workspace_owner_manager_still_cannot_view_finance`
+  promotes a Relationship Manager to Pendang `workspace_owner` in the
+  database and confirms `create_billing_arrangement` still raises
+  `BillingPermissionError`).
+- `GET /crm/engagements/{id}/billing` is the single financial dashboard for
+  one engagement — arrangements, invoices with their payments, costs, and
+  the computed profitability summary — plus
+  `POST .../arrangements`, `.../arrangements/{id}/cancel`,
+  `.../invoices`, `.../invoices/{id}/status`,
+  `.../invoices/{id}/payments`, `.../payments/{id}/void`,
+  `.../costs`, `.../costs/{id}/delete`.
 
 ## Phase 6.13 — Delegated Outreach Permission
 
@@ -3112,11 +3466,11 @@ backup.
 | Phase 6.5 | Complete | Structured errors, correlation IDs, database-aware health, backup and uptime alerts, 24-hour count, and Railway runbook |
 | Phase 6.6 | Implementation complete (6.6A–6.6F); production acceptance next | Bulk lead preview, Pendang CRM workspace, Pendang company knowledge, selective import, bulk submission/export, downloadable backup |
 | Phase 6.7 | Complete | Outreach Templates and Approval Controls |
-| Phase 6.8 | Should soon | Lead-sourcing effort tracking and webhook intake |
-| Phase 6.9 | Trigger-based | Discovery and Qualification |
-| Phase 6.10 | Trigger-based | Proposal Management |
-| Phase 6.11 | Trigger-based | Client Onboarding and Delivery |
-| Phase 6.12 | Trigger-based | Retainers, Invoicing, and Profitability |
+| Phase 6.8 | Complete | Lead-sourcing effort tracking (derived) and webhook intake |
+| Phase 6.9 | Complete | Discovery and Qualification |
+| Phase 6.10 | Complete | Proposal Management |
+| Phase 6.11 | Complete | Client Onboarding and Delivery |
+| Phase 6.12 | Complete | Retainers, Invoicing, and Profitability |
 | Phase 6.13 | Trigger-based | Delegated Relationship Manager outreach |
 | Phase 7 | Planned | Product Hardening and Growth |
 | Phase 8 | Planned | Budget-Safe AI Continuation |

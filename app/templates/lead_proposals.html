@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Proposals · {{ lead.company }} · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">CRM · Proposals</p>
+            <h1 class="title is-1 mb-2">Proposals for {{ lead.company }}</h1>
+            <p class="subtitle is-5 mark-muted">
+                Mark retains pricing and proposal authority. Nothing here
+                sends automatically — proposals use a link, not a
+                document generator.
+            </p>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-light" href="/crm/leads/{{ lead.id }}">← Back to lead</a>
+        </div>
+    </div>
+</section>
+
+{% if request.query_params.get('error') == 'invalid' %}
+<div class="notification is-danger is-light">The proposal could not be saved. Check the required fields.</div>
+{% endif %}
+
+<div class="table-container mb-5">
+    <table class="table is-fullwidth is-striped">
+        <thead>
+            <tr>
+                <th>Service</th>
+                <th>Status</th>
+                <th>Price</th>
+                <th>Decision</th>
+                <th>Created</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for proposal in proposals %}
+            <tr>
+                <td>{{ proposal.service_offered }}</td>
+                <td><span class="mark-chip">{{ proposal.status|replace('_', ' ')|upper }}</span></td>
+                <td>
+                    {% if proposal.proposed_price_amount_minor_units is not none %}
+                    {{ proposal.currency }} {{ '%.2f'|format(proposal.proposed_price_amount_minor_units / 100) }}
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if proposal.decision_status %}
+                    <span class="mark-chip {% if proposal.decision_status == 'accepted' %}is-success{% elif proposal.decision_status == 'rejected' %}is-danger{% else %}is-warning{% endif %}">
+                        {{ proposal.decision_status|upper }}
+                    </span>
+                    {% else %}—{% endif %}
+                </td>
+                <td>{{ proposal.created_at }}</td>
+                <td><a class="button is-small is-ghost-forest" href="/crm/leads/{{ lead.id }}/proposals/{{ proposal.id }}">Open</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="has-text-centered mark-muted p-6">No proposals yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if can_manage %}
+<div class="mark-card p-5">
+    <p class="mark-kicker">New proposal</p>
+    <h2 class="title is-4">Create a draft</h2>
+    <form method="post" action="/crm/leads/{{ lead.id }}/proposals">
+        <div class="columns is-multiline">
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="service_offered">Service offered</label>
+                    <input class="input" type="text" id="service_offered" name="service_offered" required maxlength="500">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="engagement_type">Engagement type</label>
+                    <input class="input" type="text" id="engagement_type" name="engagement_type" placeholder="e.g. retainer, project" maxlength="500">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="proposed_price">Proposed price</label>
+                    <input class="input" type="text" id="proposed_price" name="proposed_price" placeholder="e.g. 50000.00">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="expected_monthly_value">Expected monthly value</label>
+                    <input class="input" type="text" id="expected_monthly_value" name="expected_monthly_value" placeholder="e.g. 15000.00">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="currency">Currency</label>
+                    <input class="input" type="text" id="currency" name="currency" value="PHP" maxlength="8">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="proposal_url">Proposal link</label>
+                    <input class="input" type="url" id="proposal_url" name="proposal_url" placeholder="https://…">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="proposal_expires_at">Expires</label>
+                    <input class="input" type="date" id="proposal_expires_at" name="proposal_expires_at">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="probability">Probability (%)</label>
+                    <input class="input" type="number" min="0" max="100" id="probability" name="probability">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="follow_up_date">Follow-up date</label>
+                    <input class="input" type="date" id="follow_up_date" name="follow_up_date">
+                </div>
+            </div>
+        </div>
+        <button class="button is-mark" type="submit">Create draft</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

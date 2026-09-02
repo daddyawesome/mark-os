@@ -148,6 +148,26 @@
                 <span>Outreach Templates</span>
             </a>
             {% endif %}
+            <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/crm/effort') %}is-active{% endif %}"
+                href="/crm/effort"
+            >
+                <span>Lead-Sourcing Effort</span>
+            </a>
+            {% if current_user.role == 'owner' %}
+            <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/crm/clients') %}is-active{% endif %}"
+                href="/crm/clients"
+            >
+                <span>Clients</span>
+            </a>
+            <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/crm/webhooks') %}is-active{% endif %}"
+                href="/crm/webhooks"
+            >
+                <span>Webhook Intake</span>
+            </a>
+            {% endif %}
         </div>
         {% endif %}
 

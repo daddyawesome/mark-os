@@ -53,6 +53,11 @@ EXPECTED_ROUTES = [
     ("GET", "/crm/leads/new", "new_lead_page"),
     ("GET", "/crm/leads/export", "export_leads"),
     ("GET", "/crm/backup/download", "download_crm_backup"),
+    ("POST", "/api/leads/intake", "intake_lead_webhook"),
+    ("GET", "/crm/effort", "lead_sourcing_effort_page"),
+    ("GET", "/crm/webhooks", "list_webhook_tokens_page"),
+    ("POST", "/crm/webhooks", "create_webhook_token_route"),
+    ("POST", "/crm/webhooks/{token_id}/revoke", "revoke_webhook_token_route"),
     ("GET", "/crm/leads/import/template", "download_lead_csv_template"),
     ("POST", "/crm/leads/import/preview", "preview_leads_csv"),
     ("POST", "/crm/leads/import", "import_leads_csv"),
@@ -64,6 +69,37 @@ EXPECTED_ROUTES = [
     ("GET", "/crm/leads/{lead_id}/research/edit", "edit_lead_research_page"),
     ("POST", "/crm/leads/{lead_id}/research/edit", "edit_lead_research"),
     ("POST", "/crm/leads/{lead_id}/research/submit", "submit_lead_research_for_review"),
+    ("GET", "/crm/leads/{lead_id}/qualification/edit", "edit_lead_qualification_page"),
+    ("POST", "/crm/leads/{lead_id}/qualification/edit", "edit_lead_qualification"),
+    ("POST", "/crm/leads/{lead_id}/qualification/decide", "decide_lead_qualification"),
+    ("GET", "/crm/leads/{lead_id}/proposals", "list_lead_proposals_page"),
+    ("POST", "/crm/leads/{lead_id}/proposals", "create_lead_proposal"),
+    ("GET", "/crm/leads/{lead_id}/proposals/{proposal_id}", "lead_proposal_detail_page"),
+    ("POST", "/crm/leads/{lead_id}/proposals/{proposal_id}/edit", "edit_lead_proposal"),
+    ("POST", "/crm/leads/{lead_id}/proposals/{proposal_id}/submit-review", "submit_lead_proposal_for_review"),
+    ("POST", "/crm/leads/{lead_id}/proposals/{proposal_id}/approve", "approve_lead_proposal"),
+    ("POST", "/crm/leads/{lead_id}/proposals/{proposal_id}/send", "send_lead_proposal"),
+    ("POST", "/crm/leads/{lead_id}/proposals/{proposal_id}/decision", "decide_lead_proposal"),
+    ("POST", "/crm/leads/{lead_id}/onboard", "onboard_lead_as_client"),
+    ("GET", "/crm/clients", "list_clients_page"),
+    ("GET", "/crm/clients/{client_id}", "client_detail_page"),
+    ("POST", "/crm/clients/{client_id}/engagements", "create_client_engagement"),
+    ("GET", "/crm/engagements/{engagement_id}", "engagement_detail_page"),
+    ("POST", "/crm/engagements/{engagement_id}/edit", "edit_engagement"),
+    ("POST", "/crm/engagements/{engagement_id}/notes", "edit_engagement_notes"),
+    ("POST", "/crm/engagements/{engagement_id}/complete", "complete_engagement_route"),
+    ("POST", "/crm/engagements/{engagement_id}/cancel", "cancel_engagement_route"),
+    ("POST", "/crm/engagements/{engagement_id}/items", "create_engagement_item_route"),
+    ("POST", "/crm/engagements/{engagement_id}/items/{item_id}/status", "update_engagement_item_status_route"),
+    ("GET", "/crm/engagements/{engagement_id}/billing", "engagement_billing_page"),
+    ("POST", "/crm/engagements/{engagement_id}/billing/arrangements", "create_arrangement_route"),
+    ("POST", "/crm/engagements/{engagement_id}/billing/arrangements/{arrangement_id}/cancel", "cancel_arrangement_route"),
+    ("POST", "/crm/engagements/{engagement_id}/billing/invoices", "create_invoice_route"),
+    ("POST", "/crm/engagements/{engagement_id}/billing/invoices/{invoice_id}/status", "update_invoice_status_route"),
+    ("POST", "/crm/engagements/{engagement_id}/billing/invoices/{invoice_id}/payments", "record_payment_route"),
+    ("POST", "/crm/engagements/{engagement_id}/billing/payments/{payment_id}/void", "void_payment_route"),
+    ("POST", "/crm/engagements/{engagement_id}/billing/costs", "create_cost_route"),
+    ("POST", "/crm/engagements/{engagement_id}/billing/costs/{cost_id}/delete", "delete_cost_route"),
     ("POST", "/crm/leads/research/bulk-submit", "bulk_submit_lead_research"),
     ("POST", "/crm/leads/{lead_id}/research/review", "review_lead_research"),
     ("POST", "/crm/leads/{lead_id}/outreach/approve", "approve_lead_outreach"),
@@ -434,12 +470,534 @@ def test_authenticated_pages_render_with_temporary_database(
         "/crm",
         "/crm/follow-ups",
         "/crm/leads/new",
+        "/crm/effort",
+        "/crm/webhooks",
         "/settings/users/new",
         "/life-os",
         "/history",
     ):
         status, _, _ = asyncio.run(_request(target, headers=[(b"cookie", cookie)]))
         assert status == 200, target
+
+
+def test_owner_can_run_billing_through_the_http_routes(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "billing-route.db")
+    cookie, _ = _login_cookie(monkeypatch)
+
+    with database.get_db() as db:
+        owner_id = db.execute(
+            "SELECT id FROM users WHERE role='owner' AND active=1 LIMIT 1"
+        ).fetchone()[0]
+        organization_id = db.execute(
+            "SELECT id FROM organizations WHERE slug='mark-agency'"
+        ).fetchone()[0]
+        from app.services.client_delivery import onboard_client_from_lead
+        from app.services.leads import create_lead
+
+        lead = create_lead(
+            db,
+            company="Billing Route Co",
+            contact_person="Dana Buyer",
+            job_title="Founder",
+            source="Referral",
+            source_url="https://example.com/billing-route",
+            problem_opportunity="Reporting is manual.",
+            why_mark_fits="Mark can automate reporting.",
+            pipeline_status="won",
+            priority="medium",
+            next_action="Kick off delivery.",
+            notes="",
+            created_by_user_id=owner_id,
+            assigned_to_user_id=owner_id,
+            organization_id=organization_id,
+        ).lead
+        client = onboard_client_from_lead(
+            db,
+            lead["id"],
+            actor={"id": owner_id, "role": "owner"},
+            organization_id=organization_id,
+            engagement_title="Billing engagement",
+        )
+        engagement = db.execute(
+            "SELECT id FROM client_engagements WHERE client_id = ?",
+            (client["id"],),
+        ).fetchone()
+
+    invoice_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/engagements/{engagement['id']}/billing/invoices",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {
+                    "invoice_reference": "INV-ROUTE-001",
+                    "invoice_date": "2026-09-01",
+                    "amount": "50000.00",
+                    "currency": "PHP",
+                }
+            ).encode(),
+        )
+    )
+    assert invoice_status == 303
+
+    with database.get_db() as db:
+        invoice = db.execute(
+            "SELECT id, row_version FROM invoices WHERE invoice_reference = ?",
+            ("INV-ROUTE-001",),
+        ).fetchone()
+    assert invoice is not None
+
+    payment_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/engagements/{engagement['id']}/billing/invoices/{invoice['id']}/payments",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {
+                    "amount": "50000.00",
+                    "currency": "PHP",
+                    "payment_date": "2026-09-05",
+                }
+            ).encode(),
+        )
+    )
+    assert payment_status == 303
+
+    with database.get_db() as db:
+        # Recording a payment must never auto-flip the invoice's own status.
+        reloaded_invoice = db.execute(
+            "SELECT status FROM invoices WHERE id = ?", (invoice["id"],)
+        ).fetchone()
+    assert reloaded_invoice["status"] == "draft"
+
+    status_update_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/engagements/{engagement['id']}/billing/invoices/{invoice['id']}/status",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {"status": "paid", "row_version": str(invoice["row_version"])}
+            ).encode(),
+        )
+    )
+    assert status_update_status == 303
+
+    with database.get_db() as db:
+        final_invoice = db.execute(
+            "SELECT status FROM invoices WHERE id = ?", (invoice["id"],)
+        ).fetchone()
+    assert final_invoice["status"] == "paid"
+
+
+def test_relationship_manager_cannot_reach_engagement_billing(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "billing-denied.db")
+    database.init_db()
+    with database.get_db() as db:
+        db.execute(
+            """
+            INSERT INTO users (
+                username, display_name, password_hash,
+                role, active, must_change_password
+            )
+            VALUES (?, ?, ?, 'relationship_manager', 1, 0)
+            """,
+            (
+                "rm-billing-test",
+                "RM Billing Test",
+                hash_password("rm-billing-password-123"),
+            ),
+        )
+
+    body = urlencode(
+        {"username": "rm-billing-test", "password": "rm-billing-password-123"}
+    ).encode()
+    _, login_headers, _ = asyncio.run(
+        _request(
+            "/login",
+            method="POST",
+            headers=[(b"content-type", b"application/x-www-form-urlencoded")],
+            body=body,
+        )
+    )
+    set_cookie = _header_values(login_headers, b"set-cookie")[0]
+    cookie = set_cookie.split(b";", 1)[0]
+
+    status, _, _ = asyncio.run(
+        _request("/crm/engagements/1/billing", headers=[(b"cookie", cookie)])
+    )
+    assert status == 303
+
+
+def test_owner_can_onboard_a_won_lead_through_the_http_routes(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "onboarding-route.db")
+    cookie, _ = _login_cookie(monkeypatch)
+
+    with database.get_db() as db:
+        owner_id = db.execute(
+            "SELECT id FROM users WHERE role='owner' AND active=1 LIMIT 1"
+        ).fetchone()[0]
+        organization_id = db.execute(
+            "SELECT id FROM organizations WHERE slug='mark-agency'"
+        ).fetchone()[0]
+        from app.services.leads import create_lead
+
+        lead = create_lead(
+            db,
+            company="Onboarding Route Co",
+            contact_person="Dana Buyer",
+            job_title="Founder",
+            source="Referral",
+            source_url="https://example.com/onboarding-route",
+            problem_opportunity="Reporting is manual.",
+            why_mark_fits="Mark can automate reporting.",
+            pipeline_status="won",
+            priority="medium",
+            next_action="Kick off delivery.",
+            notes="",
+            created_by_user_id=owner_id,
+            assigned_to_user_id=owner_id,
+            organization_id=organization_id,
+        ).lead
+
+    onboard_status, onboard_headers, _ = asyncio.run(
+        _request(
+            f"/crm/leads/{lead['id']}/onboard",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode({"engagement_title": "Kickoff engagement"}).encode(),
+        )
+    )
+    assert onboard_status == 303
+    client_location = _header_values(onboard_headers, b"location")[0].decode()
+
+    with database.get_db() as db:
+        client = db.execute(
+            "SELECT id FROM organization_clients WHERE lead_id = ?",
+            (lead["id"],),
+        ).fetchone()
+        engagement = db.execute(
+            "SELECT id, row_version FROM client_engagements WHERE client_id = ?",
+            (client["id"],),
+        ).fetchone()
+    assert f"/crm/clients/{client['id']}" in urlsplit(client_location).path
+
+    item_status, item_headers, _ = asyncio.run(
+        _request(
+            f"/crm/engagements/{engagement['id']}/items",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {
+                    "item_type": "task",
+                    "title": "Set up reporting dashboard",
+                    "due_date": "",
+                    "assigned_to_user_id": "",
+                }
+            ).encode(),
+        )
+    )
+    assert item_status == 303
+
+    with database.get_db() as db:
+        item = db.execute(
+            "SELECT id, row_version FROM engagement_items WHERE engagement_id = ?",
+            (engagement["id"],),
+        ).fetchone()
+
+    complete_item_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/engagements/{engagement['id']}/items/{item['id']}/status",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {"status": "completed", "row_version": str(item["row_version"])}
+            ).encode(),
+        )
+    )
+    assert complete_item_status == 303
+
+    complete_engagement_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/engagements/{engagement['id']}/complete",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode({"row_version": str(engagement["row_version"])}).encode(),
+        )
+    )
+    assert complete_engagement_status == 303
+
+    with database.get_db() as db:
+        final_item = db.execute(
+            "SELECT status FROM engagement_items WHERE id = ?", (item["id"],)
+        ).fetchone()
+        final_engagement = db.execute(
+            "SELECT status FROM client_engagements WHERE id = ?",
+            (engagement["id"],),
+        ).fetchone()
+    assert final_item["status"] == "completed"
+    assert final_engagement["status"] == "completed"
+
+    # Onboarding the same lead again must not create a second client.
+    repeat_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/leads/{lead['id']}/onboard",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode({"engagement_title": "Duplicate attempt"}).encode(),
+        )
+    )
+    assert repeat_status == 303
+    with database.get_db() as db:
+        client_count = db.execute(
+            "SELECT COUNT(*) FROM organization_clients WHERE lead_id = ?",
+            (lead["id"],),
+        ).fetchone()[0]
+    assert client_count == 1
+
+
+def test_owner_can_run_a_proposal_through_the_http_routes(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "proposal-route.db")
+    cookie, _ = _login_cookie(monkeypatch)
+
+    with database.get_db() as db:
+        owner_id = db.execute(
+            "SELECT id FROM users WHERE role='owner' AND active=1 LIMIT 1"
+        ).fetchone()[0]
+        organization_id = db.execute(
+            "SELECT id FROM organizations WHERE slug='mark-agency'"
+        ).fetchone()[0]
+        from app.services.leads import create_lead
+
+        lead = create_lead(
+            db,
+            company="Proposal Route Co",
+            contact_person="Dana Buyer",
+            job_title="Founder",
+            source="Referral",
+            source_url="https://example.com/proposal-route",
+            problem_opportunity="Reporting is manual.",
+            why_mark_fits="Mark can automate reporting.",
+            pipeline_status="meeting",
+            priority="medium",
+            next_action="Prepare a proposal.",
+            notes="",
+            created_by_user_id=owner_id,
+            assigned_to_user_id=owner_id,
+            organization_id=organization_id,
+        ).lead
+
+    create_status, create_headers, _ = asyncio.run(
+        _request(
+            f"/crm/leads/{lead['id']}/proposals",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {
+                    "service_offered": "Data automation retainer",
+                    "engagement_type": "retainer",
+                    "proposed_price": "50000.00",
+                    "proposal_url": "https://docs.example.com/route-proposal",
+                    "currency": "PHP",
+                }
+            ).encode(),
+        )
+    )
+    assert create_status == 303
+    location = _header_values(create_headers, b"location")[0].decode()
+
+    with database.get_db() as db:
+        proposal = db.execute(
+            "SELECT id, status, row_version FROM proposals WHERE lead_id = ?",
+            (lead["id"],),
+        ).fetchone()
+    assert proposal["status"] == "draft"
+    assert f"/proposals/{proposal['id']}" in urlsplit(location).path
+
+    for action, expected_status in (
+        ("submit-review", "internal_review"),
+        ("approve", "approved"),
+        ("send", "sent"),
+    ):
+        with database.get_db() as db:
+            row_version = db.execute(
+                "SELECT row_version FROM proposals WHERE id = ?",
+                (proposal["id"],),
+            ).fetchone()["row_version"]
+
+        status, _, _ = asyncio.run(
+            _request(
+                f"/crm/leads/{lead['id']}/proposals/{proposal['id']}/{action}",
+                method="POST",
+                headers=[
+                    (b"cookie", cookie),
+                    (b"content-type", b"application/x-www-form-urlencoded"),
+                ],
+                body=urlencode({"row_version": str(row_version)}).encode(),
+            )
+        )
+        assert status == 303, action
+
+        with database.get_db() as db:
+            after = db.execute(
+                "SELECT status FROM proposals WHERE id = ?",
+                (proposal["id"],),
+            ).fetchone()
+        assert after["status"] == expected_status, action
+
+    with database.get_db() as db:
+        row_version = db.execute(
+            "SELECT row_version FROM proposals WHERE id = ?",
+            (proposal["id"],),
+        ).fetchone()["row_version"]
+
+    decision_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/leads/{lead['id']}/proposals/{proposal['id']}/decision",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {"decision": "accepted", "row_version": str(row_version)}
+            ).encode(),
+        )
+    )
+    assert decision_status == 303
+
+    with database.get_db() as db:
+        final = db.execute(
+            "SELECT decision_status, status FROM proposals WHERE id = ?",
+            (proposal["id"],),
+        ).fetchone()
+        lead_after = db.execute(
+            "SELECT pipeline_status FROM leads WHERE id = ?",
+            (lead["id"],),
+        ).fetchone()
+    assert final["decision_status"] == "accepted"
+    assert lead_after["pipeline_status"] == "meeting"
+
+
+def test_owner_can_qualify_a_lead_through_the_http_routes(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "qualification-route.db")
+    cookie, _ = _login_cookie(monkeypatch)
+
+    with database.get_db() as db:
+        owner_id = db.execute(
+            "SELECT id FROM users WHERE role='owner' AND active=1 LIMIT 1"
+        ).fetchone()[0]
+        organization_id = db.execute(
+            "SELECT id FROM organizations WHERE slug='mark-agency'"
+        ).fetchone()[0]
+        from app.services.leads import create_lead
+
+        lead = create_lead(
+            db,
+            company="Route Test Co",
+            contact_person="Dana Buyer",
+            job_title="Founder",
+            source="Referral",
+            source_url="https://example.com/route-test",
+            problem_opportunity="Reporting is manual.",
+            why_mark_fits="Mark can automate reporting.",
+            pipeline_status="new",
+            priority="medium",
+            next_action="Schedule discovery call.",
+            notes="",
+            created_by_user_id=owner_id,
+            assigned_to_user_id=owner_id,
+            organization_id=organization_id,
+        ).lead
+
+    edit_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/leads/{lead['id']}/qualification/edit",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {
+                    "row_version": str(lead["row_version"]),
+                    "business_problem": "Manual reporting wastes hours weekly.",
+                    "urgency": "High",
+                }
+            ).encode(),
+        )
+    )
+    assert edit_status == 303
+
+    with database.get_db() as db:
+        after_edit = db.execute(
+            "SELECT qualification_status, row_version, business_problem "
+            "FROM leads WHERE id = ?",
+            (lead["id"],),
+        ).fetchone()
+    assert after_edit["qualification_status"] == "in_progress"
+    assert after_edit["business_problem"] == "Manual reporting wastes hours weekly."
+
+    decide_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/leads/{lead['id']}/qualification/decide",
+            method="POST",
+            headers=[
+                (b"cookie", cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {
+                    "row_version": str(after_edit["row_version"]),
+                    "decision": "qualified",
+                }
+            ).encode(),
+        )
+    )
+    assert decide_status == 303
+
+    with database.get_db() as db:
+        after_decide = db.execute(
+            "SELECT qualification_status, pipeline_status FROM leads WHERE id = ?",
+            (lead["id"],),
+        ).fetchone()
+    assert after_decide["qualification_status"] == "qualified"
+    assert after_decide["pipeline_status"] == "new"
+
+    detail_status, _, detail_body = asyncio.run(
+        _request(
+            f"/crm/leads/{lead['id']}",
+            headers=[(b"cookie", cookie)],
+        )
+    )
+    assert detail_status == 200
+    assert b"QUALIFIED" in detail_body.upper()
 
 
 def test_owner_can_download_a_fresh_verified_backup(tmp_path, monkeypatch):

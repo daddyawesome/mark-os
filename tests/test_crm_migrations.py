@@ -40,6 +40,22 @@ LEAD_COLUMNS = [
     "outreach_approved_by_user_id",
     "outreach_approved_at",
     "business_development_owner_user_id",
+    "business_problem",
+    "business_impact",
+    "current_process",
+    "current_tools",
+    "estimated_hours_wasted",
+    "urgency",
+    "budget_range",
+    "decision_maker",
+    "desired_result",
+    "meeting_notes",
+    "recommended_service",
+    "qualification_status",
+    "qualification_updated_by_user_id",
+    "qualification_updated_at",
+    "qualification_decided_by_user_id",
+    "qualification_decided_at",
 ]
 
 EXPECTED_LEAD_INDEXES = {

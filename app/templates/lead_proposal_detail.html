@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}{{ proposal.service_offered }} · {{ lead.company }} · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">CRM · Proposal · {{ lead.company }}</p>
+            <h1 class="title is-1 mb-2">{{ proposal.service_offered }}</h1>
+            <div class="tags">
+                <span class="mark-chip">{{ proposal.status|replace('_', ' ')|upper }}</span>
+                {% if proposal.decision_status %}
+                <span class="mark-chip {% if proposal.decision_status == 'accepted' %}is-success{% elif proposal.decision_status == 'rejected' %}is-danger{% else %}is-warning{% endif %}">
+                    {{ proposal.decision_status|upper }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="column is-narrow">
+            <a class="button is-light" href="/crm/leads/{{ lead.id }}/proposals">← All proposals</a>
+        </div>
+    </div>
+</section>
+
+{% if notice == 'created' %}<div class="notification is-mark">Draft created.</div>{% endif %}
+{% if notice == 'updated' %}<div class="notification is-mark">Proposal updated.</div>{% endif %}
+{% if notice == 'submitted' %}<div class="notification is-mark">Submitted for internal review.</div>{% endif %}
+{% if notice == 'approved' %}<div class="notification is-mark">Proposal approved.</div>{% endif %}
+{% if notice == 'sent' %}<div class="notification is-mark">Proposal marked as sent.</div>{% endif %}
+{% if notice == 'decided' %}<div class="notification is-mark">Decision recorded.</div>{% endif %}
+{% if error == 'stale' %}<div class="notification is-danger is-light">This proposal changed in another session. Reload and try again.</div>{% endif %}
+{% if error == 'invalid' %}<div class="notification is-danger is-light">That action could not be completed for this proposal's current state.</div>{% endif %}
+
+{% if can_manage %}
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">Lifecycle</p>
+    <h2 class="title is-4">Move this proposal forward</h2>
+    <div class="buttons">
+        {% if proposal.status == 'draft' %}
+        <form method="post" action="/crm/leads/{{ lead.id }}/proposals/{{ proposal.id }}/submit-review">
+            <input type="hidden" name="row_version" value="{{ proposal.row_version }}">
+            <button class="button is-mark" type="submit">Submit for internal review</button>
+        </form>
+        {% elif proposal.status == 'internal_review' %}
+        <form method="post" action="/crm/leads/{{ lead.id }}/proposals/{{ proposal.id }}/approve">
+            <input type="hidden" name="row_version" value="{{ proposal.row_version }}">
+            <button class="button is-mark" type="submit">Approve</button>
+        </form>
+        {% elif proposal.status == 'approved' %}
+        <form method="post" action="/crm/leads/{{ lead.id }}/proposals/{{ proposal.id }}/send">
+            <input type="hidden" name="row_version" value="{{ proposal.row_version }}">
+            <button class="button is-mark" type="submit">Mark as sent</button>
+        </form>
+        {% elif proposal.status == 'sent' and not proposal.decision_status %}
+        <form method="post" action="/crm/leads/{{ lead.id }}/proposals/{{ proposal.id }}/decision" style="display:inline;">
+            <input type="hidden" name="row_version" value="{{ proposal.row_version }}">
+            <input type="hidden" name="decision" value="accepted">
+            <button class="button is-success is-light" type="submit">Record: Accepted</button>
+        </form>
+        <form method="post" action="/crm/leads/{{ lead.id }}/proposals/{{ proposal.id }}/decision" style="display:inline;">
+            <input type="hidden" name="row_version" value="{{ proposal.row_version }}">
+            <input type="hidden" name="decision" value="rejected">
+            <button class="button is-danger is-light" type="submit">Record: Rejected</button>
+        </form>
+        <form method="post" action="/crm/leads/{{ lead.id }}/proposals/{{ proposal.id }}/decision" style="display:inline;">
+            <input type="hidden" name="row_version" value="{{ proposal.row_version }}">
+            <input type="hidden" name="decision" value="expired">
+            <button class="button is-warning is-light" type="submit">Record: Expired</button>
+        </form>
+        {% else %}
+        <p class="mark-muted">This proposal has no further lifecycle actions.</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<div class="mark-card p-5">
+    <p class="mark-kicker">Details</p>
+    <h2 class="title is-4">Commercial terms</h2>
+    {% if can_manage and proposal.status in ['draft', 'internal_review'] %}
+    <form method="post" action="/crm/leads/{{ lead.id }}/proposals/{{ proposal.id }}/edit">
+        <input type="hidden" name="row_version" value="{{ proposal.row_version }}">
+        <div class="columns is-multiline">
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="service_offered">Service offered</label>
+                    <input class="input" type="text" id="service_offered" name="service_offered" value="{{ proposal.service_offered }}" required maxlength="500">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="engagement_type">Engagement type</label>
+                    <input class="input" type="text" id="engagement_type" name="engagement_type" value="{{ proposal.engagement_type }}" maxlength="500">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="proposed_price">Proposed price</label>
+                    <input class="input" type="text" id="proposed_price" name="proposed_price" value="{{ '%.2f'|format(proposal.proposed_price_amount_minor_units / 100) if proposal.proposed_price_amount_minor_units is not none else '' }}">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="expected_monthly_value">Expected monthly value</label>
+                    <input class="input" type="text" id="expected_monthly_value" name="expected_monthly_value" value="{{ '%.2f'|format(proposal.expected_monthly_value_amount_minor_units / 100) if proposal.expected_monthly_value_amount_minor_units is not none else '' }}">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="currency">Currency</label>
+                    <input class="input" type="text" id="currency" name="currency" value="{{ proposal.currency }}" maxlength="8">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="proposal_url">Proposal link</label>
+                    <input class="input" type="url" id="proposal_url" name="proposal_url" value="{{ proposal.proposal_url }}">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="proposal_expires_at">Expires</label>
+                    <input class="input" type="date" id="proposal_expires_at" name="proposal_expires_at" value="{{ proposal.proposal_expires_at or '' }}">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="probability">Probability (%)</label>
+                    <input class="input" type="number" min="0" max="100" id="probability" name="probability" value="{{ proposal.probability if proposal.probability is not none else '' }}">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="follow_up_date">Follow-up date</label>
+                    <input class="input" type="date" id="follow_up_date" name="follow_up_date" value="{{ proposal.follow_up_date or '' }}">
+                </div>
+            </div>
+        </div>
+        <button class="button is-mark" type="submit">Save</button>
+    </form>
+    {% else %}
+    <div class="content">
+        <p><strong>Service offered</strong><br>{{ proposal.service_offered }}</p>
+        <p><strong>Engagement type</strong><br>{{ proposal.engagement_type or '—' }}</p>
+        <p><strong>Proposed price</strong><br>
+            {% if proposal.proposed_price_amount_minor_units is not none %}
+            {{ proposal.currency }} {{ '%.2f'|format(proposal.proposed_price_amount_minor_units / 100) }}
+            {% else %}—{% endif %}
+        </p>
+        <p><strong>Expected monthly value</strong><br>
+            {% if proposal.expected_monthly_value_amount_minor_units is not none %}
+            {{ proposal.currency }} {{ '%.2f'|format(proposal.expected_monthly_value_amount_minor_units / 100) }}
+            {% else %}—{% endif %}
+        </p>
+        <p><strong>Proposal link</strong><br>
+            {% if proposal.proposal_url %}<a href="{{ proposal.proposal_url }}" target="_blank" rel="noopener noreferrer">{{ proposal.proposal_url }}</a>{% else %}—{% endif %}
+        </p>
+        <p><strong>Expires</strong><br>{{ proposal.proposal_expires_at or '—' }}</p>
+        <p><strong>Probability</strong><br>{{ proposal.probability ~ '%' if proposal.probability is not none else '—' }}</p>
+        <p><strong>Follow-up date</strong><br>{{ proposal.follow_up_date or '—' }}</p>
+        {% if proposal.decision_reason %}
+        <p><strong>Decision reason</strong><br>{{ proposal.decision_reason }}</p>
+        {% endif %}
+    </div>
+    {% if not can_manage %}
+    <p class="mark-muted is-size-7">Pricing and lifecycle changes remain Owner-controlled.</p>
+    {% else %}
+    <p class="mark-muted is-size-7">This proposal is locked from editing once approved.</p>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

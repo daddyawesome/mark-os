@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Webhook Intake · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">CRM · Lead intake</p>
+            <h1 class="title is-1 mb-2">Webhook intake tokens.</h1>
+            <p class="subtitle is-5 mark-muted">
+                Leads created this way go through the same review and approval
+                pipeline as every other lead. Revoking a token takes effect
+                immediately.
+            </p>
+        </div>
+    </div>
+</section>
+
+{% if notice == 'created' %}
+<div class="notification is-mark">
+    <p class="has-text-weight-bold mb-2">Token created.</p>
+    <p class="mark-muted mb-2">
+        This value is shown once and cannot be recovered later. Store it
+        securely before leaving this page.
+    </p>
+    <pre class="p-3" style="white-space: pre-wrap; word-break: break-all;">{{ issued_token }}</pre>
+</div>
+{% elif notice == 'revoked' %}
+<div class="notification is-warning is-light">Token revoked.</div>
+{% elif notice == 'invalid' %}
+<div class="notification is-danger is-light">That action could not be completed.</div>
+{% endif %}
+
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">New source</p>
+    <h2 class="title is-4">Issue a token</h2>
+    <form method="post" action="/crm/webhooks">
+        <div class="field">
+            <label class="label" for="source_name">Source name</label>
+            <div class="control">
+                <input class="input" type="text" id="source_name" name="source_name" required maxlength="100" placeholder="e.g. Website contact form">
+            </div>
+        </div>
+        <button class="button is-mark" type="submit">Issue token</button>
+    </form>
+</div>
+
+<div class="mark-card p-5">
+    <p class="mark-kicker">Existing sources</p>
+    <h2 class="title is-4">Tokens</h2>
+    <div class="table-container">
+        <table class="table is-fullwidth is-striped">
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Last four</th>
+                    <th>Last used</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for token in tokens %}
+                <tr>
+                    <td>{{ token.source_name }}</td>
+                    <td>
+                        <span class="mark-chip {% if token.active %}is-success{% else %}is-warning{% endif %}">
+                            {{ 'ACTIVE' if token.active else 'REVOKED' }}
+                        </span>
+                    </td>
+                    <td>…{{ token.token_last_four }}</td>
+                    <td>{{ token.last_used_at or 'Never' }}</td>
+                    <td>{{ token.created_at }}</td>
+                    <td>
+                        {% if token.active %}
+                        <form method="post" action="/crm/webhooks/{{ token.id }}/revoke" style="display:inline;">
+                            <button class="button is-small is-danger is-light" type="submit">Revoke</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="has-text-centered mark-muted p-6">No webhook tokens yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Qualify {{ lead.company }} · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">CRM · Discovery &amp; Qualification</p>
+    <h1 class="title is-1 mb-2">Qualify {{ lead.company }}</h1>
+    <p class="subtitle is-5 mark-muted">
+        Problem → Business Impact → Authority → Budget → Timing → Fit.
+        Mark makes the final qualified/disqualified decision.
+    </p>
+    <div class="tags mt-4">
+        <span class="mark-chip">
+            QUALIFICATION: {{ lead.qualification_status|replace('_', ' ')|upper }}
+        </span>
+    </div>
+</section>
+
+{% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+
+<div class="mark-card p-5">
+    <form method="post" action="/crm/leads/{{ lead.id }}/qualification/edit">
+        <input type="hidden" name="row_version" value="{{ lead.row_version }}">
+        <div class="columns is-multiline">
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="business_problem">Business problem</label>
+                    <textarea class="textarea" id="business_problem" name="business_problem" rows="3">{{ lead.business_problem }}</textarea>
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="business_impact">Business impact</label>
+                    <textarea class="textarea" id="business_impact" name="business_impact" rows="3">{{ lead.business_impact }}</textarea>
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="current_process">Current process</label>
+                    <textarea class="textarea" id="current_process" name="current_process" rows="2">{{ lead.current_process }}</textarea>
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="current_tools">Current tools</label>
+                    <textarea class="textarea" id="current_tools" name="current_tools" rows="2">{{ lead.current_tools }}</textarea>
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="estimated_hours_wasted">Estimated hours wasted</label>
+                    <input class="input" type="text" id="estimated_hours_wasted" name="estimated_hours_wasted" value="{{ lead.estimated_hours_wasted }}">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="urgency">Urgency</label>
+                    <input class="input" type="text" id="urgency" name="urgency" value="{{ lead.urgency }}">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="budget_range">Budget range</label>
+                    <input class="input" type="text" id="budget_range" name="budget_range" value="{{ lead.budget_range }}">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="decision_maker">Decision maker</label>
+                    <input class="input" type="text" id="decision_maker" name="decision_maker" value="{{ lead.decision_maker }}">
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="desired_result">Desired result</label>
+                    <textarea class="textarea" id="desired_result" name="desired_result" rows="2">{{ lead.desired_result }}</textarea>
+                </div>
+            </div>
+            <div class="column is-half">
+                <div class="field">
+                    <label class="label" for="recommended_service">Recommended service</label>
+                    <input class="input" type="text" id="recommended_service" name="recommended_service" value="{{ lead.recommended_service }}">
+                </div>
+            </div>
+            <div class="column is-full">
+                <div class="field">
+                    <label class="label" for="meeting_notes">Meeting notes</label>
+                    <textarea class="textarea" id="meeting_notes" name="meeting_notes" rows="4">{{ lead.meeting_notes }}</textarea>
+                </div>
+            </div>
+        </div>
+        <button class="button is-mark" type="submit">Save qualification notes</button>
+        <a class="button is-light" href="/crm/leads/{{ lead.id }}">Back to lead</a>
+    </form>
+</div>
+{% endblock %}

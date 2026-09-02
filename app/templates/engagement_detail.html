@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ engagement.title }} · {{ client.company }} · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">CRM · {{ client.company }}</p>
+            <h1 class="title is-1 mb-2">{{ engagement.title }}</h1>
+            <span class="mark-chip {% if engagement.status == 'completed' %}is-success{% elif engagement.status == 'cancelled' %}is-danger{% endif %}">
+                {{ engagement.status|upper }}
+            </span>
+        </div>
+        <div class="column is-narrow">
+            {% if current_user and current_user.role == 'owner' %}
+            <a class="button is-mark" href="/crm/engagements/{{ engagement.id }}/billing">Billing</a>
+            {% endif %}
+            <a class="button is-light" href="/crm/clients/{{ client.id }}">← {{ client.company }}</a>
+        </div>
+    </div>
+</section>
+
+{% if notice == 'updated' %}<div class="notification is-mark">Saved.</div>{% endif %}
+{% if notice == 'completed' %}<div class="notification is-mark">Engagement completed.</div>{% endif %}
+{% if notice == 'cancelled' %}<div class="notification is-warning is-light">Engagement cancelled.</div>{% endif %}
+{% if notice == 'item_added' %}<div class="notification is-mark">Item added.</div>{% endif %}
+{% if notice == 'item_updated' %}<div class="notification is-mark">Item updated.</div>{% endif %}
+{% if error == 'stale' %}<div class="notification is-danger is-light">This changed in another session. Reload and try again.</div>{% endif %}
+{% if error == 'invalid' %}<div class="notification is-danger is-light">That action could not be completed.</div>{% endif %}
+
+{% if engagement.status == 'active' %}
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">Status</p>
+    <div class="buttons">
+        <form method="post" action="/crm/engagements/{{ engagement.id }}/complete">
+            <input type="hidden" name="row_version" value="{{ engagement.row_version }}">
+            <button class="button is-success is-light" type="submit">Mark completed</button>
+        </form>
+        {% if can_manage_scope %}
+        <form method="post" action="/crm/engagements/{{ engagement.id }}/cancel">
+            <input type="hidden" name="row_version" value="{{ engagement.row_version }}">
+            <button class="button is-danger is-light" type="submit">Cancel engagement</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<div class="columns is-variable is-5">
+    <div class="column is-6">
+        <div class="mark-card p-5 mb-5">
+            <p class="mark-kicker">Scope</p>
+            {% if can_manage_scope and engagement.status == 'active' %}
+            <form method="post" action="/crm/engagements/{{ engagement.id }}/edit">
+                <input type="hidden" name="row_version" value="{{ engagement.row_version }}">
+                <div class="field">
+                    <label class="label" for="title">Title</label>
+                    <input class="input" type="text" id="title" name="title" value="{{ engagement.title }}" required maxlength="500">
+                </div>
+                <div class="field">
+                    <label class="label" for="delivery_owner_user_id">Delivery owner (user ID)</label>
+                    <input class="input" type="number" id="delivery_owner_user_id" name="delivery_owner_user_id" value="{{ engagement.delivery_owner_user_id or '' }}">
+                </div>
+                <div class="field">
+                    <label class="label" for="success_criteria">Success criteria</label>
+                    <textarea class="textarea" id="success_criteria" name="success_criteria" rows="2">{{ engagement.success_criteria }}</textarea>
+                </div>
+                <div class="field">
+                    <label class="label" for="deliverables">Deliverables</label>
+                    <textarea class="textarea" id="deliverables" name="deliverables" rows="2">{{ engagement.deliverables }}</textarea>
+                </div>
+                <div class="field">
+                    <label class="label" for="contract_url">Contract link</label>
+                    <input class="input" type="url" id="contract_url" name="contract_url" value="{{ engagement.contract_url }}">
+                </div>
+                <button class="button is-mark" type="submit">Save scope</button>
+            </form>
+            {% else %}
+            <div class="content">
+                <p><strong>Success criteria</strong><br>{{ engagement.success_criteria or '—' }}</p>
+                <p><strong>Deliverables</strong><br>{{ engagement.deliverables or '—' }}</p>
+                <p><strong>Contract link</strong><br>{% if engagement.contract_url %}<a href="{{ engagement.contract_url }}" target="_blank" rel="noopener noreferrer">{{ engagement.contract_url }}</a>{% else %}—{% endif %}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if can_update_notes %}
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Working notes</p>
+            <form method="post" action="/crm/engagements/{{ engagement.id }}/notes">
+                <input type="hidden" name="row_version" value="{{ engagement.row_version }}">
+                <textarea class="textarea" name="notes" rows="4">{{ engagement.notes }}</textarea>
+                <button class="button is-mark mt-2" type="submit">Save notes</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="column is-6">
+        <div class="mark-card p-5 mb-5">
+            <p class="mark-kicker">Milestones &amp; Tasks</p>
+            <h2 class="title is-4">Delivery checklist</h2>
+            <div class="content">
+                {% for item in items %}
+                <div class="mb-3 p-3" style="border-bottom: 1px solid #eee;">
+                    <span class="mark-chip">{{ item.item_type|upper }}</span>
+                    <span class="mark-chip {% if item.status == 'completed' %}is-success{% elif item.status == 'in_progress' %}is-warning{% endif %}">
+                        {{ item.status|replace('_', ' ')|upper }}
+                    </span>
+                    <p class="has-text-weight-bold mt-1">{{ item.title }}</p>
+                    {% if item.due_date %}<p class="mark-muted is-size-7">Due {{ item.due_date }}</p>{% endif %}
+                    {% if can_manage_items and item.status != 'completed' %}
+                    <div class="buttons mt-2">
+                        {% if item.status == 'pending' %}
+                        <form method="post" action="/crm/engagements/{{ engagement.id }}/items/{{ item.id }}/status" style="display:inline;">
+                            <input type="hidden" name="row_version" value="{{ item.row_version }}">
+                            <input type="hidden" name="status" value="in_progress">
+                            <button class="button is-small is-ghost-forest" type="submit">Start</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="/crm/engagements/{{ engagement.id }}/items/{{ item.id }}/status" style="display:inline;">
+                            <input type="hidden" name="row_version" value="{{ item.row_version }}">
+                            <input type="hidden" name="status" value="completed">
+                            <button class="button is-small is-success is-light" type="submit">Complete</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="mark-muted">No milestones or tasks yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if can_manage_items %}
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Add item</p>
+            <form method="post" action="/crm/engagements/{{ engagement.id }}/items">
+                <div class="field">
+                    <label class="label" for="item_type">Type</label>
+                    <div class="select is-fullwidth">
+                        <select id="item_type" name="item_type">
+                            <option value="milestone">Milestone</option>
+                            <option value="task">Task</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label" for="item_title">Title</label>
+                    <input class="input" type="text" id="item_title" name="title" required maxlength="500">
+                </div>
+                <div class="field">
+                    <label class="label" for="due_date">Due date</label>
+                    <input class="input" type="date" id="due_date" name="due_date">
+                </div>
+                <div class="field">
+                    <label class="label" for="assigned_to_user_id">Assign to (user ID, tasks only)</label>
+                    <input class="input" type="number" id="assigned_to_user_id" name="assigned_to_user_id">
+                </div>
+                <button class="button is-mark" type="submit">Add</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -42,6 +42,8 @@ def test_owner_keeps_full_mark_os_access():
         ("POST", "/crm/leads/1/pipeline"),
         ("POST", "/crm/leads/1/outreach/approve"),
         ("POST", "/crm/leads/1/delete"),
+        ("GET", "/crm/engagements/1/billing"),
+        ("POST", "/crm/engagements/1/billing/invoices"),
     )
     assert all(
         can_access_request(OWNER, method, path)
@@ -57,6 +59,7 @@ def test_lead_sourcer_has_small_read_and_intake_surface():
         ("GET", "/crm/leads/new"),
         ("GET", "/crm/leads/import/template"),
         ("GET", "/crm/leads/export"),
+        ("GET", "/crm/effort"),
         ("GET", "/crm/leads/1"),
         ("GET", "/crm/leads/999"),
         ("GET", "/crm/leads/1/research/edit"),
@@ -64,6 +67,11 @@ def test_lead_sourcer_has_small_read_and_intake_surface():
         ("POST", "/crm/leads"),
         ("POST", "/crm/leads/import"),
         ("POST", "/crm/leads/research/bulk-submit"),
+        ("GET", "/crm/engagements/1"),
+        ("POST", "/crm/engagements/1/notes"),
+        ("POST", "/crm/engagements/1/complete"),
+        ("POST", "/crm/engagements/1/items"),
+        ("POST", "/crm/engagements/1/items/1/status"),
         ("POST", "/logout"),
     )
     denied = (
@@ -81,6 +89,25 @@ def test_lead_sourcer_has_small_read_and_intake_surface():
         ("GET", "/crm/leads/1/delete"),
         ("POST", "/crm/leads/1/delete"),
         ("DELETE", "/crm/leads/1"),
+        ("GET", "/crm/webhooks"),
+        ("POST", "/crm/webhooks"),
+        ("POST", "/crm/webhooks/1/revoke"),
+        ("GET", "/crm/leads/1/qualification/edit"),
+        ("POST", "/crm/leads/1/qualification/edit"),
+        ("POST", "/crm/leads/1/qualification/decide"),
+        ("GET", "/crm/leads/1/proposals"),
+        ("POST", "/crm/leads/1/proposals"),
+        ("GET", "/crm/leads/1/proposals/1"),
+        ("POST", "/crm/leads/1/proposals/1/edit"),
+        ("POST", "/crm/leads/1/onboard"),
+        ("GET", "/crm/clients"),
+        ("GET", "/crm/clients/1"),
+        ("POST", "/crm/clients/1/engagements"),
+        ("POST", "/crm/engagements/1/edit"),
+        ("POST", "/crm/engagements/1/cancel"),
+        ("GET", "/crm/engagements/1/billing"),
+        ("POST", "/crm/engagements/1/billing/invoices"),
+        ("POST", "/crm/engagements/1/billing/costs"),
     )
 
     assert all(

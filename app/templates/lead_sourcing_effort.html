@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Lead-Sourcing Effort · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <div class="columns is-vcentered">
+        <div class="column">
+            <p class="mark-kicker">CRM · Operational measurement</p>
+            <h1 class="title is-1 mb-2">Lead-sourcing effort.</h1>
+            <p class="subtitle is-5 mark-muted">
+                Every figure below is derived from existing CRM records. This
+                is operational measurement, not payroll authority.
+            </p>
+        </div>
+    </div>
+</section>
+
+{% if error %}<div class="notification is-danger is-light">{{ error }}</div>{% endif %}
+
+<div class="mark-card p-5 mb-5">
+    <p class="mark-kicker">Period</p>
+    <h2 class="title is-4">Choose a range</h2>
+    <form method="get" action="/crm/effort">
+        <div class="columns is-multiline">
+            {% if can_manage %}
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="user_id">Staff member</label>
+                    <div class="select is-fullwidth">
+                        <select id="user_id" name="user_id">
+                            <option value="{{ current_user.id }}" {% if selected_user_id == current_user.id %}selected{% endif %}>
+                                Myself
+                            </option>
+                            {% for member in staff %}
+                            <option value="{{ member.id }}" {% if selected_user_id == member.id %}selected{% endif %}>
+                                {{ member.display_name }} · {{ member.role|replace('_', ' ')|title }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="period_start">From</label>
+                    <input class="input" type="date" id="period_start" name="period_start" value="{{ period_start }}">
+                </div>
+            </div>
+            <div class="column is-one-third">
+                <div class="field">
+                    <label class="label" for="period_end">To</label>
+                    <input class="input" type="date" id="period_end" name="period_end" value="{{ period_end }}">
+                </div>
+            </div>
+        </div>
+        <button class="button is-mark" type="submit">Update</button>
+    </form>
+</div>
+
+{% if summary %}
+<div class="columns is-multiline">
+    <div class="column is-one-third">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Leads researched</p>
+            <p class="title is-2">{{ summary.leads_researched }}</p>
+        </div>
+    </div>
+    <div class="column is-one-third">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Leads submitted</p>
+            <p class="title is-2">{{ summary.leads_submitted }}</p>
+        </div>
+    </div>
+    <div class="column is-one-third">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Approval rate</p>
+            <p class="title is-2">
+                {% if summary.approval_rate is not none %}
+                {{ (summary.approval_rate * 100) | round(0) | int }}%
+                {% else %}
+                —
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    <div class="column is-one-third">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Changes requested</p>
+            <p class="title is-2">{{ summary.changes_requested_count }}</p>
+        </div>
+    </div>
+    <div class="column is-one-third">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Approved</p>
+            <p class="title is-2">{{ summary.approved_count }}</p>
+        </div>
+    </div>
+    <div class="column is-one-third">
+        <div class="mark-card p-5">
+            <p class="mark-kicker">Relationship actions logged</p>
+            <p class="title is-2">{{ summary.relationship_actions }}</p>
+        </div>
+    </div>
+</div>
+<p class="mark-muted is-size-7">
+    Research minutes: {{ summary.research_minutes_note }}
+</p>
+{% endif %}
+{% endblock %}
