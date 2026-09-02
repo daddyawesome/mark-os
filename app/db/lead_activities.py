@@ -43,6 +43,23 @@ RESPONSE_STATUSES = (
     "lost",
 )
 
+# Shared by the pipeline-transition (Contacted) and lead-activity services.
+# Defined here, at the lowest shared level, so neither service module has to
+# import the other and duplicate these tuples.
+CONTACT_ACTIVITY_TYPES = (
+    "linkedin_message_sent",
+    "email_sent",
+    "follow_up_sent",
+    "call_scheduled",
+    "meeting_completed",
+)
+CONTACT_CHANNELS = tuple(
+    channel for channel in CHANNELS if channel != "internal"
+)
+CONTACT_RESPONSE_STATUSES = tuple(
+    status for status in RESPONSE_STATUSES if status != "not_applicable"
+)
+
 
 def _sql_values(values: tuple[str, ...]) -> str:
     return ", ".join(f"'{value}'" for value in values)

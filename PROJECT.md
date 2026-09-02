@@ -921,6 +921,36 @@ Current rules:
 - commission is informational only, derived from the active billing
   arrangement's `commission_rate_basis_points` — never an automatic payout.
 
+#### Delegated outreach
+
+Current column:
+
+```text
+organization_memberships.can_contact_leads
+```
+
+Current rules:
+
+- workspace-scoped, not global — the permission lives on the
+  `organization_memberships` row (grant/revoke via
+  `set_can_contact_leads`), not on `users`, so a Relationship Manager can
+  be delegated in one workspace and not another;
+- Owner-only to grant or revoke (`_require_global_owner`), and only
+  grantable to an active `relationship_manager` membership;
+- read fresh from the database on every action via
+  `load_crm_actor_for_workspace` (never cached in the session cookie), so
+  revocation takes effect immediately on the next request;
+- narrow in scope by design (`can_perform_delegated_contact`): the grantee
+  must be the lead's own `business_development_owner_user_id`, and the
+  only pipeline transition it unlocks is `researching/outreach → contacted`
+  — pricing, proposals, Won/Lost, reassignment, deletion, and all
+  financial data stay Owner/workspace-owner-only regardless of this
+  setting;
+- also unlocks logging non-internal contact activities
+  (`CONTACT_ACTIVITY_TYPES`/`CONTACT_CHANNELS`) for that lead only, closing
+  a pre-existing gap where all non-owner-authority activity channels were
+  hardcoded to `internal`.
+
 #### CRM leads
 
 The current lead schema includes:
@@ -1092,7 +1122,7 @@ even though they still appear below as "next phase" rows.
 | Proposal management | ✅ Implemented (Phase 6.10) |
 | Client onboarding and delivery | ✅ Implemented (Phase 6.11) |
 | Billing workflows | ✅ Implemented (Phase 6.12) |
-| Delegated Relationship Manager outreach | Trigger-based Phase 6.13 |
+| Delegated Relationship Manager outreach | ✅ Implemented (Phase 6.13) |
 
 The next priority is production acceptance of Phases 6.6 and 6.7: the
 6.6B-8B production-copy rehearsal, the Railway deploy of the accumulated
@@ -2257,14 +2287,15 @@ extending the discipline Phase 6.10 established for proposal pricing.
 
 ## Phase 6.13 — Delegated Outreach Permission
 
-**Status:** Trigger-based  
+**Status:** Complete — implementation and tests verified locally; production
+acceptance pending alongside Phases 6.6–6.12
 **Start condition:** Phase 6.3 is complete and Mark approves a trusted
 Relationship Manager after successful real-world use.
 
 ### Permission
 
 ```text
-users.can_contact_leads
+organization_memberships.can_contact_leads
 ```
 
 Default:
@@ -2273,10 +2304,16 @@ Default:
 false
 ```
 
+Implemented on `organization_memberships`, not a global `users` column —
+a deliberate, explicitly-confirmed deviation from the field name above, so
+the permission is workspace-scoped (granting it in Pendang never touches
+MARK Agency, and vice versa).
+
 ### Rules
 
-- granted and revoked per user by Owner only;
-- intended primarily for `relationship_manager`;
+- granted and revoked per user, per workspace, by the global Owner only;
+- intended primarily for `relationship_manager`, and enforced as such
+  (`set_can_contact_leads` rejects any other role);
 - research must already be approved;
 - outreach must already be approved;
 - contact and activity creation occur atomically;
@@ -2286,6 +2323,62 @@ false
 - no pricing, proposal, Won/Lost, reassignment, deletion, finance, or private-OS
   authority;
 - direct and forged requests are tested.
+
+### Implementation notes
+
+Before designing anything new, inspection found that most of this phase's
+five conceptual stages (prepare, request approval, approved, perform,
+revoke+audit) already existed as separate systems: Phase 6.7's outreach
+templates are "prepare"; the existing per-lead `research_status = 'approved'`
+and `outreach_approved_by_user_id`/`outreach_approved_at` are "approved";
+`lead_activities` and `quest_updates` are the audit trail. The only missing
+piece was "perform a specific action" — until this phase, a plain
+Relationship Manager could not create *any* lead activity
+(`RELATIONSHIP_MANAGER_ACTIVITY_TYPES` was a literal empty `frozenset()`) and
+could not reach the `Contacted` pipeline transition at all.
+
+- **Two narrow, additive carve-outs, nothing else changed.**
+  `can_change_pipeline` (`lead_research_permissions.py`) gained exactly one
+  exception: target status `'contacted'` is allowed when the actor has
+  `can_contact_leads = True` **and** is the lead's own
+  `business_development_owner_user_id` — every other transition
+  (`reviewed`, `meeting`, `proposal`, `won`, `lost`) is unchanged and stays
+  Owner-only, verified directly in
+  `test_grant_does_not_unlock_other_pipeline_transitions`.
+  `_allowed_activity_types` (`lead_activities.py`) gained the same
+  condition, granting exactly `CONTACT_ACTIVITY_TYPES` (5 types — not the
+  full activity-type set) for that same lead. Both checks share one helper,
+  `can_perform_delegated_contact`.
+- **A second, pre-existing gate had to be updated too.** `_normalized_values`
+  in `lead_activities.py` already contained a hardcoded block — literally
+  commented "until delegated outreach permission is implemented" — refusing
+  any non-owner-authority actor a non-`internal` channel. Since every
+  `CONTACT_CHANNELS` value excludes `internal` by definition, this would
+  have silently defeated the whole feature if left as-is; it now also
+  allows the exception via the same `can_perform_delegated_contact` check.
+- **Immediate revocation by construction, not by a special invalidation
+  step.** The flag lives on `organization_memberships` and is loaded fresh
+  by `load_crm_actor_for_workspace` on every pipeline/activity action — it
+  is never written into the session cookie. Two existing session-cache
+  points (`authorized_workspaces`, `select_current_workspace`, used for the
+  workspace switcher) were deliberately left untouched so this permission
+  can never be baked into cached session data.
+  `test_revocation_takes_effect_on_the_next_check` grants then immediately
+  revokes within one test and confirms the very next attempt is denied.
+- **Route table is intentionally coarse; the service layer is the real
+  boundary.** `/crm/leads/{id}/pipeline` and `/crm/leads/{id}/activities`
+  are now reachable at the route level by any Relationship Manager, exactly
+  like every other narrow-condition route already added this session
+  (qualification edit, engagement notes). Without the flag and matching
+  lead ownership, the service functions still reject everything except an
+  owner-authority actor — verified with a real database-level promotion to
+  Pendang `workspace_owner` in
+  `test_grant_does_not_extend_to_a_different_managers_lead`-style tests
+  showing the grant never crosses to another RM's lead.
+  Correcting/deleting an existing activity record stays workspace-owner-only
+  — a materially more sensitive action this phase does not touch.
+- `POST /settings/users/{id}/contact-permission` (Owner-only, on the
+  existing user-management page) grants/revokes per workspace.
 
 ---
 
@@ -3471,7 +3564,7 @@ backup.
 | Phase 6.10 | Complete | Proposal Management |
 | Phase 6.11 | Complete | Client Onboarding and Delivery |
 | Phase 6.12 | Complete | Retainers, Invoicing, and Profitability |
-| Phase 6.13 | Trigger-based | Delegated Relationship Manager outreach |
+| Phase 6.13 | Complete | Delegated Relationship Manager outreach |
 | Phase 7 | Planned | Product Hardening and Growth |
 | Phase 8 | Planned | Budget-Safe AI Continuation |
 | Phase 9 | Planned | Affordable Ambient Assistant |

@@ -375,6 +375,24 @@ def can_access_request(
                 )
                 is not None
                 or (
+                    # Phase 6.13: reachable by any Relationship Manager, not
+                    # just workspace-owner authority — the delegated-contact
+                    # service-layer gate (can_perform_delegated_contact) is
+                    # the real, authoritative restriction, mirroring how
+                    # every other narrow-condition route in this branch
+                    # already works. Without the flag and lead ownership,
+                    # change_pipeline_stage and create_activity still reject
+                    # everything except an owner-authority actor.
+                    _WORKSPACE_OWNER_PIPELINE_PATTERN.fullmatch(
+                        normalized_path
+                    )
+                    is not None
+                    or _LEAD_ACTIVITY_CREATE_PATTERN.fullmatch(
+                        normalized_path
+                    )
+                    is not None
+                )
+                or (
                     workspace_owner
                     and (
                         normalized_path == "/crm/templates"
@@ -413,10 +431,6 @@ def can_access_request(
                         is not None
                         or _WORKSPACE_OWNER_EDIT_PATTERN.fullmatch(normalized_path)
                         is not None
-                        or _WORKSPACE_OWNER_PIPELINE_PATTERN.fullmatch(
-                            normalized_path
-                        )
-                        is not None
                         or _WORKSPACE_OWNER_RELATIONSHIP_PATTERN.fullmatch(
                             normalized_path
                         )
@@ -430,10 +444,6 @@ def can_access_request(
                         )
                         is not None
                         or _WORKSPACE_OWNER_OUTREACH_PATTERN.fullmatch(
-                            normalized_path
-                        )
-                        is not None
-                        or _LEAD_ACTIVITY_CREATE_PATTERN.fullmatch(
                             normalized_path
                         )
                         is not None

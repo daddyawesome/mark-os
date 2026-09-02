@@ -5,7 +5,13 @@ from collections.abc import Mapping
 from contextlib import contextmanager
 from typing import Any, Iterator
 
-from app.db.lead_activities import CHANNELS, RESPONSE_STATUSES
+from app.db.lead_activities import (
+    CHANNELS,
+    CONTACT_ACTIVITY_TYPES,
+    CONTACT_CHANNELS,
+    CONTACT_RESPONSE_STATUSES,
+    RESPONSE_STATUSES,
+)
 from app.services.lead_activities import (
     create_activity as create_lead_activity,
 )
@@ -25,24 +31,6 @@ from app.services.workspace_context import load_crm_actor_for_workspace
 
 
 Record = Mapping[str, Any]
-
-CONTACT_ACTIVITY_TYPES = (
-    "linkedin_message_sent",
-    "email_sent",
-    "follow_up_sent",
-    "call_scheduled",
-    "meeting_completed",
-)
-CONTACT_CHANNELS = tuple(
-    channel
-    for channel in CHANNELS
-    if channel != "internal"
-)
-CONTACT_RESPONSE_STATUSES = tuple(
-    status
-    for status in RESPONSE_STATUSES
-    if status != "not_applicable"
-)
 
 
 class LeadPipelineRuleError(ValueError):

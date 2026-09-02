@@ -131,6 +131,7 @@ EXPECTED_ROUTES = [
     ("POST", "/settings/users/{user_id}/status", "update_user_status"),
     ("POST", "/settings/users/{user_id}/password", "update_user_password"),
     ("POST", "/settings/users/{user_id}/workspace", "update_user_workspace"),
+    ("POST", "/settings/users/{user_id}/contact-permission", "update_user_contact_permission"),
 ]
 
 
@@ -478,6 +479,197 @@ def test_authenticated_pages_render_with_temporary_database(
     ):
         status, _, _ = asyncio.run(_request(target, headers=[(b"cookie", cookie)]))
         assert status == 200, target
+
+
+def test_delegated_contact_permission_through_the_http_routes(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "delegated-contact-route.db")
+    owner_cookie, _ = _login_cookie(monkeypatch)
+
+    from app.services.lead_pipeline_workflow import approve_outreach
+    from app.services.lead_research_workflow import (
+        review_research,
+        submit_research_for_review,
+    )
+    from app.services.leads import create_lead
+    from app.services.team_users import create_lead_sourcer, create_relationship_manager
+
+    with database.get_db() as db:
+        owner_id = db.execute(
+            "SELECT id FROM users WHERE role='owner' AND active=1 LIMIT 1"
+        ).fetchone()[0]
+        owner = {"id": owner_id, "role": "owner"}
+        organization_id = db.execute(
+            "SELECT id FROM organizations WHERE slug='mark-agency'"
+        ).fetchone()[0]
+        sourcer = create_lead_sourcer(
+            db,
+            username="delegated-route-sourcer",
+            display_name="Delegated Route Sourcer",
+            password="temporary-pass-123",
+            password_confirmation="temporary-pass-123",
+        )
+        manager = create_relationship_manager(
+            db,
+            username="delegated-route-rm",
+            display_name="Delegated Route RM",
+            password="temporary-pass-123",
+            password_confirmation="temporary-pass-123",
+        )
+        lead = create_lead(
+            db,
+            company="Delegated Route Co",
+            contact_person="Dana Buyer",
+            job_title="Founder",
+            source="LinkedIn",
+            source_url="https://example.com/delegated-route",
+            problem_opportunity="Reporting is manual.",
+            why_mark_fits="Mark can automate reporting.",
+            pipeline_status="new",
+            priority="medium",
+            next_action="Research.",
+            notes="",
+            created_by_user_id=sourcer["id"],
+            assigned_to_user_id=owner_id,
+            business_development_owner_user_id=manager["id"],
+            organization_id=organization_id,
+        ).lead
+        submitted = submit_research_for_review(
+            db, lead["id"], actor=sourcer, organization_id=organization_id
+        )
+        reviewed = review_research(
+            db,
+            submitted["id"],
+            actor=owner,
+            decision="approved",
+            review_notes="Verified.",
+            organization_id=organization_id,
+        )
+        approved = approve_outreach(
+            db, reviewed["id"], actor=owner, organization_id=organization_id
+        )
+
+    # Before granting: the manager cannot reach Contacted.
+    without_grant_password = urlencode(
+        {"username": "delegated-route-rm", "password": "temporary-pass-123"}
+    ).encode()
+    _, rm_login_headers, _ = asyncio.run(
+        _request(
+            "/login",
+            method="POST",
+            headers=[(b"content-type", b"application/x-www-form-urlencoded")],
+            body=without_grant_password,
+        )
+    )
+    rm_cookie = _header_values(rm_login_headers, b"set-cookie")[0].split(b";", 1)[0]
+    # First login forces a temporary-password change; set a real one directly.
+    with database.get_db() as db:
+        db.execute(
+            "UPDATE users SET must_change_password = 0 WHERE id = ?",
+            (manager["id"],),
+        )
+
+    denied_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/leads/{approved['id']}/pipeline",
+            method="POST",
+            headers=[
+                (b"cookie", rm_cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {
+                    "pipeline_status": "contacted",
+                    "contact_activity_type": "email_sent",
+                    "contact_activity_at": "2026-09-08T10:00",
+                    "contact_channel": "email",
+                    "contact_message_summary": "Sent the approved introduction.",
+                    "contact_responsible_user_id": str(manager["id"]),
+                    "contact_response_status": "awaiting_reply",
+                    "contact_next_follow_up_date": "2026-09-10",
+                }
+            ).encode(),
+        )
+    )
+    assert denied_status == 303
+
+    with database.get_db() as db:
+        still_new = db.execute(
+            "SELECT pipeline_status FROM leads WHERE id = ?", (approved["id"],)
+        ).fetchone()
+    assert still_new["pipeline_status"] == "new"
+
+    # Owner grants the permission via the settings/users route.
+    grant_status, _, _ = asyncio.run(
+        _request(
+            f"/settings/users/{manager['id']}/contact-permission",
+            method="POST",
+            headers=[
+                (b"cookie", owner_cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {"workspace_slug": "mark-agency", "action": "grant"}
+            ).encode(),
+        )
+    )
+    assert grant_status == 303
+
+    # After granting: the same manager can now perform the transition.
+    granted_status, _, _ = asyncio.run(
+        _request(
+            f"/crm/leads/{approved['id']}/pipeline",
+            method="POST",
+            headers=[
+                (b"cookie", rm_cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {
+                    "pipeline_status": "contacted",
+                    "row_version": str(approved["row_version"]),
+                    "contact_activity_type": "email_sent",
+                    "contact_activity_at": "2026-09-08T10:00",
+                    "contact_channel": "email",
+                    "contact_message_summary": "Sent the approved introduction.",
+                    "contact_responsible_user_id": str(manager["id"]),
+                    "contact_response_status": "awaiting_reply",
+                    "contact_next_follow_up_date": "2026-09-10",
+                }
+            ).encode(),
+        )
+    )
+    assert granted_status == 303
+
+    with database.get_db() as db:
+        now_contacted = db.execute(
+            "SELECT pipeline_status, row_version FROM leads WHERE id = ?",
+            (approved["id"],),
+        ).fetchone()
+    assert now_contacted["pipeline_status"] == "contacted"
+
+    # Owner revokes; the manager can no longer repeat the action on a new lead.
+    revoke_status, _, _ = asyncio.run(
+        _request(
+            f"/settings/users/{manager['id']}/contact-permission",
+            method="POST",
+            headers=[
+                (b"cookie", owner_cookie),
+                (b"content-type", b"application/x-www-form-urlencoded"),
+            ],
+            body=urlencode(
+                {"workspace_slug": "mark-agency", "action": "revoke"}
+            ).encode(),
+        )
+    )
+    assert revoke_status == 303
+
+    with database.get_db() as db:
+        membership = db.execute(
+            "SELECT can_contact_leads FROM organization_memberships "
+            "WHERE user_id = ? AND organization_id = ?",
+            (manager["id"], organization_id),
+        ).fetchone()
+    assert membership["can_contact_leads"] == 0
 
 
 def test_owner_can_run_billing_through_the_http_routes(tmp_path, monkeypatch):

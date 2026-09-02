@@ -84,7 +84,10 @@
             {% for membership in managed_user.workspace_memberships %}
             <div class="box mb-4">
                 <p class="has-text-weight-bold">{{ membership.name }}</p>
-                <p class="mark-muted is-size-7 mb-3">{{ membership.slug }} · {{ 'Active' if membership.active else ('Revoked' if membership.configured else 'Not granted') }}</p>
+                <p class="mark-muted is-size-7 mb-3">
+                    {{ membership.slug }} · {{ 'Active' if membership.active else ('Revoked' if membership.configured else 'Not granted') }}
+                    {% if managed_user.role == 'relationship_manager' and membership.can_contact_leads %} · Delegated contact granted{% endif %}
+                </p>
                 <form method="post" action="/settings/users/{{ managed_user.id }}/workspace">
                     <input type="hidden" name="workspace_slug" value="{{ membership.slug }}">
                     {% if managed_user.role == 'lead_sourcer' %}
@@ -107,6 +110,27 @@
                     <button class="button is-mark" type="submit" name="action" value="grant">Grant / restore workspace access</button>
                     {% endif %}
                 </form>
+
+                {% if managed_user.role == 'relationship_manager' and membership.active %}
+                <hr class="mark-divider">
+                <p class="has-text-weight-bold is-size-7">Delegated contact permission</p>
+                <p class="mark-muted is-size-7 mb-3">
+                    Lets this Relationship Manager perform the Contacted
+                    transition themselves on leads they own, once research
+                    and outreach are already approved. Nothing else changes —
+                    pricing, proposals, Won/Lost, reassignment, deletion, and
+                    financial data stay Owner-only regardless of this
+                    setting. Takes effect on their next action.
+                </p>
+                <form method="post" action="/settings/users/{{ managed_user.id }}/contact-permission">
+                    <input type="hidden" name="workspace_slug" value="{{ membership.slug }}">
+                    {% if membership.can_contact_leads %}
+                    <button class="button is-small is-danger is-outlined" type="submit" name="action" value="revoke">Revoke delegated contact</button>
+                    {% else %}
+                    <button class="button is-small is-mark" type="submit" name="action" value="grant">Grant delegated contact</button>
+                    {% endif %}
+                </form>
+                {% endif %}
             </div>
             {% endfor %}
         </div>

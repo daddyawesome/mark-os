@@ -380,6 +380,29 @@ def can_reassign_lead(
     )
 
 
+def can_perform_delegated_contact(
+    user: Record | None,
+    lead: Record | None,
+) -> bool:
+    """Phase 6.13: a specifically delegated Relationship Manager may perform
+    only the Contacted transition, only on their own lead, only once research
+    and outreach are already Owner-approved (enforced separately in
+    ``lead_pipeline_workflow._validate_major_transition``, unchanged by this
+    function). The permission is workspace-scoped
+    (``organization_memberships.can_contact_leads``) and reloaded fresh from
+    the database by ``load_crm_actor_for_workspace`` on every check — it is
+    never cached in a session, so revocation takes effect immediately.
+    """
+    if not is_relationship_manager(user):
+        return False
+    if not bool(_value(user, "can_contact_leads", False)):
+        return False
+    actor_id = _positive_actor_id(user)
+    if actor_id is None:
+        return False
+    return actor_id == _value(lead, "business_development_owner_user_id")
+
+
 def can_change_pipeline(
     user: Record | None,
     lead: Record | None,
@@ -391,10 +414,18 @@ def can_change_pipeline(
         .casefold()
     )
 
+    if (
+        not _lead_is_active(lead)
+        or normalized_target not in PIPELINE_STATUSES
+    ):
+        return False
+
+    if has_crm_owner_authority(user):
+        return True
+
     return (
-        has_crm_owner_authority(user)
-        and _lead_is_active(lead)
-        and normalized_target in PIPELINE_STATUSES
+        normalized_target == "contacted"
+        and can_perform_delegated_contact(user, lead)
     )
 
 

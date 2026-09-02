@@ -12,6 +12,7 @@ from app.services.team_users import (
     get_user_for_management,
     list_users_with_stats,
     reset_user_password,
+    set_can_contact_leads,
     set_user_active,
     set_workspace_membership,
 )
@@ -260,6 +261,45 @@ def update_user_workspace(
         message=(
             f"{membership['name']} access was {state}. "
             "Existing sessions were revoked."
+        ),
+    )
+
+
+@router.post("/{user_id}/contact-permission")
+def update_user_contact_permission(
+    request: Request,
+    user_id: int,
+    workspace_slug: str = Form(...),
+    action: str = Form(...),
+):
+    normalized_action = action.strip().casefold()
+    if normalized_action not in {"grant", "revoke"}:
+        return _redirect(
+            f"/settings/users/{user_id}",
+            error="Unsupported permission action.",
+        )
+    acting_user = request.state.current_user
+    with get_db() as db:
+        try:
+            membership = set_can_contact_leads(
+                db,
+                target_user_id=user_id,
+                acting_user_id=int(acting_user["id"]),
+                workspace_slug=workspace_slug,
+                can_contact_leads=normalized_action == "grant",
+            )
+        except ValueError as exc:
+            return _redirect(
+                f"/settings/users/{user_id}",
+                error=str(exc),
+            )
+
+    state = "granted" if membership["can_contact_leads"] else "revoked"
+    return _redirect(
+        f"/settings/users/{user_id}",
+        message=(
+            f"Delegated contact permission was {state} for "
+            f"{membership['name']}."
         ),
     )
 

@@ -167,7 +167,8 @@ def require_workspace_membership(
             o.id,
             o.slug,
             o.name,
-            m.membership_role
+            m.membership_role,
+            m.can_contact_leads
         FROM organization_memberships AS m
         JOIN organizations AS o
           ON o.id = m.organization_id
@@ -227,6 +228,7 @@ def load_crm_actor_for_workspace(
         raise PermissionError("Workspace is not authorized for this user.")
     actor = dict(row)
     actor["workspace_membership_role"] = membership["membership_role"]
+    actor["can_contact_leads"] = bool(membership["can_contact_leads"])
     actor["current_workspace"] = dict(membership)
     return actor
 

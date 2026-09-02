@@ -69,6 +69,14 @@ def migrate(db: sqlite3.Connection) -> None:
                 CHECK(active IN (0, 1))
             """
         )
+    if "can_contact_leads" not in columns:
+        db.execute(
+            """
+            ALTER TABLE organization_memberships
+            ADD COLUMN can_contact_leads INTEGER NOT NULL DEFAULT 0
+                CHECK(can_contact_leads IN (0, 1))
+            """
+        )
 
 
 def validate_schema(db: sqlite3.Connection) -> None:
@@ -84,6 +92,11 @@ def validate_schema(db: sqlite3.Connection) -> None:
     if "active" not in columns:
         raise RuntimeError(
             "Incompatible organization schema; membership active state is missing"
+        )
+    if "can_contact_leads" not in columns:
+        raise RuntimeError(
+            "Incompatible organization schema; delegated outreach permission "
+            "column is missing"
         )
 
 

@@ -368,6 +368,14 @@ def test_relationship_manager_access_surface_is_narrow(
         ("POST", "/crm/leads"),
         ("POST", "/crm/leads/import"),
         ("POST", "/crm/leads/7/next-action"),
+        # Phase 6.13: route-reachable for any Relationship Manager — the
+        # delegated-contact permission (can_perform_delegated_contact) is
+        # the real, service-layer boundary, not this route table. Without
+        # the flag and matching lead ownership, change_pipeline_stage still
+        # rejects every attempt except an owner-authority actor (see
+        # tests/test_delegated_outreach_permission.py).
+        ("POST", "/crm/leads/7/pipeline"),
+        ("POST", "/crm/leads/7/activities"),
         ("POST", "/logout"),
     )
     denied = (
@@ -380,7 +388,6 @@ def test_relationship_manager_access_surface_is_narrow(
         ("POST", "/crm/leads/7/research/submit"),
         ("POST", "/crm/leads/7/research/review"),
         ("POST", "/crm/leads/7/outreach/approve"),
-        ("POST", "/crm/leads/7/pipeline"),
         ("POST", "/crm/leads/7/relationship-owner"),
         ("GET", "/crm/leads/7/delete"),
         ("POST", "/crm/leads/7/delete"),

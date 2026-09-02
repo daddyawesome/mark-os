@@ -10,13 +10,17 @@ from app.db.organizations import organization_id_by_slug
 from app.db.lead_activities import (
     ACTIVITY_TYPES,
     CHANNELS,
+    CONTACT_ACTIVITY_TYPES,
     RESPONSE_STATUSES,
 )
 from app.services.access_control import (
     has_crm_owner_authority,
     is_lead_sourcer,
 )
-from app.services.lead_research_permissions import can_view_lead
+from app.services.lead_research_permissions import (
+    can_perform_delegated_contact,
+    can_view_lead,
+)
 from app.services.leads import get_lead
 from app.services.workspace_context import (
     load_crm_actor_for_workspace,
@@ -48,8 +52,9 @@ LEAD_SOURCER_ACTIVITY_TYPES = frozenset(
 )
 
 # Relationship Managers can read activity history for leads in their existing
-# CRM scope. They do not receive outbound-activity creation permission here.
-# Phase 6.13 adds the separate, narrow, revocable delegated-outreach gate.
+# CRM scope but create no activities by role alone. A Relationship Manager
+# with the Phase 6.13 delegated-contact permission gets CONTACT_ACTIVITY_TYPES
+# instead, checked separately in _allowed_activity_types below.
 RELATIONSHIP_MANAGER_ACTIVITY_TYPES = frozenset()
 
 _UNSET = object()
@@ -277,6 +282,8 @@ def _allowed_activity_types(
         return frozenset(ACTIVITY_TYPES)
     if is_lead_sourcer(actor):
         return LEAD_SOURCER_ACTIVITY_TYPES
+    if can_perform_delegated_contact(actor, lead):
+        return frozenset(CONTACT_ACTIVITY_TYPES)
     return RELATIONSHIP_MANAGER_ACTIVITY_TYPES
 
 
@@ -431,10 +438,14 @@ def _normalized_values(
             "A responsible CRM user is required when a follow-up date is set."
         )
 
-    if not has_crm_owner_authority(actor) and clean_channel != "internal":
+    if (
+        not has_crm_owner_authority(actor)
+        and clean_channel != "internal"
+        and not can_perform_delegated_contact(actor, lead)
+    ):
         raise LeadActivityPermissionError(
-            "Staff activity records are internal until delegated outreach "
-            "permission is implemented."
+            "Staff activity records are internal unless delegated outreach "
+            "permission has been granted for this lead."
         )
 
     return {

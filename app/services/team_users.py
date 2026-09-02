@@ -98,6 +98,7 @@ def list_user_workspace_memberships(
             o.name,
             m.membership_role,
             COALESCE(m.active, 0) AS active,
+            COALESCE(m.can_contact_leads, 0) AS can_contact_leads,
             CASE WHEN m.user_id IS NULL THEN 0 ELSE 1 END AS configured
         FROM organizations AS o
         LEFT JOIN organization_memberships AS m
@@ -209,6 +210,58 @@ def set_workspace_membership(
               AND deleted_at IS NULL
             """,
             (organization_id, target_id),
+        )
+
+    return next(
+        row
+        for row in list_user_workspace_memberships(db, target_id)
+        if int(row["organization_id"]) == organization_id
+    )
+
+
+def set_can_contact_leads(
+    db: sqlite3.Connection,
+    *,
+    target_user_id: int,
+    acting_user_id: int,
+    workspace_slug: str,
+    can_contact_leads: bool,
+) -> dict[str, Any]:
+    """Grant/revoke the Phase 6.13 delegated-contact permission.
+
+    Owner-only, one Relationship Manager, one workspace at a time. This is
+    read fresh from the database by ``load_crm_actor_for_workspace`` on
+    every CRM action the target attempts — it is never cached in a session,
+    so revocation takes effect on their very next action without needing a
+    separate session-invalidation step.
+    """
+    target_id = _positive_id(target_user_id, "Target user ID")
+    _require_global_owner(db, acting_user_id)
+    target = db.execute(
+        "SELECT id, role FROM users WHERE id = ?",
+        (target_id,),
+    ).fetchone()
+    if target is None:
+        raise ValueError("User not found.")
+    if target["role"] != "relationship_manager":
+        raise ValueError(
+            "Only Relationship Manager accounts can receive delegated "
+            "contact permission."
+        )
+
+    organization_id = organization_id_by_slug(db, workspace_slug)
+    cursor = db.execute(
+        """
+        UPDATE organization_memberships
+        SET can_contact_leads = ?
+        WHERE user_id = ? AND organization_id = ? AND active = 1
+        """,
+        (1 if can_contact_leads else 0, target_id, organization_id),
+    )
+    if cursor.rowcount != 1:
+        raise ValueError(
+            "The user must have an active membership in this workspace "
+            "before this permission can be set."
         )
 
     return next(

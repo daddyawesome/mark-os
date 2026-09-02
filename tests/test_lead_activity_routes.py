@@ -487,6 +487,14 @@ def test_activity_route_middleware_surface_stays_narrow(
     for path in (create_path, correct_path, delete_path):
         assert can_access_request(context["owner"], "POST", path)
         assert can_access_request(context["sourcer"], "POST", path)
+
+    # Phase 6.13: creating an activity is route-reachable for any
+    # Relationship Manager — the delegated-contact permission
+    # (can_perform_delegated_contact) is the real, service-layer boundary.
+    # Correcting/deleting an activity stays workspace-owner-authority only;
+    # that is a materially more sensitive action this phase does not touch.
+    assert can_access_request(context["manager"], "POST", create_path)
+    for path in (correct_path, delete_path):
         assert not can_access_request(
             context["manager"],
             "POST",

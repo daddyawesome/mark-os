@@ -47,6 +47,7 @@ from app.services.lead_research_permissions import (
     LeadPermissionError,
     can_approve_outreach,
     can_edit_research,
+    can_perform_delegated_contact,
     can_view_lead,
 )
 from app.services.lead_qualification_permissions import (
@@ -228,8 +229,14 @@ def _activity_form_context(
     user,
     *,
     organization_id: int,
+    lead=None,
 ) -> dict:
-    can_create = has_crm_owner_authority(user) or is_lead_sourcer(user)
+    can_contact_this_lead = can_perform_delegated_contact(user, lead)
+    can_create = (
+        has_crm_owner_authority(user)
+        or is_lead_sourcer(user)
+        or can_contact_this_lead
+    )
     activity_types = (
         ACTIVITY_TYPES
         if has_crm_owner_authority(user)
@@ -239,28 +246,32 @@ def _activity_form_context(
             if activity_type in LEAD_SOURCER_ACTIVITY_TYPES
         )
         if is_lead_sourcer(user)
+        else CONTACT_ACTIVITY_TYPES
+        if can_contact_this_lead
         else ()
     )
-    channels = CHANNELS if has_crm_owner_authority(user) else ("internal",)
+    channels = (
+        CHANNELS
+        if has_crm_owner_authority(user)
+        else CONTACT_CHANNELS
+        if can_contact_this_lead
+        else ("internal",)
+    )
+    can_use_contact_form = has_crm_owner_authority(user) or can_contact_this_lead
     return {
         "can_create_activity": can_create,
+        "can_contact_this_lead": can_contact_this_lead,
         "activity_type_options": activity_types,
         "activity_channel_options": channels,
         "activity_response_status_options": RESPONSE_STATUSES,
         "contact_activity_type_options": (
-            CONTACT_ACTIVITY_TYPES
-            if has_crm_owner_authority(user)
-            else ()
+            CONTACT_ACTIVITY_TYPES if can_use_contact_form else ()
         ),
         "contact_channel_options": (
-            CONTACT_CHANNELS
-            if has_crm_owner_authority(user)
-            else ()
+            CONTACT_CHANNELS if can_use_contact_form else ()
         ),
         "contact_response_status_options": (
-            CONTACT_RESPONSE_STATUSES
-            if has_crm_owner_authority(user)
-            else ()
+            CONTACT_RESPONSE_STATUSES if can_use_contact_form else ()
         ),
         "activity_users": (
             list_active_activity_users(
@@ -982,6 +993,7 @@ def lead_detail(request: Request, lead_id: int):
                 db,
                 user,
                 organization_id=organization_id,
+                lead=lead,
             ),
             **_shared_context(db, request),
         }

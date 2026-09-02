@@ -188,9 +188,9 @@
                 <button class="button is-mark is-fullwidth" type="submit">Update Pipeline</button>
             </form>
         </div>
-        {% if lead.pipeline_status != "contacted" %}
-        {% include "partials/lead_contacted_transition.html" %}
         {% endif %}
+        {% if lead.pipeline_status != "contacted" and (can_manage_crm or can_contact_this_lead) %}
+        {% include "partials/lead_contacted_transition.html" %}
         {% endif %}
 
         {% if can_update_next_action %}
