@@ -3,13 +3,13 @@
 **Canonical project document**
 **Repository:** `https://github.com/daddyawesome/mark-os`
 **Reviewed on feature branch:** `feature/phase-8-1-structured-memory` on 2026-09-03
-**Current active phase:** Phase 8.2 complete locally — review and production-copy rehearsal pending
-**Immediate next milestone:** Phase 8.3 Retrieval and Context Builder after Phase 8.1–8.2 review
+**Current active phase:** Phase 8.4 complete locally — Phase 8.5 Routine AI Chat is next
+**Immediate next milestone:** Phase 8.5 Routine AI Chat (live chat route/UI wiring 8.1–8.4 together)
 **Production deployment:** Railway
 **Primary database:** SQLite on a persistent Railway volume
-**Last verified full-suite baseline:** 673 passed after Phase 8.2 Manual Memory Center completion
+**Last verified full-suite baseline:** 705 passed after Phase 8.4 Intent Router and AI Gateway completion
 
-## Current status: Phase 8.2 locally complete; Phase 7 production acceptance pending
+## Current status: Phase 8.4 locally complete; Phase 7 production acceptance pending
 
 Phase 6.6 (Bulk Lead Management and CRM Workspaces) is implemented in full,
 substeps 6.6A through 6.6F. Phase 6.7 (Outreach Templates and Approval
@@ -24,10 +24,12 @@ previous roadmap names “Phase 7.8 — Staging” and “Phase 7.9 — Observab
 were superseded by the canonical renumbering: staging is now Phase 7.6, while
 observability was already completed as Phase 6.5.
 
-The Phase 8 architecture audit is complete. Phase 8.1 and Phase 8.2 are implemented and
-verified locally on `feature/phase-8-1-structured-memory`; review and a
-rehearsal against a verified production database copy remain before any
-Railway migration. The repository's existing memory, chat, Director,
+The Phase 8 architecture audit is complete. Phase 8.1, Phase 8.2, and Phase 8.3
+are implemented and verified locally; review and a rehearsal against a
+verified production database copy remain before any Railway migration. Phase
+8.4 (Intent Router and AI Gateway) is next, using OpenAI as the only real
+provider — Ollama is not reachable from Railway, so `DisabledProvider` is the
+safe default rather than a local-model fallback. The repository's existing memory, chat, Director,
 gamification, and agent-audit foundations are extended in place rather than
 replaced with parallel systems.
 
@@ -2604,7 +2606,7 @@ Full suite: `649 passed in 162.04s`; `git diff --check` passed.
 
 # Phase 8 — Budget-Safe Life OS / Second Brain
 
-**Status:** Phase 8.1–8.2 complete locally; Phase 8.3 is next after review
+**Status:** Phase 8.1–8.4 complete locally; Phase 8.5 is next
 **Previous numbering:** Phase 5.3 onward
 **Previous roadmap name:** Budget-Safe AI Continuation
 
@@ -2637,10 +2639,130 @@ reordered.
 |---|---|---|
 | 8.1 Structured-memory schema completion | ✅ Complete locally | 16 focused tests; 667 full-suite tests; `git diff --check` passed |
 | 8.2 Manual Memory Center | ✅ Complete locally | 36 focused/integration tests; 673 full-suite tests; `git diff --check` passed |
-| 8.3–8.7 | Planned | Implement sequentially after their prerequisites |
+| 8.3 Retrieval and Context Builder | ✅ Complete locally | 12 focused tests; 685 full-suite tests; `git diff --check` passed |
+| 8.4 Intent Router and AI Gateway | ✅ Complete locally | 20 focused tests; 705 full-suite tests; `git diff --check` passed |
+| 8.5–8.7 | Planned | Implement sequentially after their prerequisites |
 | 8.8–8.10 | Optional / deferred | Require measured need and explicit approval |
 | 8.11 Weekly Review Loop | Planned | Required after the preceding controlled foundations |
 | 8.12 External observations | Optional / deferred | Require a concrete approved integration |
+
+### Phase 8.3 implementation notes
+
+`app/services/context_builder.py` assembles the bounded context packet
+specified under "Bounded context packet" below. It is a pure, read-only
+service — no schema changes, no HTTP route (the chat route itself is Phase
+8.5), no AI provider call. Deterministic SQLite filtering and ranking only,
+per the "First retrieval version" rule; no embeddings.
+
+- **Sensitivity gates provider eligibility.** Only memories with
+  `sensitivity = 'normal'` are ever included. `private` and `restricted`
+  memories remain fully usable inside the app (Manual Memory Center,
+  deterministic routing) but are never placed in a packet that may reach an
+  external provider. This is the first functional consumer of the
+  sensitivity field the memory form already asked users to set ("Classify
+  before later AI use").
+- **Hidden XP thresholds are structurally excluded, not filtered.**
+  `level_progress` is built from an explicit column allowlist
+  (`level`, `xp_total`, `xp_into_level`, `character_class`); `threshold_mode`
+  and any threshold math are never queried, so there is nothing to redact.
+- **Latest check-in excludes financial figures.** `cash`, `expenses`, and
+  `free_hours` are intentionally left out of the packet; only the
+  qualitative coaching fields (`energy`, `accomplished`, `blocker`, `notes`,
+  `checkin_date`) are included, keeping personal financial numbers out of
+  anything sent to a third-party provider.
+- **The CRM record is caller-supplied, not looked up.** `build_context`
+  accepts an optional `crm_record: dict | None` and passes it through
+  unchanged; it performs no lead lookup or workspace-authorization check of
+  its own. CRM access control stays a single authority inside the CRM
+  services rather than being duplicated here — the future intent router
+  (8.4) is responsible for fetching and authorizing the record before
+  passing it in.
+- **Memory relevance ranking is deterministic and embedding-free:** keyword
+  overlap between the new message and each memory's key/value, then
+  importance, then recency — matching the architecture rule to use
+  deterministic ranking first and defer embeddings until there is a
+  measured limitation.
+- **Hard character budget with an explicit trim order.** The packet is
+  capped at `MAX_CONTEXT_CHARACTERS` (8,000 chars, ≈2,000 tokens at a
+  conservative 4 chars/token). If a packet would exceed it, items are
+  dropped least-essential-first: memories, then quests, then goals, then
+  the oldest chat messages — system identity, profile summary,
+  level/progress, latest check-in, the CRM record, and the new message
+  itself are never dropped. `estimated_tokens` and `truncated` are reported
+  on every packet so a future budget gate (8.4) can log actual sizes.
+- Reuses existing authoritative services rather than re-querying: memories
+  via `list_memories`, recent chat history via `get_recent_chat_messages`
+  (which already caps at 10 messages, matching "up to ten recent messages
+  is a maximum, not a minimum").
+
+### Phase 8.4 implementation notes
+
+`app/services/intent_router.py` classifies one message using only the
+deterministic examples already listed under "Intent routing architecture"
+below; anything unmatched falls through to `routine_chat`, the only loop
+that reaches the AI gateway. No model call, no database access.
+
+`app/services/provider_gateway.py` is the budget-safe OpenAI gateway.
+Ollama is not usable here — Railway cannot reach a laptop-local Ollama
+endpoint, matching the existing "do not assume" rule below — so OpenAI is
+the only real provider, with a functional "disabled" state standing in for
+`DisabledProvider` (no separate class was needed for two behaviors).
+
+- **No schema change.** The Phase 8.1 audit tables already carry
+  `provider`, `model`, `input_tokens`, `output_tokens`, and
+  `estimated_cost_microusd` on both `agent_runs` and `agent_steps`; that
+  table *is* the budget ledger. `agent_steps` rows are append-only (no
+  "pending" status exists for a step), so "reserve, then reconcile" is
+  implemented as: compute a worst-case cost bound before calling, only
+  call if that bound keeps every cap satisfied, then append exactly one
+  step afterward — `skipped` (disabled or over budget, zero cost),
+  `failed` (provider error, zero cost — OpenAI does not charge for failed
+  requests), or `completed` (real usage and cost). Every attempted call is
+  audited regardless of outcome.
+- **The worst-case bound is a true upper bound, not an average.** It uses
+  the exact input token estimate from the context packet plus the
+  *configured maximum* output tokens (not an expected value), so a call
+  that could exceed a cap in the worst case is never placed.
+- **Budget is one shared, app-wide pool**, matching PROJECT.md's "Total
+  MARK-OS AI budget: PHP 200 per month" — `check_budget`'s spend query has
+  no `user_id` filter by design, confirmed by a dedicated test that
+  spends the budget from one user's calls and checks it blocks another
+  user's request.
+- **No price or model is hardcoded.** `load_provider_config()` requires
+  `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_INPUT_PRICE_MICROUSD_PER_1K`,
+  `OPENAI_OUTPUT_PRICE_MICROUSD_PER_1K`, and
+  `MARK_OS_AI_MONTHLY_BUDGET_MICROUSD` from the environment and returns
+  `None` — meaning fully disabled, zero risk of spend — if any is missing
+  or fails to parse as a positive integer. Nothing here assumes current
+  OpenAI pricing.
+- **Railway environment variables to set before Phase 8.5 goes live**
+  (none of these exist yet; without them the gateway silently stays
+  disabled and the app keeps working with AI simply unavailable):
+  - `OPENAI_API_KEY` — already covered separately.
+  - `OPENAI_MODEL` — the exact model string to call.
+  - `OPENAI_INPUT_PRICE_MICROUSD_PER_1K` /
+    `OPENAI_OUTPUT_PRICE_MICROUSD_PER_1K` — current OpenAI price per 1,000
+    tokens, in micro-USD (1 USD = 1,000,000 micro-USD); look these up from
+    OpenAI's own pricing page for the chosen model, they are not baked in
+    here.
+  - `MARK_OS_AI_MONTHLY_BUDGET_MICROUSD` — the PHP 200 monthly target
+    converted to a USD-equivalent micro-USD figure at your own exchange
+    rate.
+  - Optional, with safe built-in defaults: `OPENAI_BASE_URL`,
+    `OPENAI_MAX_OUTPUT_TOKENS` (default 500, hard ceiling 2,000),
+    `OPENAI_TIMEOUT_SECONDS` (default 30s, ceiling 60s),
+    `MARK_OS_AI_DAILY_BUDGET_MICROUSD` (default: monthly ÷ 30, always
+    clamped to never exceed the monthly cap), `MARK_OS_AI_DAILY_REQUEST_CAP`
+    (default 40, ceiling 200).
+- **No new dependency.** The OpenAI call uses `urllib.request` from the
+  standard library rather than adding `requests`/`httpx`, keeping the
+  existing minimal-dependency stack unchanged.
+- **Scope boundary.** 8.4 does not create chat sessions, save messages, or
+  build context itself — `request_ai_completion` takes an already-created
+  `run_id` and a `ContextPacket` and does the gate-and-call step only. The
+  end-to-end live route that wires router → context builder → gateway →
+  saved response together is Phase 8.5, matching the "Phase 8 high-level
+  request flow" order below.
 
 ## Phase 8 architecture audit — 2026-09-03
 
