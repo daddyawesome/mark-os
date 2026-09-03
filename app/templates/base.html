@@ -16,7 +16,7 @@
     >
     <link
         rel="stylesheet"
-        href="/static/css/mark-os-frontend.css?v=20260808-1"
+        href="/static/css/mark-os-frontend.css?v=20260904-1"
     >
     <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 </head>
@@ -124,67 +124,77 @@
         </div>
         {% endif %}
 
+        {% set business_active = request.url.path.startswith('/relationship-manager')
+            or request.url.path.startswith('/pendang')
+            or request.url.path.startswith('/crm') %}
         {% if current_user.role in ['owner', 'lead_sourcer', 'relationship_manager'] %}
         <div class="mark-sidebar-section">
-            <p class="mark-sidebar-label">Business</p>
+            <details class="mark-sidebar-group" {% if business_active %}open{% endif %}>
+                <summary class="mark-sidebar-summary {% if business_active %}is-active{% endif %}">
+                    <span>Business</span>
+                    <span class="mark-sidebar-chevron" aria-hidden="true">›</span>
+                </summary>
 
-            {% if current_user.role == 'relationship_manager' %}
-            <a
-                class="mark-sidebar-link {% if request.url.path == '/relationship-manager' %}is-active{% endif %}"
-                href="/relationship-manager"
-            >
-                <span>Relationship Home</span>
-            </a>
-            {% endif %}
+                <div class="mark-sidebar-submenu">
+                    {% if current_user.role == 'relationship_manager' %}
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink {% if request.url.path == '/relationship-manager' %}is-active{% endif %}"
+                        href="/relationship-manager"
+                    >
+                        Relationship Home
+                    </a>
+                    {% endif %}
 
-            {% if is_pendang_workspace %}
-            <a
-                class="mark-sidebar-link {% if request.url.path == '/pendang' %}is-active{% endif %}"
-                href="/pendang"
-            >
-                <span>Pendang Home</span>
-            </a>
-            {% endif %}
-            <a
-                class="mark-sidebar-link {% if request.url.path.startswith('/crm') and not request.url.path.startswith('/crm/follow-ups') %}is-active{% endif %}"
-                href="/crm"
-            >
-                <span>Client Hunting</span>
-            </a>
-            <a
-                class="mark-sidebar-link {% if request.url.path.startswith('/crm/follow-ups') %}is-active{% endif %}"
-                href="/crm/follow-ups"
-            >
-                <span>Follow-up Command Center</span>
-            </a>
-            {% if current_user.role in ['owner', 'relationship_manager'] %}
-            <a
-                class="mark-sidebar-link {% if request.url.path.startswith('/crm/templates') %}is-active{% endif %}"
-                href="/crm/templates"
-            >
-                <span>Outreach Templates</span>
-            </a>
-            {% endif %}
-            <a
-                class="mark-sidebar-link {% if request.url.path.startswith('/crm/effort') %}is-active{% endif %}"
-                href="/crm/effort"
-            >
-                <span>Lead-Sourcing Effort</span>
-            </a>
-            {% if current_user.role == 'owner' %}
-            <a
-                class="mark-sidebar-link {% if request.url.path.startswith('/crm/clients') %}is-active{% endif %}"
-                href="/crm/clients"
-            >
-                <span>Clients</span>
-            </a>
-            <a
-                class="mark-sidebar-link {% if request.url.path.startswith('/crm/webhooks') %}is-active{% endif %}"
-                href="/crm/webhooks"
-            >
-                <span>Webhook Intake</span>
-            </a>
-            {% endif %}
+                    {% if is_pendang_workspace %}
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink {% if request.url.path == '/pendang' %}is-active{% endif %}"
+                        href="/pendang"
+                    >
+                        Pendang Home
+                    </a>
+                    {% endif %}
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink {% if request.url.path.startswith('/crm') and not request.url.path.startswith('/crm/follow-ups') %}is-active{% endif %}"
+                        href="/crm"
+                    >
+                        Client Hunting
+                    </a>
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink {% if request.url.path.startswith('/crm/follow-ups') %}is-active{% endif %}"
+                        href="/crm/follow-ups"
+                    >
+                        Follow-up Command Center
+                    </a>
+                    {% if current_user.role in ['owner', 'relationship_manager'] %}
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink {% if request.url.path.startswith('/crm/templates') %}is-active{% endif %}"
+                        href="/crm/templates"
+                    >
+                        Outreach Templates
+                    </a>
+                    {% endif %}
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink {% if request.url.path.startswith('/crm/effort') %}is-active{% endif %}"
+                        href="/crm/effort"
+                    >
+                        Lead-Sourcing Effort
+                    </a>
+                    {% if current_user.role == 'owner' %}
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink {% if request.url.path.startswith('/crm/clients') %}is-active{% endif %}"
+                        href="/crm/clients"
+                    >
+                        Clients
+                    </a>
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink {% if request.url.path.startswith('/crm/webhooks') %}is-active{% endif %}"
+                        href="/crm/webhooks"
+                    >
+                        Webhook Intake
+                    </a>
+                    {% endif %}
+                </div>
+            </details>
         </div>
         {% endif %}
 
@@ -273,10 +283,12 @@
            href="/account/sessions">
             Active sessions
         </a>
+        {% if current_user.role in ['owner', 'member'] %}
         <a class="button is-small is-fullwidth is-ghost-forest mb-2"
            href="/account/export">
             Export data
         </a>
+        {% endif %}
 
         <form method="post" action="/logout">
             <button

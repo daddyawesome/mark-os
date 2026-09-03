@@ -323,7 +323,11 @@ def can_access_request(
         return True
     if normalized_path == "/insights" and normalized_method in {"GET", "HEAD"}:
         return True
-    if normalized_path in {"/account/export", "/account/export/download"} and normalized_method in {"GET", "HEAD"}:
+    if (
+        normalized_path in {"/account/export", "/account/export/download"}
+        and normalized_method in {"GET", "HEAD"}
+        and is_member(user)
+    ):
         return True
 
     if normalized_path == "/account/sessions" and normalized_method in {

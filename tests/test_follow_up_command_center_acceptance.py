@@ -323,14 +323,14 @@ def test_relationship_manager_page_hides_foreign_records_and_filter_names(
     assert 'method="post"' not in main_match.group(1)
 
     active_follow_up = re.search(
-        r'class="mark-sidebar-link\s+is-active"'
+        r'class="mark-sidebar-link[^"]*\bis-active\b[^"]*"'
         r'\s+href="/crm/follow-ups"',
         body,
     )
     assert active_follow_up is not None
 
     active_crm = re.search(
-        r'class="mark-sidebar-link\s+is-active"'
+        r'class="mark-sidebar-link[^"]*\bis-active\b[^"]*"'
         r'\s+href="/crm"',
         body,
     )
