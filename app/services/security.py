@@ -11,14 +11,17 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 def is_cross_site_unsafe_request(request: Request) -> bool:
     """Reject browser-declared cross-site writes without breaking API tests.
 
-    Modern browsers send Sec-Fetch-Site. Same-origin and same-site writes are
-    accepted; explicitly cross-site unsafe methods are blocked. Requests from
-    non-browser clients that omit the header continue through normal auth and
-    permission checks.
+    Modern browsers send Sec-Fetch-Site. Browser-confirmed same-origin writes
+    are accepted before comparing Origin so TLS termination at a reverse proxy
+    cannot make an HTTPS request look cross-origin to the application. Same-site
+    cross-origin and explicitly cross-site unsafe methods are blocked. Requests
+    without Fetch Metadata fall back to an Origin comparison when available.
     """
     if request.method.upper() in SAFE_METHODS:
         return False
     fetch_site = request.headers.get("sec-fetch-site", "").casefold()
+    if fetch_site == "same-origin":
+        return False
     if fetch_site in {"cross-site", "same-site"}:
         return True
 

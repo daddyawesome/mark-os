@@ -121,6 +121,27 @@ def test_same_origin_write_is_allowed_by_fetch_metadata_guard():
     assert not is_cross_site_unsafe_request(request)
 
 
+def test_same_origin_write_is_allowed_behind_https_reverse_proxy():
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/login",
+            "raw_path": b"/login",
+            "headers": [
+                (b"host", b"mark-os.internal"),
+                (b"origin", b"https://mark-os.example"),
+                (b"sec-fetch-site", b"same-origin"),
+            ],
+            "query_string": b"",
+            "scheme": "http",
+            "server": ("mark-os.internal", 80),
+            "client": ("proxy", 50000),
+        }
+    )
+    assert not is_cross_site_unsafe_request(request)
+
+
 def test_same_site_cross_origin_write_is_rejected():
     request = Request(
         {
