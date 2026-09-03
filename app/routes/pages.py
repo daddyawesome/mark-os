@@ -103,6 +103,16 @@ def life_os(request: Request):
         },
         {
             "icon": "✦",
+            "name": "Memory Center",
+            "status": "live",
+            "description": (
+                "Durable personal context with manual review, version history, "
+                "sensitivity, and append-only lifecycle audit."
+            ),
+            "href": "/memories",
+        },
+        {
+            "icon": "✦",
             "name": "AI Chat",
             "status": "next build",
             "description": (

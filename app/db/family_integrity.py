@@ -107,7 +107,12 @@ END;
 
 TRIGGER_NAMES = ('trg_goals_require_owner', 'trg_projects_require_owner', 'trg_checkins_require_owner', 'trg_tasks_require_owner', 'trg_memories_require_owner', 'trg_timeline_require_owner', 'trg_chat_sessions_require_owner', 'trg_directions_match_checkin_insert', 'trg_directions_match_checkin_update', 'trg_quest_updates_match_task_insert', 'trg_quest_updates_match_task_update', 'trg_xp_match_task_insert', 'trg_xp_match_task_update', 'trg_chat_messages_match_session_insert', 'trg_chat_messages_match_session_update', 'trg_agent_runs_match_chat_insert', 'trg_agent_steps_match_run_insert')
 
-REQUIRED_USER_ID_TABLES = ('profile', 'goals', 'projects', 'checkins', 'directions', 'game_state', 'game_history', 'tasks', 'quest_updates', 'xp_ledger', 'memories', 'timeline_events', 'chat_sessions', 'chat_messages', 'agent_runs', 'agent_steps')
+REQUIRED_USER_ID_TABLES = (
+    "profile", "goals", "projects", "checkins", "directions", "game_state",
+    "game_history", "tasks", "quest_updates", "xp_ledger", "memories",
+    "memory_candidates", "memory_audit_events", "timeline_events",
+    "chat_sessions", "chat_messages", "agent_runs", "agent_steps",
+)
 
 
 def _has_user_id(

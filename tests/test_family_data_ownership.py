@@ -19,6 +19,8 @@ PERSONAL_TABLES = (
     "quest_updates",
     "xp_ledger",
     "memories",
+    "memory_candidates",
+    "memory_audit_events",
     "timeline_events",
     "chat_sessions",
     "chat_messages",

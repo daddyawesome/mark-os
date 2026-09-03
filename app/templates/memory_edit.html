@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Revise Memory · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Memory revision</p>
+    <h1 class="title is-1 mb-3">Revise {{ memory.memory_key }}</h1>
+    <p class="subtitle is-5 mark-muted">Saving creates version {{ memory.version + 1 }} and preserves version {{ memory.version }} in history.</p>
+</section>
+
+{% if error %}
+<div class="notification is-danger is-light" role="alert">
+    {% if error == 'stale' %}This memory changed after you opened it. Return to the Memory Center and reopen the current version.
+    {% else %}{{ error }}{% endif %}
+</div>
+{% endif %}
+
+<div class="columns is-variable is-5">
+    <div class="column is-8">
+        <section class="mark-card p-5" aria-labelledby="revision-form-heading">
+            <p class="mark-kicker">Current version {{ memory.version }}</p>
+            <h2 class="title is-4" id="revision-form-heading">Create the next version</h2>
+            <form method="post" action="/memories/{{ memory.id }}/edit">
+                <input type="hidden" name="expected_version" value="{{ memory.version }}">
+                {% set create_mode = false %}
+                {% include "partials/memory_fields.html" %}
+                <div class="buttons">
+                    <button class="button is-mark" type="submit">Save new version</button>
+                    <a class="button is-ghost-forest" href="/memories">Cancel</a>
+                </div>
+            </form>
+        </section>
+    </div>
+    <div class="column is-4">
+        <section class="mark-card mark-card-2 p-5" aria-labelledby="version-history-heading">
+            <p class="mark-kicker">Read-only</p>
+            <h2 class="title is-5" id="version-history-heading">Earlier versions</h2>
+            {% for version in history %}
+            <div class="memory-history-item">
+                <strong>Version {{ version.version }}</strong>
+                <p class="memory-value is-size-7">{{ version.memory_value }}</p>
+                <p class="mark-muted is-size-7">{{ version.updated_at }}</p>
+            </div>
+            {% else %}
+            <p class="mark-muted">This is the first version.</p>
+            {% endfor %}
+        </section>
+    </div>
+</div>
+{% endblock %}

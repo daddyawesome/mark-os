@@ -2,14 +2,14 @@
 
 **Canonical project document**
 **Repository:** `https://github.com/daddyawesome/mark-os`
-**Reviewed on feature branch:** `feature/phase-8-life-os` on 2026-09-03
-**Current active phase:** Phase 8 architecture audit complete — implementation not started
-**Immediate next milestone:** Phase 8.1 Structured-memory schema completion
+**Reviewed on feature branch:** `feature/phase-8-1-structured-memory` on 2026-09-03
+**Current active phase:** Phase 8.2 complete locally — review and production-copy rehearsal pending
+**Immediate next milestone:** Phase 8.3 Retrieval and Context Builder after Phase 8.1–8.2 review
 **Production deployment:** Railway
 **Primary database:** SQLite on a persistent Railway volume
-**Last verified full-suite baseline:** 651 passed at `790cda5` after the Railway login proxy fix
+**Last verified full-suite baseline:** 673 passed after Phase 8.2 Manual Memory Center completion
 
-## Current status: Phase 8 audit complete; Phase 7 production acceptance pending
+## Current status: Phase 8.2 locally complete; Phase 7 production acceptance pending
 
 Phase 6.6 (Bulk Lead Management and CRM Workspaces) is implemented in full,
 substeps 6.6A through 6.6F. Phase 6.7 (Outreach Templates and Approval
@@ -24,10 +24,12 @@ previous roadmap names “Phase 7.8 — Staging” and “Phase 7.9 — Observab
 were superseded by the canonical renumbering: staging is now Phase 7.6, while
 observability was already completed as Phase 6.5.
 
-The Phase 8 architecture audit is complete on `feature/phase-8-life-os`.
-No Phase 8 application or schema implementation has started. The repository's
-existing memory, chat, Director, gamification, and agent-audit foundations must
-be extended in place; they must not be replaced with parallel systems.
+The Phase 8 architecture audit is complete. Phase 8.1 and Phase 8.2 are implemented and
+verified locally on `feature/phase-8-1-structured-memory`; review and a
+rehearsal against a verified production database copy remain before any
+Railway migration. The repository's existing memory, chat, Director,
+gamification, and agent-audit foundations are extended in place rather than
+replaced with parallel systems.
 
 | Substep | What it added | Status |
 |---|---|---|
@@ -730,16 +732,33 @@ Quest-completion XP must be awarded exactly once.
 
 #### Memories
 
-Current memory storage includes legacy and structured-memory foundations.
+Current memory storage includes:
+
+```text
+memories
+memory_candidates
+memory_audit_events
+```
 
 Important rules:
 
 - memory belongs to a user;
-- memory keys are unique per user;
+- one active memory key is allowed per user, while unique per-key version
+  numbers retain superseded history;
 - existing memory columns must be migrated additively;
 - secrets and unnecessary confidential information must not be stored;
 - important source records should not be duplicated into memory without a
-  clear reason.
+  clear reason;
+- candidate creation is request-key idempotent and duplicate pending content
+  is collapsed by a per-user fingerprint;
+- acceptance either links an identical active memory or creates the next
+  version and supersedes the prior active version atomically;
+- rejected and archived candidates are terminal, and lifecycle retries do not
+  duplicate audit events;
+- memory audit events are append-only and contain lifecycle metadata rather
+  than raw memory content;
+- database triggers enforce immutable ownership, same-user references,
+  valid supersession chains, and protection of referenced versions.
 
 #### Timeline events
 
@@ -2585,7 +2604,7 @@ Full suite: `649 passed in 162.04s`; `git diff --check` passed.
 
 # Phase 8 — Budget-Safe Life OS / Second Brain
 
-**Status:** Architecture audit complete; implementation not started
+**Status:** Phase 8.1–8.2 complete locally; Phase 8.3 is next after review
 **Previous numbering:** Phase 5.3 onward
 **Previous roadmap name:** Budget-Safe AI Continuation
 
@@ -2612,7 +2631,23 @@ as “8.1 Core AI rules”; those prose numbers have been removed to prevent the
 from being mistaken for milestone numbers. No milestone was renumbered or
 reordered.
 
+## Phase 8 implementation progress
+
+| Milestone | Status | Evidence |
+|---|---|---|
+| 8.1 Structured-memory schema completion | ✅ Complete locally | 16 focused tests; 667 full-suite tests; `git diff --check` passed |
+| 8.2 Manual Memory Center | ✅ Complete locally | 36 focused/integration tests; 673 full-suite tests; `git diff --check` passed |
+| 8.3–8.7 | Planned | Implement sequentially after their prerequisites |
+| 8.8–8.10 | Optional / deferred | Require measured need and explicit approval |
+| 8.11 Weekly Review Loop | Planned | Required after the preceding controlled foundations |
+| 8.12 External observations | Optional / deferred | Require a concrete approved integration |
+
 ## Phase 8 architecture audit — 2026-09-03
+
+This is the point-in-time audit taken before Phase 8.1 implementation. The
+implementation-progress table and Phase 8.1 completion record below supersede
+its “not implemented” findings where applicable; the remaining gap analysis
+continues to govern later milestones.
 
 ### CURRENT HEAD
 
@@ -2719,6 +2754,22 @@ reordered.
 - Add migration, ownership, secret-rejection, replay, integrity, and
   production-copy rehearsal coverage. Do not add AI or embeddings in 8.1.
 
+**Completion record (2026-09-03):** Implemented `memory_candidates` and
+append-only `memory_audit_events` in the existing memory domain. Candidate
+records carry personal ownership, provenance, optional agent-run linkage,
+confidence, sensitivity, durable reason, SHA-256 content fingerprint,
+request-key idempotency, and pending/accepted/rejected/archived lifecycle
+state. Durable memories now support unique version history with one active key
+per user; same-user supersession integrity and referenced-version protection
+are enforced by database triggers. The lifecycle service rejects recognized
+credentials, provider tokens, private keys, and banking information before
+storage; creates content-free audit metadata; atomically accepts, supersedes,
+rejects, or archives; and makes retries idempotent. Existing rows survive the
+pre-8.1 copied-database migration rehearsal. No provider, embedding, route,
+template, external service, or new dependency was added. Verification:
+`16 passed` focused, `667 passed in 172.68s` full suite, and
+`git diff --check` passed.
+
 ### PHASE 8.2 REQUIRED WORK
 
 - Add an authorized personal memory service and a server-rendered Manual
@@ -2728,6 +2779,22 @@ reordered.
   and audit history.
 - Treat submitted user IDs and cross-user memory/candidate IDs as untrusted.
   No model call is required.
+
+**Completion record (2026-09-03):** Added a personal-only Memory Center at
+`/memories` using the existing FastAPI, Jinja, Bulma, and project CSS stack.
+Owners and family members can create durable memories, browse active or
+archived versions, revise through immutable-key version/supersession, and
+archive without hard-deleting history. Forms expose importance, source,
+confidence, and sensitivity; invalid safe input is preserved, recognized
+secret values are cleared, and submitted semantic versions prevent stale
+edit/archive writes. The same center exposes pending-candidate accept, reject,
+and archive controls plus a content-free append-only audit view. Route and
+service authorization resolve ownership from the authenticated personal user;
+submitted cross-user memory/candidate IDs fail without mutation. The Life OS
+map and personal navigation now link to the center. No provider, model call,
+embedding, external action, XP mutation, or new dependency was added.
+Verification: `36 passed` focused/integration, `673 passed in 174.36s` full
+suite, and `git diff --check` passed.
 
 ### PHASE 8.3 REQUIRED WORK
 
@@ -4042,7 +4109,7 @@ backup.
 | Phase 6.12 | Complete | Retainers, Invoicing, and Profitability |
 | Phase 6.13 | Complete | Delegated Relationship Manager outreach |
 | Phase 7 | Implementation complete; production acceptance pending | Product Hardening and Growth |
-| Phase 8 | Architecture audit complete; implementation not started | Budget-Safe Life OS / Second Brain; Phase 8.1 is next |
+| Phase 8 | 8.1–8.2 complete locally; review and production-copy rehearsal pending | Structured-memory lifecycle and authorized Manual Memory Center; 8.3 retrieval/context building is next |
 | Phase 9 | Planned | Affordable Ambient Assistant |
 
 ---
@@ -4053,6 +4120,63 @@ Entries are kept in full for roughly the current and prior phase substep, since
 that is the period an active contributor needs to reason about. Older entries
 that a later decision explicitly supersedes are condensed to one line; see the
 git history for full original text if needed.
+
+## 2026-09-03 — Complete Phase 8.2 as a personal, manual control surface
+
+**Decision:**
+
+- expose durable memory and candidate review only to authenticated owners and
+  family members, while keeping service-layer user scoping authoritative;
+- make manual edits create a new version and supersede the prior row instead
+  of updating memory content in place;
+- use submitted semantic versions to reject stale revisions and archives;
+- make archive the ordinary removal policy so version and audit history remain
+  available, with no hard-delete control in the Memory Center;
+- show candidate decisions and content-free lifecycle audit metadata in the
+  same server-rendered surface;
+- add no model, provider, embedding, external action, XP write, or dependency.
+
+**Reason:**
+
+Durable personal context needs a user-controlled correction and review path
+before any retrieval or AI orchestration can safely consume it. Personal
+isolation, stale-write protection, and retained evidence are more important
+than automated extraction at this stage.
+
+**Consequence:**
+
+Phase 8.3 can retrieve from an authorized, versioned memory source with an
+operational correction path. Phase 8.1's additive schema migration still
+requires the standard verified production-copy rehearsal before deployment.
+
+## 2026-09-03 — Complete Phase 8.1 inside the existing memory domain
+
+**Decision:**
+
+- add user-owned `memory_candidates` and append-only `memory_audit_events`
+  beside `memories`, not a replacement memory store;
+- retain historical versions with a unique `(user_id, memory_key, version)`
+  boundary and allow only one active `(user_id, memory_key)` row;
+- enforce same-user provenance, acceptance, audit references, ownership
+  immutability, and supersession validity with database constraints/triggers;
+- route candidate lifecycle changes through one scoped, idempotent service
+  that rejects recognized secrets/banking data and never writes raw memory
+  content into audit metadata;
+- exclude internal candidates and mutation audits from portability exports;
+- add no AI provider, embedding, vector store, route, UI, or dependency.
+
+**Reason:**
+
+The existing schema already had most durable-memory fields but lacked a safe
+candidate review lifecycle and mutation evidence. Its old per-user key index
+also prevented the `version` and `superseded_by` columns from retaining more
+than one version of a logical memory.
+
+**Consequence:**
+
+Phase 8.2 can build the Manual Memory Center on tested lifecycle primitives.
+The Railway migration still requires the standard verified production-copy
+rehearsal; no live database was accessed or changed during Phase 8.1.
 
 ## 2026-09-03 — Separate Phase 8 loops from milestones and make gamification explicit
 

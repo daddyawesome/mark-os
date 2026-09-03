@@ -87,6 +87,8 @@ def test_staff_export_is_visibility_scoped_and_structurally_excludes_secrets(
     assert "auth_sessions" not in package["tables"]
     assert "login_attempts" not in package["tables"]
     assert "security_audit_events" not in package["tables"]
+    assert "memory_candidates" not in package["tables"]
+    assert "memory_audit_events" not in package["tables"]
     assert "webhook_intake_tokens" not in package["tables"]
     assert "proposals" not in package["tables"]
     assert "outreach_templates" not in package["tables"]
