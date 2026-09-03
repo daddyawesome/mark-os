@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Chat · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Second Brain // Routine AI Chat</p>
+    <h1 class="title is-1 mb-2">Chat</h1>
+    <p class="subtitle is-5 mark-muted">
+        Budget-safe conversation over your own goals, quests, check-ins, and
+        memory. Deterministic questions never use AI; everything else stays
+        inside the monthly budget and degrades safely when AI is unavailable.
+    </p>
+</section>
+
+<div class="columns is-variable is-5">
+    <div class="column is-3">
+        <div class="mark-card p-4 mb-4">
+            <form method="post" action="/chat/new">
+                <button class="button is-mark is-fullwidth" type="submit">
+                    New chat
+                </button>
+            </form>
+        </div>
+        <div class="mark-card p-4">
+            <p class="mark-kicker mb-2">Sessions</p>
+            {% for item in sessions %}
+            <a
+                class="mark-sidebar-link {% if session and item.id == session.id %}is-active{% endif %}"
+                href="/chat/{{ item.id }}"
+            >
+                <span>{{ item.title }}</span>
+            </a>
+            {% else %}
+            <p class="mark-muted is-size-7">No chats yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="column is-9">
+        {% if session %}
+        <div class="mark-card p-5">
+            {% include "partials/chat_messages.html" %}
+
+            <form
+                method="post"
+                action="/chat/{{ session.id }}/messages"
+                hx-post="/chat/{{ session.id }}/messages"
+                hx-target="#chat-messages"
+                hx-swap="outerHTML"
+                hx-disabled-elt="find button[type=submit]"
+                class="mt-4"
+            >
+                <input type="hidden" name="request_key" value="{{ request_key }}">
+                <div class="field">
+                    <label class="label" for="content">Message</label>
+                    <div class="control">
+                        <textarea
+                            class="textarea"
+                            id="content"
+                            name="content"
+                            maxlength="4000"
+                            rows="3"
+                            required
+                        ></textarea>
+                    </div>
+                </div>
+                <div class="control">
+                    <button class="button is-mark" type="submit">Send</button>
+                </div>
+            </form>
+        </div>
+        {% else %}
+        <div class="mark-card p-6 has-text-centered">
+            <h3 class="title is-5">No chat open yet.</h3>
+            <p class="mark-muted">Start a new chat to begin.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

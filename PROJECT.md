@@ -3,13 +3,13 @@
 **Canonical project document**
 **Repository:** `https://github.com/daddyawesome/mark-os`
 **Reviewed on feature branch:** `feature/phase-8-1-structured-memory` on 2026-09-03
-**Current active phase:** Phase 8.4 complete locally — Phase 8.5 Routine AI Chat is next
-**Immediate next milestone:** Phase 8.5 Routine AI Chat (live chat route/UI wiring 8.1–8.4 together)
+**Current active phase:** Phase 8.5 complete locally — Phase 8.6 Memory Extraction is next
+**Immediate next milestone:** Phase 8.6 Memory Extraction (not started; requires separate approval)
 **Production deployment:** Railway
 **Primary database:** SQLite on a persistent Railway volume
-**Last verified full-suite baseline:** 705 passed after Phase 8.4 Intent Router and AI Gateway completion
+**Last verified full-suite baseline:** 721 passed after Phase 8.5 Routine AI Chat completion
 
-## Current status: Phase 8.4 locally complete; Phase 7 production acceptance pending
+## Current status: Phase 8.5 locally complete; Phase 7 production acceptance pending
 
 Phase 6.6 (Bulk Lead Management and CRM Workspaces) is implemented in full,
 substeps 6.6A through 6.6F. Phase 6.7 (Outreach Templates and Approval
@@ -2606,7 +2606,7 @@ Full suite: `649 passed in 162.04s`; `git diff --check` passed.
 
 # Phase 8 — Budget-Safe Life OS / Second Brain
 
-**Status:** Phase 8.1–8.4 complete locally; Phase 8.5 is next
+**Status:** Phase 8.1–8.5 complete locally; Phase 8.6 is next
 **Previous numbering:** Phase 5.3 onward
 **Previous roadmap name:** Budget-Safe AI Continuation
 
@@ -2641,7 +2641,8 @@ reordered.
 | 8.2 Manual Memory Center | ✅ Complete locally | 36 focused/integration tests; 673 full-suite tests; `git diff --check` passed |
 | 8.3 Retrieval and Context Builder | ✅ Complete locally | 12 focused tests; 685 full-suite tests; `git diff --check` passed |
 | 8.4 Intent Router and AI Gateway | ✅ Complete locally | 20 focused tests; 705 full-suite tests; `git diff --check` passed |
-| 8.5–8.7 | Planned | Implement sequentially after their prerequisites |
+| 8.5 Routine AI Chat | ✅ Complete locally | 16 focused tests; 721 full-suite tests; `git diff --check` passed |
+| 8.6–8.7 | Planned | Implement sequentially after their prerequisites |
 | 8.8–8.10 | Optional / deferred | Require measured need and explicit approval |
 | 8.11 Weekly Review Loop | Planned | Required after the preceding controlled foundations |
 | 8.12 External observations | Optional / deferred | Require a concrete approved integration |
@@ -2763,6 +2764,66 @@ the only real provider, with a functional "disabled" state standing in for
   end-to-end live route that wires router → context builder → gateway →
   saved response together is Phase 8.5, matching the "Phase 8 high-level
   request flow" order below.
+
+### Phase 8.5 implementation notes
+
+`app/services/chat_orchestrator.py` (`send_chat_message`) wires 8.1's chat
+tables, 8.3's context builder, and 8.4's router/gateway into one live,
+authenticated `/chat` surface (`app/routes/chat.py`, `chat.html`,
+`partials/chat_messages.html`) reusing the existing `chat_sessions`/
+`chat_messages`/`agent_runs`/`agent_steps` schema — no migration.
+
+- **Deterministic scope, exactly as agreed in the plan:** `data_lookup`
+  ("what is my level") and the read form of `memory_management` ("show my
+  memories") return real answers from existing services with no model
+  call. The write form of `memory_management` ("remember"/"forget"),
+  `quest_planning`, `client_hunting`, and `tool_action` return a short,
+  honest decline with no write and no model call — building real handlers
+  for those is out of this phase's scope (memory writes are explicitly
+  Phase 8.6; tool execution is explicitly Phase 8.7). `director_coach`
+  surfaces the last recorded `direction` instead of re-invoking
+  `choose_direction`, which needs a fresh check-in/project/open-quest
+  bundle a bare chat message doesn't have.
+- **User scoping is enforced twice, independently.** `access_control.py`
+  only added `/chat` paths to the Member GET/POST sets (Owner already
+  passes via its unconditional allow); Relationship Manager and Lead
+  Sourcer were never added anywhere, so they're denied by omission, the
+  same pattern used for `/memories`. Separately, `get_chat_session` already
+  scopes by `user_id` and returns `None` for another user's session, so a
+  cross-user session id 404s at the route layer even if the access-control
+  layer were ever loosened — two independent gates, not one.
+- **Every run is audited, deterministic or not.** `create_agent_run` is
+  called before intent routing (matching the documented request-flow
+  order) and `finalize_agent_run(status="completed")` always runs,
+  including when AI is disabled, budget-exhausted, or the provider call
+  failed — none of those are treated as a broken turn, they're a
+  successful turn with a safe fallback reply. A provider failure appends
+  one `failed` `agent_steps` row (zero cost, sanitized error message via
+  8.1's existing redaction) but the run itself still completes.
+- **Idempotency chains through three existing layers**, not new logic:
+  `save_chat_message`'s `request_key`, `create_agent_run`'s `request_key`,
+  and `append_agent_step`'s `step_key` (fed `f"{request_key}:ai_call"`).
+  On a retried submit whose run is already terminal, `send_chat_message`
+  skips all processing entirely — no second save, no second gateway call,
+  no double spend — verified by a test that asserts the mocked provider is
+  called exactly once across two identical submits.
+- **Gap fixed:** `chat.py`'s message content had no length bound, but the
+  context builder rejects messages over 4,000 characters. Bounded it in
+  the orchestrator before saving, so an oversized message is rejected with
+  a clean error instead of getting saved and then failing downstream.
+- **No secrets in the UI.** All three degraded states (disabled, budget,
+  provider failure) are fixed, generic strings; no exception text, API
+  key, or provider response ever reaches the template.
+- **HTMX per `AGENTS.md`:** the message form posts normally (redirect
+  fallback) and, when HTMX is present, swaps `#chat-messages` via
+  `outerHTML` with a freshly rendered, fully-scoped fragment — no
+  client-side state, no business logic in JS. Read `mark-os-ui/SKILL.md`
+  and `mark-os-htmx/SKILL.md` before this work per the repository's own
+  instruction.
+- **Not yet visually reviewed in a browser** — verified via the full ASGI
+  request/response cycle (login, full-page render, HTMX-style POST,
+  rendered HTML assertions) in `tests/test_phase_8_5_routine_ai_chat.py`,
+  not a live browser session.
 
 ## Phase 8 architecture audit — 2026-09-03
 

@@ -1,0 +1,13 @@
+<div id="chat-messages" class="chat-message-list">
+    {% if error %}
+    <div class="notification is-danger is-light" role="alert">{{ error }}</div>
+    {% endif %}
+    {% for message in messages %}
+    <article class="chat-message chat-message-{{ message.role }} mb-3">
+        <p class="mark-kicker mb-1">{{ 'You' if message.role == 'user' else 'MARK' }}</p>
+        <p class="chat-message-content">{{ message.content }}</p>
+    </article>
+    {% else %}
+    <p class="mark-muted has-text-centered">No messages yet. Say hello.</p>
+    {% endfor %}
+</div>

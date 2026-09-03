@@ -109,6 +109,13 @@
             </a>
 
             <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/chat') %}is-active{% endif %}"
+                href="/chat"
+            >
+                <span>Chat</span>
+            </a>
+
+            <a
                 class="mark-sidebar-link {% if request.url.path == '/history' %}is-active{% endif %}"
                 href="/history"
             >

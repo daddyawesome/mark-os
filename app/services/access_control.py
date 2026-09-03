@@ -158,6 +158,7 @@ _MEMBER_GET_PATHS = frozenset(
         "/memories",
         "/history",
         "/family/setup",
+        "/chat",
     }
 )
 
@@ -168,8 +169,12 @@ _MEMBER_POST_PATHS = frozenset(
         "/quests",
         "/memories",
         "/logout",
+        "/chat/new",
     }
 )
+
+_CHAT_SESSION_PATTERN = re.compile(r"^/chat/[1-9][0-9]*$")
+_CHAT_MESSAGES_PATTERN = re.compile(r"^/chat/[1-9][0-9]*/messages$")
 
 
 def role_of(user: Mapping[str, Any] | None) -> str:
@@ -259,6 +264,7 @@ def _member_can_get(path: str) -> bool:
         or _QUEST_DETAIL_PATTERN.fullmatch(path) is not None
         or _HISTORY_EDIT_PATTERN.fullmatch(path) is not None
         or _MEMORY_EDIT_PATTERN.fullmatch(path) is not None
+        or _CHAT_SESSION_PATTERN.fullmatch(path) is not None
     )
 
 
@@ -271,6 +277,7 @@ def _member_can_post(path: str) -> bool:
         or _QUEST_ACTION_PATTERN.fullmatch(path) is not None
         or _MEMORY_ACTION_PATTERN.fullmatch(path) is not None
         or _MEMORY_CANDIDATE_ACTION_PATTERN.fullmatch(path) is not None
+        or _CHAT_MESSAGES_PATTERN.fullmatch(path) is not None
     )
 
 

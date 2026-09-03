@@ -21,6 +21,7 @@ from app.routes import auth as auth_routes
 from app.routes import (
     family,
     billing,
+    chat,
     checkins,
     client_delivery,
     client_hunting,
@@ -245,6 +246,7 @@ app.add_middleware(
 
 app.include_router(auth_routes.router)
 app.include_router(family.router)
+app.include_router(chat.router)
 app.include_router(checkins.router)
 app.include_router(quests.router)
 app.include_router(goals.router)

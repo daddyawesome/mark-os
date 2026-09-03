@@ -114,11 +114,12 @@ def life_os(request: Request):
         {
             "icon": "✦",
             "name": "AI Chat",
-            "status": "next build",
+            "status": "live",
             "description": (
                 "Budget-safe assistant chat using recent messages "
                 "plus selected long-term memory."
             ),
+            "href": "/chat",
         },
         {
             "icon": "✎",
