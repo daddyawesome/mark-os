@@ -2,20 +2,27 @@
 
 **Canonical project document**
 **Repository:** `https://github.com/daddyawesome/mark-os`
-**Reviewed against `main`:** 2026-08-08
-**Current active phase:** Phase 6 — Agency Operations and Production Safety
-**Immediate next milestone:** Deploy Phase 6.6C and finish Pendang real-user acceptance
+**Reviewed on feature branch:** 2026-09-03
+**Current active phase:** Phase 7 complete locally — release acceptance pending
+**Immediate next milestone:** Production-copy rehearsal, Railway release gates, and Pendang real-user acceptance
 **Production deployment:** Railway
 **Primary database:** SQLite on a persistent Railway volume
-**Last verified full-suite baseline:** 531 passed after Phase 6.6C Pendang Company Knowledge and Marketing
+**Last verified full-suite baseline:** 650 passed after Phase 7 Product Hardening
 
-## Current status: Phase 6.6 / 6.7
+## Current status: Phase 7 locally complete; production acceptance pending
 
 Phase 6.6 (Bulk Lead Management and CRM Workspaces) is implemented in full,
 substeps 6.6A through 6.6F. Phase 6.7 (Outreach Templates and Approval
 Controls) is also implemented. All are locally complete and test-verified;
 production acceptance for the Pendang-facing surfaces remains the outstanding
 gate.
+
+Phase 7.1 through 7.6 are also implemented and independently verified on the
+uncommitted `feature/phase-7-product-hardening` review branch. No production
+deployment or live Railway data change has occurred. The previous roadmap names
+“Phase 7.8 — Staging” and “Phase 7.9 — Observability” were superseded by the
+canonical renumbering: staging is now Phase 7.6, while observability was already
+completed as Phase 6.5.
 
 | Substep | What it added | Status |
 |---|---|---|
@@ -2384,23 +2391,47 @@ could not reach the `Contacted` pipeline transition at all.
 
 # Phase 7 — Product Hardening and Growth
 
-**Status:** Planned after the must-have Phase 6 safety and operations work
+**Status:** Implementation complete locally — production-copy rehearsal,
+Railway release gates, real-device PWA checks, and operational acceptance remain
 
 ## Phase 7.1 — Security and Audit Foundation
 
-Planned:
+**Status:** Complete — implemented and verified locally on 2026-09-03;
+production acceptance remains part of the eventual release gate
 
-- login rate limiting;
-- session inventory and logout everywhere;
-- session revocation;
-- admin-action and role-change audit;
+Implemented:
+
+- persistent, privacy-preserving login rate limiting (five failures per
+  username/client pair in a rolling 15-minute window, stored only as an HMAC);
+- database-backed session inventory and “log out everywhere else”;
+- individual logout plus immediate password, account-status, and workspace
+  authority session revocation;
+- append-only authentication, account, initial-role assignment, workspace,
+  and delegated-permission audit events, with an Owner-only audit view; a
+  database trigger also captures every actual role transition even if a future
+  path bypasses the current service UI;
 - account activation/deactivation audit;
-- failed-login events;
-- CSRF and secure-cookie review;
-- sensitive-log review;
-- IDOR regression tests.
+- failed-login events without usernames, passwords, client addresses, request
+  bodies, session tokens, or other secrets;
+- stricter Fetch Metadata / Origin CSRF checks that reject both cross-site and
+  same-site cross-origin writes; Railway cookies remain HTTPS-only, `lax`, and
+  seven-day bounded;
+- IDOR and forged-admin regression coverage at both the route-policy and
+  service layers.
+
+The migration adds `auth_sessions`, `login_attempts`, and
+`security_audit_events` additively. Repeated initialization is safe; existing
+user IDs, sessions' `session_version` semantics, CRM data, quests, XP, and game
+state are preserved. No new dependency or external service was introduced.
+
+Verification evidence: Phase 7.1 focused security gate `57 passed`; targeted
+regression repair gate `21 passed`; full suite `636 passed in 162.59s`;
+`git diff --check` passed. No production data or deployment was touched.
 
 ## Phase 7.2 — Notifications and Nudges
+
+**Status:** Complete — implemented and verified locally on 2026-09-03;
+production acceptance remains part of the eventual release gate
 
 External delivery may include email, Telegram, or Discord.
 
@@ -2415,22 +2446,74 @@ Initial notifications:
 
 The in-app follow-up command center remains Phase 6.4.
 
+Implementation uses a read-only `/notifications` center rather than a new
+background worker or provider dependency. Personal users receive a daily
+check-in reminder, overdue-quest items, and a Monday weekly-review reminder.
+CRM users receive due lead-next-action items produced through the existing
+workspace- and role-scoped `list_visible_leads` boundary. Dates use the Manila
+operational day. Backup and application-health failures continue to use the
+verified Phase 6.5 operations check and optional Owner Discord webhook; this
+phase does not duplicate that alert path.
+
+Notification rendering performs no database writes and cannot award XP or
+change quest/game/CRM state. Focused verification: `23 passed`, including
+cross-researcher isolation and state-invariance checks. Full suite:
+`639 passed in 160.85s`; `git diff --check` passed. No production notification
+or deployment was sent.
+
 ## Phase 7.3 — Insights and Trend Dashboard
 
-Use Chart.js first.
+**Status:** Complete — implemented and verified locally on 2026-09-03;
+production acceptance remains part of the eventual release gate
+
+Uses pinned Chart.js 4.4.7 with server-rendered metric summaries and accessible
+canvas labels.
 
 Include personal, CRM, Relationship Manager, conversion, source, pipeline,
 activity, and recommendation-outcome trends.
 
+`GET /insights` builds personal 30-day check-in energy, quest-status, generated
+recommendation, and completed-quest summaries for personal users. Its CRM
+section reports visible-lead totals, Won conversion, source, pipeline,
+Relationship Manager ownership, and 30-day activity. Every CRM aggregate starts
+with the existing `list_visible_leads` authorization query for the active
+workspace; activity queries are restricted to those exact lead IDs. The service
+is read-only and does not change activities, leads, quests, XP, or game state.
+
+Focused verification: `17 passed`, including cross-researcher isolation,
+state invariance, pinned dependency, and accessible rendering checks. Full
+suite: `641 passed in 162.90s`; `git diff --check` passed. No production data or
+deployment was touched.
+
 ## Phase 7.4 — Mobile-Friendly PWA
 
-Add a manifest, icons, standalone installation, safe service worker, offline
-shell, offline check-in draft, retry behavior, and mobile interaction
-improvements.
+**Status:** Complete — implemented and verified locally on 2026-09-03;
+production acceptance and real-device install/offline smoke testing remain in
+the eventual release gate
+
+Added a web-app manifest, 192/512 maskable project-owned SVG icons, standalone
+installation metadata, a root-scoped service worker, offline shell, and
+browser-local offline check-in draft support. Reconnection never auto-submits:
+the user must review and explicitly retry. A new additive nullable
+`checkins.request_key` plus a per-user partial unique index makes that retry
+idempotent without changing older records.
 
 Do not broadly cache authenticated personal HTML.
 
+The service worker obeys that rule: it intercepts GET only, treats navigation
+as network-only with an offline-shell fallback, and cache-first serves only the
+explicit public static shell/assets. It never writes authenticated HTML to a
+cache and never intercepts mutations. Normal form action/method and existing
+HTMX fragment behavior remain intact. Focused verification: `35 passed`,
+including repeated migration, retry idempotence, XP/game-state invariance,
+cache-scope, and progressive-enhancement checks. Full suite:
+`644 passed in 162.33s`; `git diff --check` passed. No production deployment or
+live data was touched.
+
 ## Phase 7.5 — Data Export and Portability
+
+**Status:** Complete — implemented and verified locally on 2026-09-03;
+production acceptance remains part of the eventual release gate
 
 Formats:
 
@@ -2443,19 +2526,55 @@ ZIP package
 Every export is user- and permission-scoped. Never export password hashes,
 session secrets, API keys, or environment secrets.
 
+`GET /account/export` offers a complete JSON package, one CSV download per
+available export table, and a ZIP containing the JSON, manifest, and all CSV
+tables. Personal records are filtered by the authenticated `user_id`; CRM
+records start from the existing active-workspace `list_visible_leads` boundary.
+Workspace-owner data is available only to actors with the existing CRM owner
+authority, and billing/payment tables remain global-Owner-only. CSV cells that
+begin with spreadsheet formula characters are neutralized.
+
+The export builder uses an explicit table and column allowlist. It structurally
+excludes password hashes, session versions/tokens, login attempts, security
+audit internals, webhook intake tokens, API/environment secrets, and any table
+not intentionally selected. Export is read-only and does not alter CRM,
+quest, XP, or game state. Focused verification: `18 passed`, including user and
+lead isolation, structural secret exclusion, CSV injection defense, and ZIP
+manifest coverage. Full suite: `647 passed in 161.28s`; `git diff --check`
+passed. No production export was generated.
+
 ## Phase 7.6 — Formal Staging Environment and Rollback
 
 The staging-copy verifier and rollback runbook created during Phase 6.1 are the
 foundation, not the final deployed staging environment.
 
-Planned:
+**Status:** Complete locally — repeatable copied-snapshot staging and rollback
+evidence implemented and verified on 2026-09-03; rehearsal against a verified
+production copy and Railway release acceptance remain manual gates
 
-- low-cost staging service or repeatable copied-snapshot environment;
-- pre-deploy migration rehearsal;
-- exact application rollback steps;
-- exact database restore steps;
-- release evidence retained per deployment;
-- scheduled restore drills.
+Implemented:
+
+- repeatable copied-snapshot staging through
+  `tools/verify_phase_7_release.py`;
+- a verified SQLite online rollback backup and manifest before any rehearsal;
+- restore into a new staging filename, pre-deploy migration rehearsal twice,
+  and exact preservation/idempotence comparisons across all pre-existing table
+  fields;
+- `PRAGMA quick_check`, `foreign_key_check`, Phase 7 schema checks, and the
+  actual `/health` response builder;
+- explicit release and last-known-good commit resolution;
+- exact application/database rollback instructions in each JSON evidence file;
+- evidence-directory enforcement outside the Git worktree and a drill label
+  suitable for monthly scheduled restore drills.
+
+The supplied source database is opened through the existing verified online
+backup path and is SHA-256 checked before and after rehearsal. The tool refuses
+to write evidence under the repository. Its Railway single-instance, volume
+path, production backup, and post-deploy health gates remain `false` until a
+human verifies them; it never deploys or changes Railway. Focused verification:
+`29 passed`, covering source preservation, repeat initialization, health,
+rollback evidence, SQLite integrity, backup behavior, and evidence placement.
+Full suite: `649 passed in 162.04s`; `git diff --check` passed.
 
 ---
 
@@ -4387,6 +4506,34 @@ python tools/verify_phase_6_1j_release.py \
 Do not commit private playbook Markdown or generated release evidence.
 
 ## 20.3 Standard release and rollback procedure
+
+### Phase 7 copied-snapshot staging rehearsal
+
+Use only a verified downloaded production backup or another safe snapshot—never
+the configured live Railway database. Identify the release commit and the last
+known-good commit before starting:
+
+```bash
+git rev-parse HEAD
+git rev-parse LAST_KNOWN_GOOD_REF
+
+python tools/verify_phase_7_release.py \
+  --source-db /path/to/safe-snapshot.sqlite3 \
+  --release-commit RELEASE_COMMIT_SHA \
+  --last-known-good-commit LAST_KNOWN_GOOD_SHA \
+  --drill-label predeploy-YYYY-MM-DD
+```
+
+By default, evidence is retained under
+`~/mark-os-release-evidence/phase-7/<UTC timestamp>/`, outside Git. The report
+must say `status: passed`, `source_preserved: true`, health HTTP `200`,
+`quick_check: ok`, zero foreign-key errors, and must record the intended
+last-known-good commit plus the verified rollback backup and manifest. Preserve
+the evidence directory for that release.
+
+Run the same command at least monthly with a `restore-drill-YYYY-MM` label and
+record completion outside Git. A drill is not production deployment authority.
+The report's manual Railway gates remain false until separately confirmed.
 
 Before a production deployment:
 

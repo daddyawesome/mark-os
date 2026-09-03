@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -24,10 +24,13 @@ from app.routes import (
     checkins,
     client_delivery,
     client_hunting,
+    data_portability,
     lead_qualification,
     lead_research,
     lead_sourcing_effort,
     goals,
+    insights,
+    notifications,
     outreach_templates,
     pages,
     pendang,
@@ -105,6 +108,18 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 PUBLIC_PATHS = {"/login", "/health", "/api/leads/intake"}
+
+
+@app.get("/service-worker.js", include_in_schema=False)
+def service_worker():
+    return FileResponse(
+        BASE_DIR / "static" / "service-worker.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+PUBLIC_PATHS.add("/service-worker.js")
 
 
 @app.middleware("http")
@@ -232,7 +247,10 @@ app.include_router(family.router)
 app.include_router(checkins.router)
 app.include_router(quests.router)
 app.include_router(goals.router)
+app.include_router(insights.router)
+app.include_router(notifications.router)
 app.include_router(client_hunting.router)
+app.include_router(data_portability.router)
 app.include_router(client_delivery.router)
 app.include_router(billing.router)
 app.include_router(lead_qualification.router)

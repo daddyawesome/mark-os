@@ -6,6 +6,7 @@ from typing import Any
 from app.db.family_workspace import ensure_personal_workspace
 from app.db.organizations import MEMBERSHIP_ROLES, organization_id_by_slug
 from app.services.passwords import hash_password, verify_password
+from app.services.account_security import record_audit_event, revoke_all_sessions
 
 
 MAX_USERNAME_LENGTH = 50
@@ -171,6 +172,15 @@ def set_workspace_membership(
         """,
         (target_id, organization_id, safe_role, desired_active),
     )
+    record_audit_event(
+        db,
+        event_type="workspace_membership_changed",
+        actor_user_id=acting_user_id,
+        target_user_id=target_id,
+        subject_type="organization_membership",
+        subject_id=organization_id,
+        details={"active": bool(active), "membership_role": safe_role},
+    )
 
     # Permission changes take effect immediately for all existing sessions.
     db.execute(
@@ -182,6 +192,7 @@ def set_workspace_membership(
         """,
         (target_id,),
     )
+    revoke_all_sessions(db, user_id=target_id)
 
     if not active:
         owner_id = get_primary_owner_id(db, active_only=True)
@@ -263,6 +274,16 @@ def set_can_contact_leads(
             "The user must have an active membership in this workspace "
             "before this permission can be set."
         )
+
+    record_audit_event(
+        db,
+        event_type="delegated_contact_permission_changed",
+        actor_user_id=acting_user_id,
+        target_user_id=target_id,
+        subject_type="organization_membership",
+        subject_id=organization_id,
+        details={"can_contact_leads": bool(can_contact_leads)},
+    )
 
     return next(
         row
@@ -453,7 +474,10 @@ def create_managed_user(
     role: str,
     workspace_slug: str | None = None,
     membership_role: str = "crm_contributor",
+    acting_user_id: int | None = None,
 ) -> dict[str, Any]:
+    if acting_user_id is not None:
+        _require_global_owner(db, acting_user_id)
     clean_username = _required_text(
         username,
         "Username",
@@ -520,6 +544,25 @@ def create_managed_user(
     created = get_user_for_management(db, created_user_id)
     if created is None:
         raise RuntimeError("Created user could not be reloaded.")
+    if acting_user_id is not None:
+        record_audit_event(
+            db,
+            event_type="account_created",
+            actor_user_id=acting_user_id,
+            target_user_id=created_user_id,
+            subject_type="user",
+            subject_id=created_user_id,
+            details={"role": safe_role},
+        )
+        record_audit_event(
+            db,
+            event_type="role_assigned",
+            actor_user_id=acting_user_id,
+            target_user_id=created_user_id,
+            subject_type="user",
+            subject_id=created_user_id,
+            details={"role": safe_role},
+        )
     return created
 
 
@@ -592,6 +635,7 @@ def set_user_active(
 ) -> dict[str, Any]:
     target_id = _positive_id(target_user_id, "Target user ID")
     actor_id = _positive_id(acting_user_id, "Acting user ID")
+    _require_global_owner(db, actor_id)
 
     target = db.execute(
         """
@@ -695,6 +739,15 @@ def set_user_active(
     managed = get_user_for_management(db, target_id)
     if managed is None:
         raise RuntimeError("Updated user could not be reloaded.")
+    revoke_all_sessions(db, user_id=target_id)
+    record_audit_event(
+        db,
+        event_type="account_activated" if active else "account_deactivated",
+        actor_user_id=actor_id,
+        target_user_id=target_id,
+        subject_type="user",
+        subject_id=target_id,
+    )
     return managed
 
 
@@ -704,7 +757,10 @@ def reset_user_password(
     target_user_id: int,
     password: str,
     password_confirmation: str,
+    acting_user_id: int | None = None,
 ) -> dict[str, Any]:
+    if acting_user_id is not None:
+        _require_global_owner(db, acting_user_id)
     target_id = _positive_id(target_user_id, "Target user ID")
     safe_password = _validated_password(password, password_confirmation)
 
@@ -730,6 +786,16 @@ def reset_user_password(
     managed = get_user_for_management(db, target_id)
     if managed is None:
         raise RuntimeError("Updated user could not be reloaded.")
+    revoke_all_sessions(db, user_id=target_id)
+    if acting_user_id is not None:
+        record_audit_event(
+            db,
+            event_type="password_reset",
+            actor_user_id=acting_user_id,
+            target_user_id=target_id,
+            subject_type="user",
+            subject_id=target_id,
+        )
     return managed
 
 def change_own_password(

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Active sessions · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Account // Security</p>
+    <h1 class="title is-1 mb-2">Active sessions</h1>
+    <p class="subtitle is-5 mark-muted">
+        Review signed-in sessions and revoke every session except this one.
+    </p>
+</section>
+
+{% if message %}
+<div class="notification is-success is-light" role="status">{{ message }}</div>
+{% endif %}
+
+<div class="mark-card p-5">
+    <div class="is-flex is-justify-content-space-between is-align-items-center is-flex-wrap-wrap mb-4">
+        <div>
+            <h2 class="title is-4 mb-1">Signed-in sessions</h2>
+            <p class="mark-muted">Sessions expire after seven days.</p>
+        </div>
+        <form method="post" action="/account/sessions/revoke-others">
+            <button class="button is-danger is-outlined" type="submit">
+                Log out everywhere else
+            </button>
+        </form>
+    </div>
+
+    {% if sessions %}
+    <div class="table-container">
+        <table class="table is-fullwidth">
+            <thead>
+                <tr><th>Session</th><th>Started</th><th>Last active</th><th>Expires</th></tr>
+            </thead>
+            <tbody>
+            {% for session in sessions %}
+                <tr>
+                    <td>{{ "This session" if session.is_current else "Other session" }}</td>
+                    <td>{{ session.created_at }}</td>
+                    <td>{{ session.last_seen_at }}</td>
+                    <td>{{ session.expires_at }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="mark-muted">No active sessions were found.</p>
+    {% endif %}
+</div>
+{% endblock %}

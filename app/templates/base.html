@@ -5,6 +5,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#173c2a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <link rel="icon" href="/static/icons/mark-os-192.svg" type="image/svg+xml">
     <title>{% block title %}MARK OS{% endblock %}</title>
 
     <link
@@ -219,6 +222,12 @@
                     >
                         Relationship Manager
                     </a>
+                    <a
+                        class="mark-sidebar-link mark-sidebar-sublink"
+                        href="/settings/users/security-audit/events"
+                    >
+                        Security audit
+                    </a>
                 </div>
             </details>
         </div>
@@ -237,6 +246,23 @@
             <strong>{{ current_user.display_name }}</strong>
             <span>{{ "Business Development Collaborator" if current_user.role == "relationship_manager" else current_user.role|replace("_", " ") }}</span>
         </div>
+
+        <a class="button is-small is-fullwidth is-ghost-forest mb-2"
+           href="/notifications">
+            Notifications
+        </a>
+        <a class="button is-small is-fullwidth is-ghost-forest mb-2"
+           href="/insights">
+            Insights
+        </a>
+        <a class="button is-small is-fullwidth is-ghost-forest mb-2"
+           href="/account/sessions">
+            Active sessions
+        </a>
+        <a class="button is-small is-fullwidth is-ghost-forest mb-2"
+           href="/account/export">
+            Export data
+        </a>
 
         <form method="post" action="/logout">
             <button
@@ -315,5 +341,6 @@
     src="/static/js/mark-sidebar.js?v=20260804-1"
     defer
 ></script>
+<script src="/static/js/mark-pwa.js?v=20260903-1" defer></script>
 </body>
 </html>

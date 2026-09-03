@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from starlette.requests import Request
 from starlette.responses import Response
+from urllib.parse import urlparse
 
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
@@ -17,7 +18,15 @@ def is_cross_site_unsafe_request(request: Request) -> bool:
     """
     if request.method.upper() in SAFE_METHODS:
         return False
-    return request.headers.get("sec-fetch-site", "").casefold() == "cross-site"
+    fetch_site = request.headers.get("sec-fetch-site", "").casefold()
+    if fetch_site in {"cross-site", "same-site"}:
+        return True
+
+    origin = request.headers.get("origin")
+    if origin:
+        parsed = urlparse(origin)
+        return parsed.scheme != request.url.scheme or parsed.netloc != request.url.netloc
+    return False
 
 
 def apply_security_headers(

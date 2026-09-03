@@ -16,6 +16,7 @@ from app.services.team_users import (
     set_user_active,
     set_workspace_membership,
 )
+from app.services.account_security import list_recent_audit_events
 
 
 router = APIRouter(prefix="/settings/users")
@@ -86,6 +87,20 @@ def users_page(
     )
 
 
+@router.get("/security-audit/events", response_class=HTMLResponse)
+def security_audit_page(request: Request):
+    with get_db() as db:
+        context = {
+            **_shared_context(db, request),
+            "events": list_recent_audit_events(db),
+        }
+    return templates.TemplateResponse(
+        request=request,
+        name="security_audit.html",
+        context=context,
+    )
+
+
 @router.get("/new", response_class=HTMLResponse)
 def new_user_page(
     request: Request,
@@ -124,6 +139,7 @@ def new_user_page(
 
 @router.post("/new")
 def create_user(
+    request: Request,
     username: str = Form(...),
     display_name: str = Form(...),
     password: str = Form(...),
@@ -143,6 +159,7 @@ def create_user(
                 role=role,
                 workspace_slug=workspace_slug,
                 membership_role=membership_role,
+                acting_user_id=int(request.state.current_user["id"]),
             )
         except ValueError as exc:
             return _redirect("/settings/users/new", error=str(exc))
@@ -306,6 +323,7 @@ def update_user_contact_permission(
 
 @router.post("/{user_id}/password")
 def update_user_password(
+    request: Request,
     user_id: int,
     password: str = Form(...),
     password_confirmation: str = Form(...),
@@ -317,6 +335,7 @@ def update_user_password(
                 target_user_id=user_id,
                 password=password,
                 password_confirmation=password_confirmation,
+                acting_user_id=int(request.state.current_user["id"]),
             )
         except ValueError as exc:
             return _redirect(

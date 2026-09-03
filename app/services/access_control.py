@@ -298,6 +298,25 @@ def can_access_request(
     if is_owner(user):
         return True
 
+    if normalized_path == "/notifications" and normalized_method in {
+        "GET", "HEAD"
+    }:
+        return True
+    if normalized_path == "/insights" and normalized_method in {"GET", "HEAD"}:
+        return True
+    if normalized_path in {"/account/export", "/account/export/download"} and normalized_method in {"GET", "HEAD"}:
+        return True
+
+    if normalized_path == "/account/sessions" and normalized_method in {
+        "GET", "HEAD"
+    }:
+        return True
+    if (
+        normalized_path == "/account/sessions/revoke-others"
+        and normalized_method == "POST"
+    ):
+        return True
+
     if (
         normalized_path == "/account/password"
         and normalized_method in {"GET", "HEAD", "POST"}

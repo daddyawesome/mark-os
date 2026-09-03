@@ -120,6 +120,23 @@ def test_same_origin_write_is_allowed_by_fetch_metadata_guard():
     )
     assert not is_cross_site_unsafe_request(request)
 
+
+def test_same_site_cross_origin_write_is_rejected():
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/settings/users/2/password",
+            "raw_path": b"/settings/users/2/password",
+            "headers": [(b"sec-fetch-site", b"same-site")],
+            "query_string": b"",
+            "scheme": "https",
+            "server": ("example.test", 443),
+            "client": ("testclient", 50000),
+        }
+    )
+    assert is_cross_site_unsafe_request(request)
+
 def test_password_reset_invalidates_existing_signed_session(
     tmp_path,
     monkeypatch,
