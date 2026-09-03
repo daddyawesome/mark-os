@@ -77,7 +77,7 @@ def test_fieldbook_cache_bust_is_consistent():
     base = _read("app/templates/base.html")
     login = _read("app/templates/login.html")
 
-    expected = "/static/css/mark-os-frontend.css?v=20260808-1"
+    expected = "/static/css/mark-os-frontend.css?v=20260904-1"
     assert expected in base
     assert expected in login
 
