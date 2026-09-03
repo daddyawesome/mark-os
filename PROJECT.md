@@ -2,14 +2,14 @@
 
 **Canonical project document**
 **Repository:** `https://github.com/daddyawesome/mark-os`
-**Reviewed on feature branch:** 2026-09-03
-**Current active phase:** Phase 7 complete locally — release acceptance pending
-**Immediate next milestone:** Production-copy rehearsal, Railway release gates, and Pendang real-user acceptance
+**Reviewed on feature branch:** `feature/phase-8-life-os` on 2026-09-03
+**Current active phase:** Phase 8 architecture audit complete — implementation not started
+**Immediate next milestone:** Phase 8.1 Structured-memory schema completion
 **Production deployment:** Railway
 **Primary database:** SQLite on a persistent Railway volume
-**Last verified full-suite baseline:** 650 passed after Phase 7 Product Hardening
+**Last verified full-suite baseline:** 651 passed at `790cda5` after the Railway login proxy fix
 
-## Current status: Phase 7 locally complete; production acceptance pending
+## Current status: Phase 8 audit complete; Phase 7 production acceptance pending
 
 Phase 6.6 (Bulk Lead Management and CRM Workspaces) is implemented in full,
 substeps 6.6A through 6.6F. Phase 6.7 (Outreach Templates and Approval
@@ -17,12 +17,17 @@ Controls) is also implemented. All are locally complete and test-verified;
 production acceptance for the Pendang-facing surfaces remains the outstanding
 gate.
 
-Phase 7.1 through 7.6 are also implemented and independently verified on the
-uncommitted `feature/phase-7-product-hardening` review branch. No production
-deployment or live Railway data change has occurred. The previous roadmap names
-“Phase 7.8 — Staging” and “Phase 7.9 — Observability” were superseded by the
-canonical renumbering: staging is now Phase 7.6, while observability was already
-completed as Phase 6.5.
+Phase 7.1 through 7.6 are implemented, merged to `main`, and synchronized with
+`origin/main`. Production-copy rehearsal, live Railway release verification,
+real-device PWA checks, and real-user acceptance remain manual gates. The
+previous roadmap names “Phase 7.8 — Staging” and “Phase 7.9 — Observability”
+were superseded by the canonical renumbering: staging is now Phase 7.6, while
+observability was already completed as Phase 6.5.
+
+The Phase 8 architecture audit is complete on `feature/phase-8-life-os`.
+No Phase 8 application or schema implementation has started. The repository's
+existing memory, chat, Director, gamification, and agent-audit foundations must
+be extended in place; they must not be replaced with parallel systems.
 
 | Substep | What it added | Status |
 |---|---|---|
@@ -1295,7 +1300,7 @@ first proposed.
 ```text
 Phase 6 — Agency Operations and Production Safety
 Phase 7 — Product Hardening and Growth
-Phase 8 — Budget-Safe AI Continuation
+Phase 8 — Budget-Safe Life OS / Second Brain
 Phase 9 — Affordable Ambient Assistant
 ```
 
@@ -2578,15 +2583,314 @@ Full suite: `649 passed in 162.04s`; `git diff --check` passed.
 
 ---
 
-# Phase 8 — Budget-Safe AI Continuation
+# Phase 8 — Budget-Safe Life OS / Second Brain
 
-**Status:** Planned after Phase 7 or when a business-critical AI use case justifies it  
+**Status:** Architecture audit complete; implementation not started
 **Previous numbering:** Phase 5.3 onward
+**Previous roadmap name:** Budget-Safe AI Continuation
 
 The old Phase 5.3+ documents are preserved here under the new chronological
 numbering.
 
-## 8.1 Core AI rules
+Phase 8 is explicitly:
+
+```text
+Second Brain
++ Director / Coach
++ Controlled AI Loops
++ Gamification Engine
++ Budget-Safe Provider Gateway
++ Safe Tool Layer
++ Auditability
+```
+
+There are eight controlled AI loops and twelve implementation milestones.
+They are different concepts. The loop names describe bounded runtime paths;
+the `8.1` through `8.12` numbers below describe the approved implementation
+sequence. Earlier versions of this document numbered architecture prose such
+as “8.1 Core AI rules”; those prose numbers have been removed to prevent them
+from being mistaken for milestone numbers. No milestone was renumbered or
+reordered.
+
+## Phase 8 architecture audit — 2026-09-03
+
+### CURRENT HEAD
+
+`790cda5ad9f22303946a6b61ba8fd767958f1b64` on synchronized local
+`main` / `origin/main` before creating `feature/phase-8-life-os`.
+
+### CURRENT TEST BASELINE
+
+- Full suite: `651 passed in 169.03s` at the audited commit.
+- Phase 8 foundation audit selection: `140 passed in 10.41s`, covering
+  memory migrations, chat, agent audit, Director, gamification, quests, and
+  personal ownership/workspace release behavior.
+
+### EXISTING PHASE 8 FOUNDATIONS
+
+- **memory:** `memories` is personal-user-owned after M8–M10 and has per-user
+  key uniqueness plus active, importance, source reference, confidence,
+  sensitivity, version, supersession, last-used, and content-hash fields.
+  Additive migration and legacy-data preservation tests exist. There is no
+  memory service, candidate store, mutation audit, or Memory Center yet.
+- **chat:** `chat_sessions` and `chat_messages` have a mature user-scoped
+  service with create/list/rename/archive, confirmed deletion, message edit /
+  soft-delete, bounded recent history, request-key idempotency, ownership
+  triggers, and rollback tests. There is no chat route or Phase 8 orchestration
+  UI yet.
+- **Director:** `app/services/director.py` is a deterministic, explainable
+  recommendation engine used by check-in routes. Its branch priority,
+  capacity fit, cash pressure, blocker handling, and quest selection are
+  tested. It is not an intent router or model orchestrator.
+- **gamification:** quest difficulty rewards, hidden level thresholds,
+  per-user game state/history, append-only quest updates, and immutable
+  `xp_ledger` behavior already exist. `complete_quest` performs scoped quest
+  completion, timeline creation, level updates, and exactly-once XP using
+  unique task/event keys. Quest creation still lives directly in the route and
+  must become a reusable authoritative service before it is exposed as an AI
+  tool.
+- **agent audit:** `agent_runs` and `agent_steps` have user ownership,
+  request/step idempotency, lifecycle validation, provider/model fields,
+  token/cost aggregation, transactional append behavior, and bounded secret-
+  redacting error summaries. No runtime orchestrator currently creates these
+  records from an AI chat flow.
+- **provider abstraction:** Not implemented. No provider adapter or AI SDK is
+  configured.
+- **budget enforcement:** Not implemented. Audit fields can record tokens and
+  estimated micro-USD cost, but no preflight token gate, request cap, spend
+  reservation, daily/monthly cap, fallback rule, or PHP 200 ceiling is
+  enforced.
+- **intent router:** Not implemented. Director heuristics do not classify the
+  eight controlled loops.
+- **context builder:** Not implemented. Existing user-scoped loaders can be
+  reused, but no bounded, intent-specific context packet exists.
+- **tool confirmation:** Not implemented as an AI workflow. Some existing
+  destructive service operations require a boolean confirmation, but there is
+  no durable proposal, confirmation, authorization recheck, expiry, execution
+  result, or replay-protection layer.
+- **semantic retrieval:** Not implemented, and no vector dependency is
+  installed. This remains optional.
+
+### PROJECT.MD ARCHITECTURE GAPS
+
+- Architecture prose numbering collided with the actual twelve milestone
+  numbers; this section now separates them explicitly.
+- Gamification was mentioned in context packets and tool permissions but was
+  not identified as a first-class Phase 8 subsystem with an authoritative XP
+  boundary.
+- The roadmap described the desired flow but did not record which foundations
+  are already implemented and which orchestration layers are absent.
+- The PHP 200 target was documented without a concurrency-safe enforcement
+  design, configured pricing/FX policy, or explicit fail-open/fail-closed
+  behavior. Budget checks must fail closed for paid calls while database-only
+  features remain available.
+- The memory plan did not clearly distinguish temporary working context,
+  canonical operational records, durable memory, and optional embeddings.
+- The roadmap did not require explicit AI-to-gamification invariance tests or
+  a reusable quest-creation service boundary.
+- Optional semantic, Neo4j, LangGraph, and observation infrastructure lacked
+  explicit evidence/approval gates.
+
+### GAMIFICATION INTEGRATION GAPS
+
+- No bounded gamification context builder exposes only user-visible level /
+  progress, active quests, recent completions, outcomes, and genuine
+  milestones.
+- No controlled loop can yet propose a quest or coaching action.
+- Quest creation must move behind a shared service so UI and confirmed AI
+  execution use identical validation and ownership rules.
+- No AI proposal/confirmation tests prove that suggestion, quest creation,
+  failed execution, or confirmation replay cannot award or duplicate XP.
+- No AI boundary test prevents hidden XP thresholds from entering provider
+  context or structured output.
+- The required weekly review does not yet combine real quest outcomes,
+  blockers, check-ins, business outcomes, and durable lessons.
+
+### PHASE 8.1 REQUIRED WORK
+
+- Extend the existing structured-memory schema only; do not repeat M8–M10
+  ownership migrations.
+- Add a personal-user-owned memory-candidate lifecycle and append-only memory
+  mutation audit, with idempotent additive migrations and safe indexes.
+- Define allowed candidate states, sensitivity/confidence rules, provenance,
+  duplicate handling, and auditable accept/reject/supersede/archive semantics.
+- Decide and test referential integrity for `superseded_by`; preserve every
+  legacy memory row and the per-user key boundary.
+- Add migration, ownership, secret-rejection, replay, integrity, and
+  production-copy rehearsal coverage. Do not add AI or embeddings in 8.1.
+
+### PHASE 8.2 REQUIRED WORK
+
+- Add an authorized personal memory service and a server-rendered Manual
+  Memory Center using the existing FastAPI/Jinja/HTMX/Bulma stack.
+- Support scoped create, read, update through version/supersession, archive or
+  deletion according to policy, importance, source, confidence, sensitivity,
+  and audit history.
+- Treat submitted user IDs and cross-user memory/candidate IDs as untrusted.
+  No model call is required.
+
+### PHASE 8.3 REQUIRED WORK
+
+- Build deterministic, user/workspace-authorized retrieval before embeddings.
+- Add an intent-scoped, size-bounded context builder for profile, latest
+  relevant check-in, limited goals/projects/quests, authorized CRM data,
+  selected memories, bounded recent messages, and the current request.
+- Include bounded, user-visible gamification context without hidden threshold
+  values. Prove personal and CRM workspace isolation and database-only
+  operation.
+
+### PHASE 8.4 REQUIRED WORK
+
+- Define the eight loop identifiers as a closed application contract and add a
+  deterministic router; unknown or ambiguous classifications fail safely.
+- Add one provider-independent gateway with `none`, `routine`, `deep`, and
+  `embedding` capabilities, beginning with a fully functional
+  `DisabledProvider`.
+- Centralize environment-configured provider/model/endpoint/pricing policy.
+- Enforce hard input/output/per-request limits, daily request/spend caps,
+  monthly spend cap, one controlled fallback maximum, and no retry storms.
+- Design a concurrency-safe reservation/reconciliation mechanism so parallel
+  calls cannot overspend the PHP 200 monthly ceiling. Reuse agent-audit usage
+  fields where they are sufficient and document a conservative configured
+  USD/PHP conversion policy when provider prices are denominated in USD.
+- Audit every routing/provider outcome without storing prompts, secrets, raw
+  private context, or authorization material.
+
+### PHASE 8.5 REQUIRED WORK
+
+- Add Routine AI Chat through the single approved path: idempotent user
+  message, agent run, router, context builder, budget gate, provider, strict
+  structured response validation, persisted assistant result, and finalized
+  audit.
+- Provide useful deterministic/disabled/budget-exhausted responses without
+  disabling chat history or any database feature.
+- Keep provider calls out of route handlers and preserve user ownership for
+  every session, message, and run.
+
+### PHASE 8.6 REQUIRED WORK
+
+- Extract only genuinely durable information after a completed response and
+  create a candidate by default rather than a durable memory.
+- Use a strict candidate contract with provenance, confidence, sensitivity,
+  duplicate detection, and explicit rejection of secrets, credentials,
+  banking information, and unnecessary confidential data.
+- Allow important verified quest/project outcomes to become candidates; never
+  save greetings, acknowledgements, raw conversations, or routine failures.
+
+### PHASE 8.7 REQUIRED WORK
+
+- Add durable proposal → confirmation → authorization recheck → authoritative
+  service execution → result/audit flow with expiry and replay protection.
+- Start with a very small allowlisted tool set. Extract quest creation from its
+  route into a reusable service before allowing quest proposals.
+- Execute the same existing services used by normal UI paths; never expose SQL
+  or a database connection to a model.
+- Require tests proving suggestion and quest creation award zero XP, only
+  confirmed real completion can call the authoritative completion service,
+  duplicate confirmation cannot duplicate XP, failed actions award zero XP,
+  hidden thresholds cannot be manipulated, and cross-user/workspace actions
+  are denied.
+
+### PHASE 8.8 OPTIONAL DECISION
+
+Defer. Adopt SQLite plus `sqlite-vec` only if measured deterministic retrieval
+quality is insufficient. Embed only summarized durable material and meaningful
+outcomes; configure model and dimensions from the selected provider. Stop for
+approval before adding the dependency or migration.
+
+### PHASE 8.9 OPTIONAL DECISION
+
+Defer. Neo4j must not be introduced until a proven relationship-retrieval use
+case cannot be served safely from SQLite. It never replaces operational truth.
+
+### PHASE 8.10 OPTIONAL DECISION
+
+Defer. Keep a simple Python orchestrator until workflow branching, recovery,
+or durable-resume evidence justifies LangGraph. The word “agent” is not a
+reason to add it.
+
+### PHASE 8.11 REQUIRED WORK
+
+- Build a weekly review from deterministic operational facts, relevant durable
+  memories/candidates, real check-ins and CRM outcomes, and bounded quest /
+  gamification progress; AI reflection remains optional and budget-gated.
+- Distinguish effort, completion, outcome, and lesson. Reflection itself never
+  awards XP; only authoritative quest completion does.
+- Preserve and audit the generated review without manufacturing achievements
+  or duplicating operational records into memory.
+
+### PHASE 8.12 OPTIONAL DECISION
+
+Defer until an approved observation source has a concrete benefit. Begin
+read-only with least privilege, explicit source permissions, no secret storage,
+bounded ingestion, and full audit. Consequential external writes remain behind
+the Phase 8.7 confirmation boundary.
+
+### SCHEMA CHANGES LIKELY
+
+- Phase 8.1: additive `memory_candidates` and append-only memory mutation audit
+  storage, plus any validated supersession integrity/index changes.
+- Phase 8.4: a budget reservation/reconciliation record or equivalent additive
+  agent-audit fields if existing completed-step totals cannot enforce the cap
+  safely under concurrent requests.
+- Phase 8.7: durable action proposals/confirmations/execution results with
+  request keys, argument fingerprints, expiry, actor ownership, and terminal
+  status. Exact names and columns require milestone-level design before
+  migration.
+- Optional vector/graph storage is not part of the required schema now.
+
+Every schema change must be additive or safely rebuilt, idempotent, rehearsed
+against a verified production copy, and preserve WAL, `busy_timeout`, short
+transactions, and the one-instance Railway SQLite rule.
+
+### NEW DEPENDENCIES LIKELY
+
+- None for Phase 8.1–8.3 or the initial `DisabledProvider` gateway.
+- One provider adapter/SDK only when the first configured remote provider is
+  approved; provider calls must remain centralized.
+- `sqlite-vec`, a Neo4j driver, or LangGraph only after the separate optional
+  decision gate for 8.8, 8.9, or 8.10.
+
+### SECURITY RISKS
+
+- Prompt injection or malformed structured output attempting unknown tools,
+  SQL, cross-user IDs, workspace escalation, or confirmation bypass.
+- IDOR through memory, chat, run, candidate, proposal, quest, or CRM IDs.
+- Secrets/private context leaking into provider requests, durable memory,
+  audit errors, logs, or embeddings.
+- Confirmation replay, stale authorization, argument swapping after approval,
+  and partial writes after a failed tool action.
+- Oversized context packets, provider retention, unsafe output rendering, and
+  unavailable optional infrastructure changing core authorization behavior.
+
+### AI COST RISKS
+
+- Concurrent requests passing a non-atomic cap check, inaccurate token
+  estimates, stale model prices or currency conversion, unrecorded failed
+  responses, fallback doubling, retry storms, context growth, and automatic
+  embedding of low-value text.
+- The budget gate must reserve conservatively before calling, reconcile actual
+  usage afterward, fail closed for paid calls, and leave all database-only and
+  deterministic features available at the ceiling.
+
+### XP/GAMIFICATION RISKS
+
+- Treating a suggestion, generated text, quest creation, or reflection as
+  completed work; bypassing `complete_quest`; confirmation replay; partial
+  failure after an XP write; cross-user quest mutation; duplicated ledger
+  entries; invented milestones; or leaking/modifying hidden thresholds.
+- The existing quest completion transaction and unique XP event keys remain
+  authoritative. AI may read bounded user-visible progress and propose work,
+  but it never writes XP or game state directly.
+
+### RECOMMENDED IMPLEMENTATION ORDER
+
+Use the approved order unchanged: `8.1 → 8.2 → 8.3 → 8.4 → 8.5 → 8.6 → 8.7
+→ optional 8.8 → optional 8.9 → optional 8.10 → 8.11 → optional 8.12`.
+Complete one milestone at a time with focused tests, the full suite, and
+`git diff --check`; stop for approval before major optional infrastructure.
+
+## Phase 8 architecture rules
 
 1. SQLite remains the source of truth.
 2. The default is not to remember.
@@ -2598,8 +2902,16 @@ numbering.
 8. Every run is audited.
 9. Retrieval is scoped to the authenticated user.
 10. The app works when AI is disabled.
+11. Workspace/CRM retrieval also passes existing authorization services.
+12. Python services remain authoritative for quests, XP, CRM, finance, and
+    memory writes.
+13. AI suggestions, generated text, quest creation, and reflection award no
+    XP; only verified quest completion through the existing quest service can
+    award it.
+14. Hidden XP thresholds never enter provider context or model-controlled
+    arguments.
 
-## 8.2 High-level request flow
+## Phase 8 high-level request flow
 
 ```text
 Authenticated request
@@ -2610,7 +2922,7 @@ Authenticated request
 → no-model path or selected AI loop
 → scoped context builder
 → token and budget gate
-→ provider call
+→ provider call when necessary
 → structured output validation
 → proposed actions
 → confirmation when required
@@ -2620,7 +2932,7 @@ Authenticated request
 → optional memory candidate
 ```
 
-## 8.3 Eight controlled agent loops
+## Eight controlled AI loops
 
 ```text
 direct_answer
@@ -2637,7 +2949,7 @@ These are controlled loops or workflow nodes, not eight unrestricted agents.
 
 Start with one Director workflow.
 
-## 8.4 Intent routing
+## Intent routing architecture
 
 Deterministic examples:
 
@@ -2654,7 +2966,7 @@ Deterministic examples:
 
 Only use an AI intent classifier when deterministic checks are inconclusive.
 
-## 8.5 Provider architecture
+## Provider gateway architecture
 
 Use a provider-independent gateway.
 
@@ -2680,7 +2992,7 @@ Model names and endpoints must come from environment variables.
 
 Do not assume that a laptop-local Ollama endpoint is reachable by Railway.
 
-## 8.6 Structured AI output
+## Structured AI output contract
 
 The model should return an application contract, not unrestricted instructions.
 
@@ -2694,26 +3006,36 @@ The application must reject:
 - unsupported memory scope;
 - actions that bypass confirmation.
 
-## 8.7 Memory layers
+## Second-brain memory layers
 
-### Operational records
+Use four conceptual layers with different retention rules.
+
+### Layer 1 — Working context
+
+Temporary, bounded context for the current request. It is not automatically
+durable and must not be copied wholesale into memory after the request.
+
+### Layer 2 — Structured operational data
+
+Goals, projects, quests, check-ins, CRM, client/project activity, game state,
+XP history, chat records, and business records remain their canonical SQLite
+records.
 
 Do not copy complete operational records into memory merely for retrieval.
 
-### Raw chat
+Raw chat remains operational data:
 
 ```text
 chat_sessions
 chat_messages
 ```
 
-### Chat summaries
+Compressed older conversation windows may be added later, but they do not
+justify retaining unnecessary raw private context.
 
-Planned compressed older conversation windows.
+### Layer 3 — Durable memory
 
-### Structured memory
-
-Store durable:
+Persist only information with a durable reason:
 
 - preferences;
 - constraints;
@@ -2735,14 +3057,17 @@ Do not automatically store:
 - banking information;
 - unnecessary confidential work information.
 
-### Memory candidates and audit
-
 Extraction should produce candidates before durable storage when confidence or
-sensitivity requires review.
+sensitivity requires review. Memory create, edit, replacement, supersession,
+archive, and deletion operations must be auditable.
 
-Memory changes should be auditable.
+### Layer 4 — Optional semantic retrieval
 
-## 8.8 Retrieval
+Embeddings are derived retrieval aids, not operational truth or a reason to
+retain everything. They remain optional until deterministic retrieval has a
+measured limitation.
+
+## Retrieval architecture
 
 ### First retrieval version
 
@@ -2779,14 +3104,14 @@ Embed:
 
 Do not embed every chat message.
 
-## 8.9 Context packet
+## Bounded context packet
 
 Default AI context should contain only what is needed:
 
 1. system identity and safety rules;
 2. authenticated user context;
 3. profile summary;
-4. current level and XP;
+4. current user-visible level and progress, without hidden thresholds;
 5. latest check-in;
 6. limited active goals/projects/quests;
 7. selected CRM record when relevant;
@@ -2796,7 +3121,7 @@ Default AI context should contain only what is needed:
 
 "Up to ten" is a maximum, not a minimum.
 
-## 8.10 Budget controls
+## Budget controls
 
 Target:
 
@@ -2808,17 +3133,46 @@ Required controls:
 
 - hard maximum input;
 - hard maximum output;
+- hard per-request cost limit;
 - daily request cap;
 - daily spend cap;
 - monthly spend cap;
 - at most one controlled fallback;
-- no unlimited retry loop;
+- no retry storms;
 - usage record for every response;
+- conservative concurrency-safe cost reservation before each paid call;
+- reconciliation against actual provider usage after each response;
 - cheap model path first;
 - strong model only for justified high-value work;
 - database-only features continue at the hard budget limit.
 
-## 8.11 Tool permissions
+At the ceiling or when budget state cannot be verified safely, paid calls stop.
+Goals, quests, gamification, memory browsing, CRM, dashboards, chat history,
+and deterministic Director behavior continue operating.
+
+## Gamification authority boundary
+
+The existing quest/game services are the only authority for gamification.
+AI may inspect bounded user-visible progress, active quests, recent completed
+quests, real outcomes, and recorded milestones. It may propose a quest,
+difficulty, priority, or coaching action.
+
+AI must never directly award XP, edit `xp_ledger` or `game_state`, invent a
+completion or achievement, change hidden thresholds, or treat generated text
+as completed work. The only XP-producing path remains:
+
+```text
+AI proposes quest/action
+→ user accepts
+→ authoritative quest service stores it
+→ real work occurs
+→ completion is explicitly confirmed and validated
+→ existing quest completion service performs the transaction
+→ XP ledger awards XP exactly once
+→ game state and level history follow existing rules
+```
+
+## Tool and service permissions
 
 ### Read automatically when authorized
 
@@ -2842,7 +3196,8 @@ Required controls:
 ### Require confirmation
 
 - complete a quest;
-- award manual XP;
+- any separately approved manual XP-related administrative action through an
+  authoritative service; AI still never writes XP directly;
 - send external communication;
 - delete data;
 - change an important goal;
@@ -2858,12 +3213,14 @@ Required controls:
 - secrets extraction;
 - cross-user retrieval;
 - bypassing role permissions;
+- direct writes to XP, game state, hidden thresholds, or operational records;
+- invented quest completions, achievements, or business outcomes;
 - hidden external actions;
 - unlimited autonomous loops.
 
-## 8.12 Future AI implementation sequence
+## Canonical Phase 8 implementation milestones
 
-Suggested sequence after Phase 7:
+Approved sequence after Phase 7:
 
 ```text
 Phase 8.1  Structured-memory schema completion
@@ -3684,8 +4041,8 @@ backup.
 | Phase 6.11 | Complete | Client Onboarding and Delivery |
 | Phase 6.12 | Complete | Retainers, Invoicing, and Profitability |
 | Phase 6.13 | Complete | Delegated Relationship Manager outreach |
-| Phase 7 | Planned | Product Hardening and Growth |
-| Phase 8 | Planned | Budget-Safe AI Continuation |
+| Phase 7 | Implementation complete; production acceptance pending | Product Hardening and Growth |
+| Phase 8 | Architecture audit complete; implementation not started | Budget-Safe Life OS / Second Brain; Phase 8.1 is next |
 | Phase 9 | Planned | Affordable Ambient Assistant |
 
 ---
@@ -3696,6 +4053,37 @@ Entries are kept in full for roughly the current and prior phase substep, since
 that is the period an active contributor needs to reason about. Older entries
 that a later decision explicitly supersedes are condensed to one line; see the
 git history for full original text if needed.
+
+## 2026-09-03 — Separate Phase 8 loops from milestones and make gamification explicit
+
+**Decision:**
+
+- define Phase 8 as the combined Second Brain, Director/Coach, eight controlled
+  AI loops, existing gamification engine, budget-safe provider gateway, safe
+  tool layer, and auditability;
+- reserve `8.1` through `8.12` exclusively for implementation milestones and
+  remove colliding numbers from architecture prose headings;
+- extend the existing memory, chat, Director, quest/XP, and agent-audit
+  foundations instead of replacing them;
+- keep quest completion services and the immutable XP ledger as the sole XP
+  authority; AI can read bounded user-visible progress and propose work but
+  cannot award XP or expose hidden thresholds;
+- defer sqlite-vec, Neo4j, LangGraph, and external observations until their
+  separate evidence and approval gates are satisfied.
+
+**Reason:**
+
+The audit found strong persistence and deterministic foundations but no intent
+router, context builder, provider gateway, budget enforcement, AI chat
+orchestrator, memory-candidate workflow, or confirmed tool-action layer. Clear
+terminology and authority boundaries are required before Phase 8.1 begins.
+
+**Consequence:**
+
+Phase 8 proceeds in the existing approved order, one milestone at a time.
+Database-only MARK-OS behavior remains available when AI is disabled or the
+PHP 200 monthly budget is exhausted, and optional infrastructure cannot become
+operational truth.
 
 ## 2026-08-08 — Make Pendang company knowledge a workspace-owned surface
 
