@@ -86,6 +86,7 @@ INDEX_SQL = "\n".join(
 
 def initialize_database(db: sqlite3.Connection) -> None:
     """Create, migrate, validate, and seed every persistent domain."""
+    memory.drop_triggers(db)
     family_integrity.drop_triggers(db)
     db.executescript(SCHEMA_SQL)
 
@@ -137,6 +138,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     memory.migrate(db)
     family_ownership.migrate(db)
     family_ownership.create_indexes(db)
+    memory.validate_schema(db)
 
     # Ordinary indexes must be created only after legacy columns exist.
     db.executescript(INDEX_SQL)
@@ -163,7 +165,12 @@ def initialize_database(db: sqlite3.Connection) -> None:
     family_ownership.backfill_owner(db)
     family_workspace.migrate(db)
     family_workspace.ensure_all_workspaces(db)
+    memory.create_unique_indexes(db)
     family_ownership.validate(db)
     family_workspace.validate(db)
     family_integrity.create_triggers(db)
+    memory.create_triggers(db)
     family_integrity.validate_triggers(db)
+    memory.validate_schema(db)
+    memory.validate_indexes(db)
+    memory.validate_triggers(db)

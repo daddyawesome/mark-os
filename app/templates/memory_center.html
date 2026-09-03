@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Memory Center · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Manual Memory Center</p>
+    <h1 class="title is-1 mb-3">Keep only what remains useful.</h1>
+    <p class="subtitle is-5 mark-muted">Review durable personal context, revise it without losing history, and decide which suggestions become memory.</p>
+</section>
+
+{% if notice %}
+<div class="notification is-mark" role="status">
+    {% if notice == 'created' %}Memory saved.
+    {% elif notice == 'updated' %}A new memory version is active.
+    {% elif notice == 'archived' %}Memory archived; its history remains available.
+    {% elif notice == 'accepted' %}Candidate accepted into durable memory.
+    {% elif notice == 'rejected' %}Candidate rejected.
+    {% elif notice == 'candidate-archived' %}Candidate archived.
+    {% endif %}
+</div>
+{% endif %}
+{% if error %}
+<div class="notification is-danger is-light" role="alert">
+    {% if error == 'stale' %}That memory changed after this page loaded. Refresh and try again.
+    {% elif error == 'invalid' %}The archive request was invalid. Refresh and try again.
+    {% else %}{{ error }}{% endif %}
+</div>
+{% endif %}
+
+<div class="columns is-variable is-5">
+    <div class="column is-7">
+        <section aria-labelledby="saved-memories-heading">
+            <div class="is-flex is-flex-wrap-wrap is-justify-content-space-between is-align-items-center mb-4 memory-section-heading">
+                <div>
+                    <p class="mark-kicker">Durable context</p>
+                    <h2 class="title is-3 mb-1" id="saved-memories-heading">Saved memories</h2>
+                </div>
+                <a class="button is-small is-ghost-forest" href="/memories{% if not include_archived %}?state=all{% endif %}">
+                    {{ 'Show active only' if include_archived else 'Include archived' }}
+                </a>
+            </div>
+
+            {% for memory in memories %}
+            <article class="mark-card p-5 mb-4{% if not memory.active %} memory-is-archived{% endif %}">
+                <div class="is-flex is-flex-wrap-wrap is-justify-content-space-between is-align-items-start memory-card-heading">
+                    <div>
+                        <p class="mark-kicker">{{ memory.memory_type }} · {{ memory.memory_key }}</p>
+                        <h3 class="title is-5 mb-2">Version {{ memory.version }}</h3>
+                    </div>
+                    <div class="tags">
+                        <span class="tag mark-chip">Importance {{ memory.importance }}</span>
+                        <span class="tag mark-chip">{{ memory.sensitivity }}</span>
+                        {% if not memory.active %}<span class="tag is-light">Archived</span>{% endif %}
+                    </div>
+                </div>
+                <p class="memory-value mb-4">{{ memory.memory_value }}</p>
+                <p class="mark-muted is-size-7 mb-4">Source: {{ memory.source }} · Confidence {{ '%.2f'|format(memory.confidence) }} · Updated {{ memory.updated_at }}</p>
+                {% if memory.active %}
+                <div class="buttons memory-actions">
+                    <a class="button is-small is-mark" href="/memories/{{ memory.id }}/edit">Revise</a>
+                    <form method="post" action="/memories/{{ memory.id }}/archive" onsubmit="return confirm('Archive this memory? Its version history will remain available.');">
+                        <input type="hidden" name="expected_version" value="{{ memory.version }}">
+                        <button class="button is-small is-danger is-outlined" type="submit">Archive</button>
+                    </form>
+                </div>
+                {% endif %}
+            </article>
+            {% else %}
+            <div class="mark-card p-6 has-text-centered">
+                <h3 class="title is-5">No {{ 'matching ' if include_archived else 'active ' }}memories yet.</h3>
+                <p class="mark-muted">Use the form to record durable context you want MARK OS to retain.</p>
+            </div>
+            {% endfor %}
+        </section>
+    </div>
+
+    <div class="column is-5">
+        <section class="mark-card mark-card-2 p-5 mb-5" aria-labelledby="add-memory-heading">
+            <p class="mark-kicker">Add memory</p>
+            <h2 class="title is-4" id="add-memory-heading">What should remain useful?</h2>
+            <form method="post" action="/memories">
+                {% set create_mode = true %}
+                {% set memory = none %}
+                {% include "partials/memory_fields.html" %}
+                <button class="button is-mark is-fullwidth" type="submit">Save memory</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+<section class="mt-6" aria-labelledby="candidate-heading">
+    <p class="mark-kicker">Review queue</p>
+    <h2 class="title is-3 mb-2" id="candidate-heading">Pending candidates</h2>
+    <p class="mark-muted mb-4">Candidates never become durable memory until you accept them.</p>
+    <div class="columns is-multiline">
+        {% for candidate in pending_candidates %}
+        <div class="column is-half">
+            <article class="mark-card p-5 h-100">
+                <div class="is-flex is-flex-wrap-wrap is-justify-content-space-between mb-3">
+                    <p class="mark-kicker">{{ candidate.memory_type }} · {{ candidate.memory_key }}</p>
+                    <span class="tag mark-chip">Importance {{ candidate.importance }}</span>
+                </div>
+                <p class="memory-value mb-3">{{ candidate.memory_value }}</p>
+                <p class="mark-muted is-size-7 mb-4">Why suggested: {{ candidate.candidate_reason }}<br>Source: {{ candidate.source }} · Confidence {{ '%.2f'|format(candidate.confidence) }} · {{ candidate.sensitivity }}</p>
+                <div class="memory-candidate-actions">
+                    <form method="post" action="/memories/candidates/{{ candidate.id }}/accept">
+                        <button class="button is-small is-mark" type="submit">Accept</button>
+                    </form>
+                    <form class="memory-reject-form" method="post" action="/memories/candidates/{{ candidate.id }}/reject">
+                        <label class="label is-size-7" for="reason-{{ candidate.id }}">Reason to reject</label>
+                        <div class="field has-addons">
+                            <div class="control is-expanded">
+                                <input class="input is-small" id="reason-{{ candidate.id }}" name="reason" maxlength="1000" required placeholder="Incorrect or no longer useful">
+                            </div>
+                            <div class="control">
+                                <button class="button is-small is-danger is-outlined" type="submit">Reject</button>
+                            </div>
+                        </div>
+                    </form>
+                    <form method="post" action="/memories/candidates/{{ candidate.id }}/archive">
+                        <button class="button is-small is-ghost-forest" type="submit">Archive suggestion</button>
+                    </form>
+                </div>
+            </article>
+        </div>
+        {% else %}
+        <div class="column">
+            <div class="mark-card p-5">
+                <p class="mark-muted">Nothing is waiting for review.</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="mt-6" aria-labelledby="audit-heading">
+    <p class="mark-kicker">Append-only record</p>
+    <h2 class="title is-3 mb-2" id="audit-heading">Recent memory activity</h2>
+    <p class="mark-muted mb-4">This history records lifecycle metadata, not copies of memory contents.</p>
+    <div class="table-container">
+        <table class="table is-fullwidth is-hoverable">
+            <thead><tr><th scope="col">When</th><th scope="col">Event</th><th scope="col">Reference</th><th scope="col">Source</th></tr></thead>
+            <tbody>
+                {% for event in audit_events %}
+                <tr>
+                    <td>{{ event.occurred_at }}</td>
+                    <td>{{ event.event_type|replace('_', ' ')|title }}</td>
+                    <td>{% if event.memory_id %}Memory #{{ event.memory_id }}{% elif event.candidate_id %}Candidate #{{ event.candidate_id }}{% else %}—{% endif %}{% if event.details.version %} · v{{ event.details.version }}{% endif %}</td>
+                    <td>{{ event.source }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4">No memory activity yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

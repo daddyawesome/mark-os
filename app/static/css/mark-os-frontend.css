@@ -1593,6 +1593,54 @@ code { color: var(--field-pine-deep); border: 1px solid rgba(45, 75, 55, 0.25); 
     .mark-sidebar-summary { transform: none !important; }
 }
 
+/* Phase 8.2 Manual Memory Center */
+.memory-value {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.memory-is-archived {
+    opacity: 0.74;
+}
+
+.memory-actions,
+.memory-candidate-actions {
+    align-items: flex-end;
+}
+
+.memory-actions form {
+    display: inline-flex;
+}
+
+.memory-candidate-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.memory-reject-form {
+    flex: 1 1 18rem;
+}
+
+.memory-history-item + .memory-history-item {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--field-border-soft);
+}
+
+@media (max-width: 640px) {
+    .memory-section-heading,
+    .memory-card-heading {
+        gap: 0.75rem;
+    }
+
+    .memory-candidate-actions,
+    .memory-candidate-actions > form:not(.memory-reject-form),
+    .memory-candidate-actions .button {
+        width: 100%;
+    }
+}
+
 /* Phase 6.6C Pendang company workspace */
 .pendang-copy {
     white-space: pre-wrap;

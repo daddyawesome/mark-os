@@ -99,6 +99,13 @@ _QUEST_ACTION_PATTERN = re.compile(
     r"^/quests/[1-9][0-9]*/"
     r"(?:start|block|unblock|abandon|update|complete)$"
 )
+_MEMORY_EDIT_PATTERN = re.compile(r"^/memories/[1-9][0-9]*/edit$")
+_MEMORY_ACTION_PATTERN = re.compile(
+    r"^/memories/[1-9][0-9]*/(?:edit|archive)$"
+)
+_MEMORY_CANDIDATE_ACTION_PATTERN = re.compile(
+    r"^/memories/candidates/[1-9][0-9]*/(?:accept|reject|archive)$"
+)
 
 _LEAD_SOURCER_GET_PATHS = frozenset(
     {
@@ -148,6 +155,7 @@ _MEMBER_GET_PATHS = frozenset(
         "/quests",
         "/goals",
         "/life-os",
+        "/memories",
         "/history",
         "/family/setup",
     }
@@ -158,6 +166,7 @@ _MEMBER_POST_PATHS = frozenset(
         "/check-in",
         "/goals",
         "/quests",
+        "/memories",
         "/logout",
     }
 )
@@ -249,6 +258,7 @@ def _member_can_get(path: str) -> bool:
         path in _MEMBER_GET_PATHS
         or _QUEST_DETAIL_PATTERN.fullmatch(path) is not None
         or _HISTORY_EDIT_PATTERN.fullmatch(path) is not None
+        or _MEMORY_EDIT_PATTERN.fullmatch(path) is not None
     )
 
 
@@ -259,6 +269,8 @@ def _member_can_post(path: str) -> bool:
         or _HISTORY_DELETE_PATTERN.fullmatch(path) is not None
         or _PROJECT_LINK_PATTERN.fullmatch(path) is not None
         or _QUEST_ACTION_PATTERN.fullmatch(path) is not None
+        or _MEMORY_ACTION_PATTERN.fullmatch(path) is not None
+        or _MEMORY_CANDIDATE_ACTION_PATTERN.fullmatch(path) is not None
     )
 
 

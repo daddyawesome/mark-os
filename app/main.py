@@ -30,6 +30,7 @@ from app.routes import (
     lead_sourcing_effort,
     goals,
     insights,
+    memories,
     notifications,
     outreach_templates,
     pages,
@@ -248,6 +249,7 @@ app.include_router(checkins.router)
 app.include_router(quests.router)
 app.include_router(goals.router)
 app.include_router(insights.router)
+app.include_router(memories.router)
 app.include_router(notifications.router)
 app.include_router(client_hunting.router)
 app.include_router(data_portability.router)

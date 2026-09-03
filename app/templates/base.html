@@ -102,6 +102,13 @@
             </a>
 
             <a
+                class="mark-sidebar-link {% if request.url.path.startswith('/memories') %}is-active{% endif %}"
+                href="/memories"
+            >
+                <span>Memory Center</span>
+            </a>
+
+            <a
                 class="mark-sidebar-link {% if request.url.path == '/history' %}is-active{% endif %}"
                 href="/history"
             >
