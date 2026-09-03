@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Insights · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Review // Trends</p>
+    <h1 class="title is-1 mb-2">Insights</h1>
+    <p class="subtitle is-5 mark-muted">
+        Read-only trends from records you are permitted to see.
+    </p>
+</section>
+
+{% if insights.crm %}
+<section class="mb-6" aria-labelledby="crm-insights-title">
+    <h2 class="title is-3" id="crm-insights-title">{{ insights.crm.workspace_name }} CRM</h2>
+    <div class="columns is-multiline">
+        <div class="column is-4"><div class="mark-card p-4"><p class="mark-kicker">Visible leads</p><p class="title is-3">{{ insights.crm.lead_count }}</p></div></div>
+        <div class="column is-4"><div class="mark-card p-4"><p class="mark-kicker">Won</p><p class="title is-3">{{ insights.crm.won_count }}</p></div></div>
+        <div class="column is-4"><div class="mark-card p-4"><p class="mark-kicker">Conversion</p><p class="title is-3">{{ insights.crm.conversion_percent }}%</p></div></div>
+        <div class="column is-6"><div class="mark-card p-4"><h3 class="title is-5">Pipeline</h3><canvas id="pipelineChart" aria-label="Pipeline lead counts" role="img"></canvas></div></div>
+        <div class="column is-6"><div class="mark-card p-4"><h3 class="title is-5">Sources</h3><canvas id="sourceChart" aria-label="Lead source counts" role="img"></canvas></div></div>
+        <div class="column is-6"><div class="mark-card p-4"><h3 class="title is-5">Relationship ownership</h3><canvas id="managerChart" aria-label="Relationship Manager lead counts" role="img"></canvas></div></div>
+        <div class="column is-6"><div class="mark-card p-4"><h3 class="title is-5">Activity · 30 days</h3><canvas id="activityChart" aria-label="Daily CRM activity" role="img"></canvas></div></div>
+    </div>
+</section>
+{% endif %}
+
+{% if insights.personal %}
+<section aria-labelledby="personal-insights-title">
+    <h2 class="title is-3" id="personal-insights-title">Personal trends</h2>
+    <div class="columns is-multiline">
+        <div class="column is-6"><div class="mark-card p-4"><p class="mark-kicker">Recommendations generated</p><p class="title is-3">{{ insights.personal.recommendations_generated }}</p></div></div>
+        <div class="column is-6"><div class="mark-card p-4"><p class="mark-kicker">Completed quests</p><p class="title is-3">{{ insights.personal.completed_quests }}</p></div></div>
+        <div class="column is-6"><div class="mark-card p-4"><h3 class="title is-5">Energy · 30 days</h3><canvas id="energyChart" aria-label="Daily energy trend" role="img"></canvas></div></div>
+        <div class="column is-6"><div class="mark-card p-4"><h3 class="title is-5">Quest status</h3><canvas id="questChart" aria-label="Quest status counts" role="img"></canvas></div></div>
+    </div>
+</section>
+{% endif %}
+
+{% if not insights.crm and not insights.personal %}
+<div class="notification is-light">No insight categories are available for this account.</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+(() => {
+    const data = {{ insights|tojson }};
+    const draw = (id, series, type = "bar") => {
+        const element = document.getElementById(id);
+        if (!element || !series || typeof Chart === "undefined") return;
+        new Chart(element, {type, data: {labels: series.labels, datasets: [{label: "Count", data: series.values, backgroundColor: "#668052", borderColor: "#173c2a", borderWidth: 2}]}, options: {responsive: true, plugins: {legend: {display: false}}, scales: {y: {beginAtZero: true}}}});
+    };
+    if (data.crm) { draw("pipelineChart", data.crm.pipeline); draw("sourceChart", data.crm.sources); draw("managerChart", data.crm.relationship_managers); draw("activityChart", data.crm.activity, "line"); }
+    if (data.personal) { draw("energyChart", data.personal.energy, "line"); draw("questChart", data.personal.quest_status); }
+})();
+</script>
+{% endblock %}

@@ -124,118 +124,154 @@ def create_checkin(
     accomplished: str = Form(default=""),
     blocker: str = Form(default=""),
     notes: str = Form(default=""),
+    request_key: str = Form(default=""),
 ):
     user_id = request_user_id(request)
     energy = max(1, min(5, energy))
     free_hours = max(0, free_hours)
     cash_in = max(0, cash_in)
     expenses = max(0, expenses)
+    safe_request_key = request_key.strip() or None
+    if safe_request_key is not None and len(safe_request_key) > 100:
+        raise HTTPException(status_code=400, detail="Invalid check-in request key.")
 
     with get_db() as db:
-        previous = db.execute(
-            """
-            SELECT cash
-            FROM checkins
-            WHERE user_id = ? AND cash IS NOT NULL
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (user_id,),
-        ).fetchone()
+        existing = None
+        if safe_request_key is not None:
+            existing = db.execute(
+                "SELECT * FROM checkins WHERE user_id = ? AND request_key = ?",
+                (user_id, safe_request_key),
+            ).fetchone()
+        if existing is not None:
+            checkin = existing
+            saved_direction = db.execute(
+                "SELECT * FROM directions WHERE checkin_id = ? AND user_id = ?",
+                (checkin["id"], user_id),
+            ).fetchone()
+        else:
+            previous = db.execute(
+                """
+                SELECT cash
+                FROM checkins
+                WHERE user_id = ? AND cash IS NOT NULL
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
 
-        previous_cash = float(previous["cash"]) if previous else 0
-        new_cash_balance = previous_cash + cash_in - expenses
+            previous_cash = float(previous["cash"]) if previous else 0
+            new_cash_balance = previous_cash + cash_in - expenses
 
-        cursor = db.execute(
-            """
-            INSERT INTO checkins (
-                user_id,
-                cash,
-                cash_in,
-                expenses,
-                free_hours,
-                energy,
-                accomplished,
-                blocker,
-                notes
+            cursor = db.execute(
+                """
+                INSERT INTO checkins (
+                    user_id,
+                    cash,
+                    cash_in,
+                    expenses,
+                    free_hours,
+                    energy,
+                    accomplished,
+                    blocker,
+                    notes,
+                    request_key
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, request_key)
+                WHERE request_key IS NOT NULL DO NOTHING
+                """,
+                (
+                    user_id,
+                    new_cash_balance,
+                    cash_in,
+                    expenses,
+                    free_hours,
+                    energy,
+                    accomplished.strip(),
+                    blocker.strip(),
+                    notes.strip(),
+                    safe_request_key,
+                ),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                user_id,
-                new_cash_balance,
-                cash_in,
-                expenses,
-                free_hours,
-                energy,
-                accomplished.strip(),
-                blocker.strip(),
-                notes.strip(),
-            ),
-        )
-        checkin_id = int(cursor.lastrowid)
+            if cursor.rowcount == 0:
+                checkin = db.execute(
+                    "SELECT * FROM checkins WHERE user_id = ? AND request_key = ?",
+                    (user_id, safe_request_key),
+                ).fetchone()
+                saved_direction = db.execute(
+                    "SELECT * FROM directions WHERE checkin_id = ? AND user_id = ?",
+                    (checkin["id"], user_id),
+                ).fetchone()
+                if saved_direction is None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Check-in retry is still being processed.",
+                    )
+            else:
+                checkin_id = int(cursor.lastrowid)
 
-        checkin = db.execute(
-            """
-            SELECT *
-            FROM checkins
-            WHERE id = ? AND user_id = ?
-            """,
-            (checkin_id, user_id),
-        ).fetchone()
+                checkin = db.execute(
+                    """
+                    SELECT *
+                    FROM checkins
+                    WHERE id = ? AND user_id = ?
+                    """,
+                    (checkin_id, user_id),
+                ).fetchone()
 
-        project = db.execute(
-            """
-            SELECT *
-            FROM projects
-            WHERE user_id = ? AND status = 'active'
-            ORDER BY priority DESC, id
-            LIMIT 1
-            """,
-            (user_id,),
-        ).fetchone()
+                project = db.execute(
+                    """
+                    SELECT *
+                    FROM projects
+                    WHERE user_id = ? AND status = 'active'
+                    ORDER BY priority DESC, id
+                    LIMIT 1
+                    """,
+                    (user_id,),
+                ).fetchone()
 
-        open_quests = load_open_quests(db, user_id)
-        direction = choose_direction(
-            dict(checkin),
-            dict(project) if project else None,
-            previous_cash,
-            open_quests,
-        )
+                open_quests = load_open_quests(db, user_id)
+                direction = choose_direction(
+                    dict(checkin),
+                    dict(project) if project else None,
+                    previous_cash,
+                    open_quests,
+                )
 
-        db.execute(
-            """
-            INSERT INTO directions (
-                user_id,
-                checkin_id,
-                main_quest,
-                why,
-                side_quest_1,
-                side_quest_2,
-                avoid,
-                signal
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                user_id,
-                checkin_id,
-                direction.main_quest,
-                direction.why,
-                direction.side_quest_1,
-                direction.side_quest_2,
-                direction.avoid,
-                direction.signal,
-            ),
-        )
-        saved_direction = db.execute(
-            """
-            SELECT *
-            FROM directions
-            WHERE checkin_id = ? AND user_id = ?
-            """,
-            (checkin_id, user_id),
-        ).fetchone()
+                db.execute(
+                    """
+                    INSERT INTO directions (
+                        user_id,
+                        checkin_id,
+                        main_quest,
+                        why,
+                        side_quest_1,
+                        side_quest_2,
+                        avoid,
+                        signal
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        user_id,
+                        checkin_id,
+                        direction.main_quest,
+                        direction.why,
+                        direction.side_quest_1,
+                        direction.side_quest_2,
+                        direction.avoid,
+                        direction.signal,
+                    ),
+                )
+                saved_direction = db.execute(
+                    """
+                    SELECT *
+                    FROM directions
+                    WHERE checkin_id = ? AND user_id = ?
+                    """,
+                    (checkin_id, user_id),
+                ).fetchone()
 
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse(

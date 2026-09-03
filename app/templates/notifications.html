@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Notifications · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Operations // Nudges</p>
+    <h1 class="title is-1 mb-2">Notifications</h1>
+    <p class="subtitle is-5 mark-muted">
+        Read-only reminders calculated from your permitted records using Manila dates.
+    </p>
+</section>
+
+{% if notifications %}
+<div class="mark-card p-5">
+    <ul>
+    {% for notification in notifications %}
+        <li class="box mb-4">
+            <p class="mark-kicker">{{ notification.kind|replace('_', ' ') }} · {{ notification.due_label }}</p>
+            <h2 class="title is-5 mt-2 mb-2">{{ notification.title }}</h2>
+            <p class="mark-muted mb-3">{{ notification.body }}</p>
+            <a class="button is-small is-mark" href="{{ notification.href }}">Review</a>
+        </li>
+    {% endfor %}
+    </ul>
+</div>
+{% else %}
+<div class="notification is-success is-light" role="status">
+    Nothing needs attention right now.
+</div>
+{% endif %}
+{% endblock %}

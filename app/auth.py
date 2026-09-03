@@ -14,6 +14,11 @@ from app.services.users import (
     get_active_user_by_id,
     has_active_users,
 )
+from app.services.account_security import (
+    create_session,
+    revoke_session,
+    validate_session,
+)
 from app.services.workspace_context import (
     resolve_workspace_session,
     workspace_display_role,
@@ -22,6 +27,7 @@ from app.services.workspace_context import (
 
 SESSION_USER_ID_KEY = "mark_os_user_id"
 SESSION_VERSION_KEY = "mark_os_session_version"
+SESSION_TOKEN_KEY = "mark_os_session_token"
 SESSION_USER_KEY = SESSION_USER_ID_KEY
 
 DEFAULT_SESSION_SECRET = "dev-only-change-this-secret-before-production"
@@ -86,18 +92,36 @@ def sign_in(
             "Authenticated user ID and session version must be positive."
         )
 
+    with get_db() as db:
+        token = create_session(
+            db,
+            user_id=user_id,
+            session_version=session_version,
+        )
+
     request.session.clear()
     request.session[SESSION_USER_ID_KEY] = user_id
     request.session[SESSION_VERSION_KEY] = session_version
+    request.session[SESSION_TOKEN_KEY] = token
 
 
 def sign_out(request: Request) -> None:
+    raw_user_id = request.session.get(SESSION_USER_ID_KEY)
+    token = request.session.get(SESSION_TOKEN_KEY)
+    try:
+        user_id = int(raw_user_id)
+        if isinstance(token, str):
+            with get_db() as db:
+                revoke_session(db, token=token, user_id=user_id)
+    except (TypeError, ValueError, sqlite3.Error):
+        pass
     request.session.clear()
 
 
 def current_user(request: Request) -> dict[str, Any] | None:
     raw_user_id = request.session.get(SESSION_USER_ID_KEY)
     raw_session_version = request.session.get(SESSION_VERSION_KEY)
+    raw_session_token = request.session.get(SESSION_TOKEN_KEY)
 
     try:
         user_id = int(raw_user_id)
@@ -106,7 +130,11 @@ def current_user(request: Request) -> dict[str, Any] | None:
         request.session.clear()
         return None
 
-    if user_id <= 0 or session_version <= 0:
+    if (
+        user_id <= 0
+        or session_version <= 0
+        or not isinstance(raw_session_token, str)
+    ):
         request.session.clear()
         return None
 
@@ -117,6 +145,16 @@ def current_user(request: Request) -> dict[str, Any] | None:
                 user is None
                 or int(user["session_version"]) != session_version
             ):
+                request.session.clear()
+                return None
+
+            session_id = validate_session(
+                db,
+                token=raw_session_token,
+                user_id=user_id,
+                session_version=session_version,
+            )
+            if session_id is None:
                 request.session.clear()
                 return None
 
@@ -131,6 +169,7 @@ def current_user(request: Request) -> dict[str, Any] | None:
     user["current_workspace"] = current_workspace
     user["authorized_workspaces"] = authorized
     user["workspace_display_role"] = workspace_display_role(user)
+    user["current_session_id"] = session_id
     return user
 
 

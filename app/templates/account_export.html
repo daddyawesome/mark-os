@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Export your data · MARK OS{% endblock %}
+{% block content %}
+<section class="mark-hero p-6 mb-5">
+    <p class="mark-kicker">Account // Portability</p>
+    <h1 class="title is-1 mb-2">Export your data</h1>
+    <p class="subtitle is-5 mark-muted">Downloads contain only records this account is permitted to access. Authentication secrets are never included.</p>
+</section>
+<div class="columns">
+    <div class="column is-6"><div class="mark-card p-5"><h2 class="title is-4">Complete package</h2><div class="buttons"><a class="button is-mark" href="/account/export/download?format=json">Download JSON</a><a class="button is-light" href="/account/export/download?format=zip">Download ZIP</a></div></div></div>
+    <div class="column is-6"><div class="mark-card p-5"><h2 class="title is-4">CSV by table</h2><ul>{% for table in table_names %}<li class="mb-2"><a href="/account/export/download?format=csv&amp;table={{ table }}">{{ table|replace('_', ' ')|title }} CSV</a></li>{% endfor %}</ul></div></div>
+</div>
+{% endblock %}

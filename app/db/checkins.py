@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS checkins (
     accomplished TEXT NOT NULL DEFAULT '',
     blocker TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
+    request_key TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -37,10 +38,15 @@ CREATE TABLE IF NOT EXISTS directions (
 INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_checkins_date
 ON checkins(checkin_date);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_checkins_user_request_key
+ON checkins(user_id, request_key)
+WHERE request_key IS NOT NULL;
 """
 
 
 def migrate(db: sqlite3.Connection) -> None:
+    ensure_column(db, "checkins", "request_key", "TEXT")
     ensure_column(db, "checkins", "cash_in", "REAL")
     ensure_column(db, "checkins", "updated_at", "TEXT")
     db.execute(
@@ -50,4 +56,3 @@ def migrate(db: sqlite3.Connection) -> None:
         WHERE updated_at IS NULL OR updated_at = ''
         """
     )
-

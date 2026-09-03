@@ -9,7 +9,7 @@ import pytest
 from fastapi import Request
 from fastapi.responses import PlainTextResponse
 
-from app import main
+from app import database, main
 from app.routes import auth as auth_routes
 from app.services.observability import (
     LOGGER_NAME,
@@ -273,9 +273,12 @@ def test_startup_logs_database_initialization_failure(
 
 
 def test_failed_login_logs_summary_without_username_or_password(
+    tmp_path,
     monkeypatch,
     captured_events,
 ):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "login-observability.db")
+    database.init_db()
     request = _request(
         path="/login",
         method="POST",

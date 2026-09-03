@@ -53,7 +53,9 @@
         <div class="mark-card p-5">
             <p class="mark-kicker">Daily Check-in</p>
             <h2 class="title is-4">Feed reality into the system.</h2>
-            <form method="post" action="/check-in" hx-post="/check-in" hx-target="#direction-panel" hx-swap="innerHTML">
+            <form method="post" action="/check-in" hx-post="/check-in" hx-target="#direction-panel" hx-swap="innerHTML" data-offline-checkin>
+                <input type="hidden" name="request_key" data-checkin-request-key>
+                <p class="notification is-warning is-light is-hidden" role="status" data-offline-checkin-status></p>
                 <div class="columns">
                     <div class="field">
     <label class="label has-text-success-light">Cash In Today</label>

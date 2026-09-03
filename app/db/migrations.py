@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 
 from app.db import (
+    account_security,
     agent_audit,
     billing,
     chat,
@@ -35,6 +36,7 @@ from app.db import lead_activities
 SCHEMA_SQL = "\n".join(
     (
         users.SCHEMA_SQL,
+        account_security.SCHEMA_SQL,
         organizations.SCHEMA_SQL,
         pendang_company.SCHEMA_SQL,
         playbooks.SCHEMA_SQL,
@@ -60,6 +62,7 @@ SCHEMA_SQL = "\n".join(
 INDEX_SQL = "\n".join(
     (
         users.INDEX_SQL,
+        account_security.INDEX_SQL,
         organizations.INDEX_SQL,
         pendang_company.INDEX_SQL,
         playbooks.INDEX_SQL,
@@ -96,6 +99,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     users.migrate(db)
     users.migrate_family_roles(db)
     users.validate_schema(db)
+    account_security.validate_schema(db)
     users.bootstrap_owner_from_environment(db)
     organizations.ensure_owner_workspace_memberships(db)
     organizations.ensure_legacy_crm_workspace_memberships(db)
@@ -149,6 +153,7 @@ def initialize_database(db: sqlite3.Connection) -> None:
     relationship_manager.validate_indexes(db)
     playbooks.validate_indexes(db)
     users.validate_indexes(db)
+    account_security.validate_indexes(db)
     lead_activities.validate_indexes(db)
 
     quests.backfill(db)
